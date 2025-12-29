@@ -9,7 +9,8 @@ type JsonType =
 
 function merge(a: JsonType, b: JsonType): JsonType {
   if (a.kind === b.kind) {
-    if (a.kind === "array") return { kind: "array", items: merge(a.items, (b as any).items) };
+    if (a.kind === "array")
+      return { kind: "array", items: merge(a.items, (b as any).items) };
     if (a.kind === "object") {
       const af = a.fields;
       const bf = (b as any).fields as Record<string, JsonType>;
@@ -28,9 +29,11 @@ function merge(a: JsonType, b: JsonType): JsonType {
 
   // de-dup by string signature
   const sig = (t: JsonType): string => {
-    if (t.kind === "object") return `object(${Object.keys(t.fields).sort().join(",")})`;
+    if (t.kind === "object")
+      return `object(${Object.keys(t.fields).sort().join(",")})`;
     if (t.kind === "array") return `array(${sig(t.items)})`;
-    if (t.kind === "union") return `union(${t.options.map(sig).sort().join("|")})`;
+    if (t.kind === "union")
+      return `union(${t.options.map(sig).sort().join("|")})`;
     return t.kind;
   };
 
@@ -51,7 +54,9 @@ function inferOne(value: any): JsonType {
   if (value === null) return { kind: "null" };
   if (Array.isArray(value)) {
     if (value.length === 0) return { kind: "array", items: { kind: "null" } };
-    return value.map(inferOne).reduce((acc, t) => merge(acc, t), { kind: "null" } as JsonType) as any;
+    return value
+      .map(inferOne)
+      .reduce((acc, t) => merge(acc, t), { kind: "null" } as JsonType) as any;
   }
   switch (typeof value) {
     case "boolean":
@@ -88,7 +93,7 @@ export function schemaToPretty(schema: JsonType, indent = 0): string {
       return schema.options.map((o) => schemaToPretty(o, indent)).join(" | ");
     case "object": {
       const lines = Object.entries(schema.fields).map(
-        ([k, v]) => `${pad(indent + 2)}${k}: ${schemaToPretty(v, indent + 2)}`
+        ([k, v]) => `${pad(indent + 2)}${k}: ${schemaToPretty(v, indent + 2)}`,
       );
       return `{\n${lines.join("\n")}\n${pad(indent)}}`;
     }

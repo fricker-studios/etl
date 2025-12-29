@@ -1,4 +1,13 @@
-import { Group, Title, Text, Button, Stack, Card, Table, Badge } from "@mantine/core";
+import {
+  Group,
+  Title,
+  Text,
+  Button,
+  Stack,
+  Card,
+  Table,
+  Badge,
+} from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useAppStore } from "../store/useAppStore";
 import { ModelWizard } from "../features/models/ModelWizard";
@@ -12,7 +21,9 @@ export function ModelsPage() {
       <Group justify="space-between" align="flex-end">
         <div>
           <Title order={2}>Models</Title>
-          <Text c="dimmed">Define semantic structure using Data Vault or Dimensional modeling.</Text>
+          <Text c="dimmed">
+            Define semantic structure using Data Vault or Dimensional modeling.
+          </Text>
         </div>
         <Button onClick={openIt}>New model</Button>
       </Group>
@@ -30,7 +41,9 @@ export function ModelsPage() {
             {models.map((m: any) => (
               <Table.Tr key={m.id}>
                 <Table.Td>{m.name}</Table.Td>
-                <Table.Td><Badge variant="light">{m.type}</Badge></Table.Td>
+                <Table.Td>
+                  <Badge variant="light">{m.type}</Badge>
+                </Table.Td>
                 <Table.Td>{m.packages?.length ?? 0}</Table.Td>
               </Table.Tr>
             ))}

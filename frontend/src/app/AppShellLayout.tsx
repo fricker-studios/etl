@@ -1,4 +1,13 @@
-import { AppShell, Burger, Group, NavLink, Text, Box, ActionIcon, Tooltip } from "@mantine/core";
+import {
+  AppShell,
+  Burger,
+  Group,
+  NavLink,
+  Text,
+  Box,
+  ActionIcon,
+  Tooltip,
+} from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -37,7 +46,12 @@ export function AppShellLayout() {
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between">
           <Group>
-            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
+            <Burger
+              opened={opened}
+              onClick={toggle}
+              hiddenFrom="sm"
+              size="sm"
+            />
             <Group gap={10}>
               <Box
                 w={28}
@@ -66,9 +80,10 @@ export function AppShellLayout() {
 
       <AppShell.Navbar p="sm">
         {items.map((it) => {
-          const active = it.path === "/"
-            ? location.pathname === "/"
-            : location.pathname.startsWith(it.path);
+          const active =
+            it.path === "/"
+              ? location.pathname === "/"
+              : location.pathname.startsWith(it.path);
           const Icon = it.icon;
           return (
             <NavLink
@@ -83,7 +98,8 @@ export function AppShellLayout() {
           );
         })}
         <Text c="dimmed" size="xs" mt="md" px="xs">
-          Tip: Everything is saved to localStorage so you can refresh without losing your setup.
+          Tip: Everything is saved to localStorage so you can refresh without
+          losing your setup.
         </Text>
       </AppShell.Navbar>
 

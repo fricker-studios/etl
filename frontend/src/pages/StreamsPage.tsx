@@ -1,4 +1,13 @@
-import { Group, Title, Text, Button, Card, Stack, Table, Badge } from "@mantine/core";
+import {
+  Group,
+  Title,
+  Text,
+  Button,
+  Card,
+  Stack,
+  Table,
+  Badge,
+} from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useAppStore } from "../store/useAppStore";
 import { StreamDrawer } from "../features/sources/StreamDrawer";
@@ -7,7 +16,8 @@ export function StreamsPage() {
   const [open, { open: openIt, close }] = useDisclosure(false);
   const { streams, apiSources } = useAppStore();
 
-  const sourceName = (id: string) => apiSources.find((s) => s.id === id)?.name ?? "Unknown";
+  const sourceName = (id: string) =>
+    apiSources.find((s) => s.id === id)?.name ?? "Unknown";
 
   return (
     <Stack>
@@ -15,7 +25,8 @@ export function StreamsPage() {
         <div>
           <Title order={2}>Streams</Title>
           <Text c="dimmed">
-            Streams are API endpoints + request config. Add a preview JSON to infer schema.
+            Streams are API endpoints + request config. Add a preview JSON to
+            infer schema.
           </Text>
         </div>
         <Button onClick={openIt}>Add stream</Button>
@@ -37,10 +48,18 @@ export function StreamsPage() {
               <Table.Tr key={st.id}>
                 <Table.Td>{st.name}</Table.Td>
                 <Table.Td>{sourceName(st.apiSourceId)}</Table.Td>
-                <Table.Td><Badge variant="light">{st.method}</Badge></Table.Td>
+                <Table.Td>
+                  <Badge variant="light">{st.method}</Badge>
+                </Table.Td>
                 <Table.Td>{st.path}</Table.Td>
                 <Table.Td>
-                  {st.inferredSchema ? <Badge color="teal" variant="light">Inferred</Badge> : <Badge variant="light">Missing</Badge>}
+                  {st.inferredSchema ? (
+                    <Badge color="teal" variant="light">
+                      Inferred
+                    </Badge>
+                  ) : (
+                    <Badge variant="light">Missing</Badge>
+                  )}
                 </Table.Td>
               </Table.Tr>
             ))}

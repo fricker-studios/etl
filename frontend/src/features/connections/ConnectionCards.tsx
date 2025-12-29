@@ -1,4 +1,12 @@
-import { Card, Group, Text, Button, Badge, SimpleGrid, Stack } from "@mantine/core";
+import {
+  Card,
+  Group,
+  Text,
+  Button,
+  Badge,
+  SimpleGrid,
+  Stack,
+} from "@mantine/core";
 import { useAppStore } from "../../store/useAppStore";
 import { notifications } from "@mantine/notifications";
 
@@ -10,7 +18,8 @@ export function ConnectionCards() {
       <Card withBorder>
         <Text fw={600}>No connections yet</Text>
         <Text c="dimmed" mt={6}>
-          Add S3 to store raw “data packages”, or ClickHouse for fast analytics + modeling.
+          Add S3 to store raw “data packages”, or ClickHouse for fast analytics
+          + modeling.
         </Text>
       </Card>
     );
@@ -28,9 +37,19 @@ export function ConnectionCards() {
 
             {b.kind === "s3" ? (
               <>
-                <Text size="sm" c="dimmed">{b.endpoint}</Text>
-                <Text size="sm">Bucket: <Text span fw={600}>{b.bucket}</Text></Text>
-                <Text size="sm" c="dimmed">Path-style: {String(b.pathStyle)} · TLS verify: {String(b.tlsVerify)}</Text>
+                <Text size="sm" c="dimmed">
+                  {b.endpoint}
+                </Text>
+                <Text size="sm">
+                  Bucket:{" "}
+                  <Text span fw={600}>
+                    {b.bucket}
+                  </Text>
+                </Text>
+                <Text size="sm" c="dimmed">
+                  Path-style: {String(b.pathStyle)} · TLS verify:{" "}
+                  {String(b.tlsVerify)}
+                </Text>
               </>
             ) : (
               <>
@@ -40,7 +59,12 @@ export function ConnectionCards() {
                 <Text size="sm">
                   Hosts: {b.hosts.map((h) => `${h.host}:${h.port}`).join(", ")}
                 </Text>
-                <Text size="sm">DB: <Text span fw={600}>{b.database}</Text></Text>
+                <Text size="sm">
+                  DB:{" "}
+                  <Text span fw={600}>
+                    {b.database}
+                  </Text>
+                </Text>
               </>
             )}
 
@@ -50,7 +74,10 @@ export function ConnectionCards() {
                 variant="light"
                 onClick={() => {
                   removeStorageBackend(b.id);
-                  notifications.show({ message: "Connection removed", color: "red" });
+                  notifications.show({
+                    message: "Connection removed",
+                    color: "red",
+                  });
                 }}
               >
                 Remove

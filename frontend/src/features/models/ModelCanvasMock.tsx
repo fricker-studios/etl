@@ -1,7 +1,11 @@
 import { Card, Group, Badge, Text, SimpleGrid, Stack } from "@mantine/core";
 import { IconCircleFilled } from "@tabler/icons-react";
 
-export function ModelCanvasMock({ type }: { type: "data_vault" | "dimensional" }) {
+export function ModelCanvasMock({
+  type,
+}: {
+  type: "data_vault" | "dimensional";
+}) {
   if (type === "data_vault") {
     return (
       <SimpleGrid cols={{ base: 1, md: 3 }}>
@@ -29,8 +33,14 @@ export function ModelCanvasMock({ type }: { type: "data_vault" | "dimensional" }
             <Badge variant="light">Link</Badge>
           </Group>
           <Stack gap={4} mt="sm">
-            <Group gap={6}><IconCircleFilled size={10} /><Text size="sm">HubCustomer</Text></Group>
-            <Group gap={6}><IconCircleFilled size={10} /><Text size="sm">HubOrder</Text></Group>
+            <Group gap={6}>
+              <IconCircleFilled size={10} />
+              <Text size="sm">HubCustomer</Text>
+            </Group>
+            <Group gap={6}>
+              <IconCircleFilled size={10} />
+              <Text size="sm">HubOrder</Text>
+            </Group>
           </Stack>
         </Card>
       </SimpleGrid>

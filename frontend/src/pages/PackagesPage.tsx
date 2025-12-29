@@ -1,4 +1,13 @@
-import { Badge, Button, Card, Group, Stack, Table, Text, Title } from "@mantine/core";
+import {
+  Badge,
+  Button,
+  Card,
+  Group,
+  Stack,
+  Table,
+  Text,
+  Title,
+} from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useAppStore } from "../store/useAppStore";
 import { PackageDrawer } from "../features/packages/PackageDrawer";
@@ -7,14 +16,18 @@ export function PackagesPage() {
   const [open, { open: openIt, close }] = useDisclosure(false);
   const { packages, streams } = useAppStore();
 
-  const streamName = (id: string) => streams.find((s) => s.id === id)?.name ?? "Unknown";
+  const streamName = (id: string) =>
+    streams.find((s) => s.id === id)?.name ?? "Unknown";
 
   return (
     <Stack>
       <Group justify="space-between" align="flex-end">
         <div>
           <Title order={2}>Data Packages</Title>
-          <Text c="dimmed">A package is a captured dataset produced by a stream and stored in a destination.</Text>
+          <Text c="dimmed">
+            A package is a captured dataset produced by a stream and stored in a
+            destination.
+          </Text>
         </div>
         <Button onClick={openIt} disabled={streams.length === 0}>
           New package
@@ -40,7 +53,13 @@ export function PackagesPage() {
                 <Table.Td>
                   <Badge
                     variant="light"
-                    color={p.status === "materialized" ? "teal" : p.status === "failed" ? "red" : "gray"}
+                    color={
+                      p.status === "materialized"
+                        ? "teal"
+                        : p.status === "failed"
+                          ? "red"
+                          : "gray"
+                    }
                   >
                     {p.status}
                   </Badge>

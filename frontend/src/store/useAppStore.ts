@@ -41,7 +41,13 @@ export type ApiSource = {
 
 export type Pagination =
   | { type: "none" }
-  | { type: "page"; pageParam: string; sizeParam?: string; pageStart: number; pageSize?: number }
+  | {
+      type: "page";
+      pageParam: string;
+      sizeParam?: string;
+      pageStart: number;
+      pageSize?: number;
+    }
   | { type: "cursor"; cursorParam: string; cursorPathInResponse: string };
 
 export type Stream = {
@@ -83,7 +89,12 @@ export type Model =
       name: string;
       type: "dimensional";
       packages: string[];
-      facts: { name: string; grain: string; measures: string[]; dimensions: string[] }[];
+      facts: {
+        name: string;
+        grain: string;
+        measures: string[];
+        dimensions: string[];
+      }[];
       dimensions: { name: string; key: string; attributes: string[] }[];
     };
 
@@ -102,7 +113,11 @@ type AppState = {
 
   upsertStream: (s: Omit<Stream, "id"> & { id?: string }) => void;
   removeStream: (id: string) => void;
-  setStreamPreview: (id: string, previewJson: unknown, inferredSchema: unknown) => void;
+  setStreamPreview: (
+    id: string,
+    previewJson: unknown,
+    inferredSchema: unknown,
+  ) => void;
 
   addPackage: (p: Omit<DataPackage, "id" | "createdAt" | "status">) => void;
   updatePackage: (id: string, patch: Partial<DataPackage>) => void;
@@ -115,7 +130,12 @@ type AppState = {
 
 const KEY = "etl_ui_state_v1";
 
-const initial = loadJson<Pick<AppState, "storageBackends" | "apiSources" | "streams" | "packages" | "models">>(KEY, {
+const initial = loadJson<
+  Pick<
+    AppState,
+    "storageBackends" | "apiSources" | "streams" | "packages" | "models"
+  >
+>(KEY, {
   storageBackends: [],
   apiSources: [],
   streams: [],
@@ -176,7 +196,9 @@ export const useAppStore = create<AppState>((set, _) => ({
 
   setStreamPreview: (id, previewJson, inferredSchema) =>
     set((st) => {
-      const next = st.streams.map((x) => (x.id === id ? { ...x, previewJson, inferredSchema } : x));
+      const next = st.streams.map((x) =>
+        x.id === id ? { ...x, previewJson, inferredSchema } : x,
+      );
       saveJson(KEY, { ...st, streams: next });
       return { streams: next };
     }),
@@ -198,7 +220,9 @@ export const useAppStore = create<AppState>((set, _) => ({
 
   updatePackage: (id, patch) =>
     set((st) => {
-      const next = st.packages.map((x) => (x.id === id ? { ...x, ...patch } : x));
+      const next = st.packages.map((x) =>
+        x.id === id ? { ...x, ...patch } : x,
+      );
       saveJson(KEY, { ...st, packages: next });
       return { packages: next };
     }),
@@ -207,7 +231,9 @@ export const useAppStore = create<AppState>((set, _) => ({
     set((st) => {
       const id = (m as any).id ?? nanoid();
       const next = st.models.some((x: any) => (x as any).id === id)
-        ? st.models.map((x: any) => ((x as any).id === id ? { ...x, ...m, id } : x))
+        ? st.models.map((x: any) =>
+            (x as any).id === id ? { ...x, ...m, id } : x,
+          )
         : [...st.models, { ...(m as any), id }];
       saveJson(KEY, { ...st, models: next });
       return { models: next };
@@ -222,7 +248,13 @@ export const useAppStore = create<AppState>((set, _) => ({
 
   resetAll: () =>
     set(() => {
-      const next = { storageBackends: [], apiSources: [], streams: [], packages: [], models: [] };
+      const next = {
+        storageBackends: [],
+        apiSources: [],
+        streams: [],
+        packages: [],
+        models: [],
+      };
       saveJson(KEY, next);
       return next as any;
     }),

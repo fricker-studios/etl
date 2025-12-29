@@ -60,7 +60,14 @@ export function ConnectionWizard({ opened, onClose }: Props) {
     } else {
       const schema = z.object({
         name: z.string().min(2),
-        hosts: z.array(z.object({ host: z.string().min(1), port: z.number().int().min(1) })).min(1),
+        hosts: z
+          .array(
+            z.object({
+              host: z.string().min(1),
+              port: z.number().int().min(1),
+            }),
+          )
+          .min(1),
         database: z.string().min(1),
         username: z.string().min(1),
       });
@@ -80,7 +87,10 @@ export function ConnectionWizard({ opened, onClose }: Props) {
       setActive(0);
       onClose();
     } catch (e: any) {
-      notifications.show({ message: e?.message ?? "Validation error", color: "red" });
+      notifications.show({
+        message: e?.message ?? "Validation error",
+        color: "red",
+      });
     }
   };
 
@@ -95,7 +105,10 @@ export function ConnectionWizard({ opened, onClose }: Props) {
               onChange={(v) => setKind((v as any) ?? "s3")}
               data={[
                 { value: "s3", label: "S3-compatible (raw packages)" },
-                { value: "clickhouse", label: "ClickHouse (analytics + modeling)" },
+                {
+                  value: "clickhouse",
+                  label: "ClickHouse (analytics + modeling)",
+                },
               ]}
             />
             <Divider />
@@ -108,7 +121,11 @@ export function ConnectionWizard({ opened, onClose }: Props) {
         <Stepper.Step label="Configure">
           {kind === "s3" ? (
             <Stack>
-              <TextInput label="Name" value={s3.name} onChange={(e) => setS3({ ...s3, name: e.target.value })} />
+              <TextInput
+                label="Name"
+                value={s3.name}
+                onChange={(e) => setS3({ ...s3, name: e.target.value })}
+              />
               <TextInput
                 label="Endpoint"
                 value={s3.endpoint}
@@ -116,42 +133,64 @@ export function ConnectionWizard({ opened, onClose }: Props) {
                 description="Supports AWS S3, MinIO, Ceph RGW (path-style often required)"
               />
               <SimpleGrid cols={2}>
-                <TextInput label="Region" value={s3.region} onChange={(e) => setS3({ ...s3, region: e.target.value })} />
-                <TextInput label="Bucket" value={s3.bucket} onChange={(e) => setS3({ ...s3, bucket: e.target.value })} />
+                <TextInput
+                  label="Region"
+                  value={s3.region}
+                  onChange={(e) => setS3({ ...s3, region: e.target.value })}
+                />
+                <TextInput
+                  label="Bucket"
+                  value={s3.bucket}
+                  onChange={(e) => setS3({ ...s3, bucket: e.target.value })}
+                />
               </SimpleGrid>
               <SimpleGrid cols={2}>
                 <TextInput
                   label="Access Key ID"
                   value={s3.accessKeyId}
-                  onChange={(e) => setS3({ ...s3, accessKeyId: e.target.value })}
+                  onChange={(e) =>
+                    setS3({ ...s3, accessKeyId: e.target.value })
+                  }
                 />
                 <TextInput
                   label="Secret Access Key"
                   type="password"
                   value={s3.secretAccessKey}
-                  onChange={(e) => setS3({ ...s3, secretAccessKey: e.target.value })}
+                  onChange={(e) =>
+                    setS3({ ...s3, secretAccessKey: e.target.value })
+                  }
                 />
               </SimpleGrid>
               <Group>
                 <Switch
                   label="Path-style addressing"
                   checked={s3.pathStyle}
-                  onChange={(e) => setS3({ ...s3, pathStyle: e.currentTarget.checked })}
+                  onChange={(e) =>
+                    setS3({ ...s3, pathStyle: e.currentTarget.checked })
+                  }
                 />
                 <Switch
                   label="Verify TLS certificates"
                   checked={s3.tlsVerify}
-                  onChange={(e) => setS3({ ...s3, tlsVerify: e.currentTarget.checked })}
+                  onChange={(e) =>
+                    setS3({ ...s3, tlsVerify: e.currentTarget.checked })
+                  }
                 />
               </Group>
               <Group justify="space-between">
-                <Button variant="light" onClick={back}>Back</Button>
+                <Button variant="light" onClick={back}>
+                  Back
+                </Button>
                 <Button onClick={next}>Next</Button>
               </Group>
             </Stack>
           ) : (
             <Stack>
-              <TextInput label="Name" value={ch.name} onChange={(e) => setCh({ ...ch, name: e.target.value })} />
+              <TextInput
+                label="Name"
+                value={ch.name}
+                onChange={(e) => setCh({ ...ch, name: e.target.value })}
+              />
               <Select
                 label="Mode"
                 value={ch.mode}
@@ -187,7 +226,12 @@ export function ConnectionWizard({ opened, onClose }: Props) {
               <Group>
                 <Button
                   variant="light"
-                  onClick={() => setCh({ ...ch, hosts: [...ch.hosts, { host: "", port: 8123 }] })}
+                  onClick={() =>
+                    setCh({
+                      ...ch,
+                      hosts: [...ch.hosts, { host: "", port: 8123 }],
+                    })
+                  }
                 >
                   Add host
                 </Button>
@@ -195,22 +239,45 @@ export function ConnectionWizard({ opened, onClose }: Props) {
                   <Button
                     variant="light"
                     color="red"
-                    onClick={() => setCh({ ...ch, hosts: ch.hosts.slice(0, -1) })}
+                    onClick={() =>
+                      setCh({ ...ch, hosts: ch.hosts.slice(0, -1) })
+                    }
                   >
                     Remove last
                   </Button>
                 )}
               </Group>
               <SimpleGrid cols={2}>
-                <TextInput label="Database" value={ch.database} onChange={(e) => setCh({ ...ch, database: e.target.value })} />
-                <Switch label="Secure (HTTPS)" checked={ch.secure} onChange={(e) => setCh({ ...ch, secure: e.currentTarget.checked })} />
+                <TextInput
+                  label="Database"
+                  value={ch.database}
+                  onChange={(e) => setCh({ ...ch, database: e.target.value })}
+                />
+                <Switch
+                  label="Secure (HTTPS)"
+                  checked={ch.secure}
+                  onChange={(e) =>
+                    setCh({ ...ch, secure: e.currentTarget.checked })
+                  }
+                />
               </SimpleGrid>
               <SimpleGrid cols={2}>
-                <TextInput label="Username" value={ch.username} onChange={(e) => setCh({ ...ch, username: e.target.value })} />
-                <TextInput label="Password" type="password" value={ch.password} onChange={(e) => setCh({ ...ch, password: e.target.value })} />
+                <TextInput
+                  label="Username"
+                  value={ch.username}
+                  onChange={(e) => setCh({ ...ch, username: e.target.value })}
+                />
+                <TextInput
+                  label="Password"
+                  type="password"
+                  value={ch.password}
+                  onChange={(e) => setCh({ ...ch, password: e.target.value })}
+                />
               </SimpleGrid>
               <Group justify="space-between">
-                <Button variant="light" onClick={back}>Back</Button>
+                <Button variant="light" onClick={back}>
+                  Back
+                </Button>
                 <Button onClick={next}>Next</Button>
               </Group>
             </Stack>
@@ -221,10 +288,16 @@ export function ConnectionWizard({ opened, onClose }: Props) {
           <Stack>
             <Divider label="Summary" />
             <pre style={{ margin: 0, fontSize: 12, opacity: 0.9 }}>
-              {JSON.stringify(kind === "s3" ? { kind, ...s3 } : { kind, ...ch }, null, 2)}
+              {JSON.stringify(
+                kind === "s3" ? { kind, ...s3 } : { kind, ...ch },
+                null,
+                2,
+              )}
             </pre>
             <Group justify="space-between">
-              <Button variant="light" onClick={back}>Back</Button>
+              <Button variant="light" onClick={back}>
+                Back
+              </Button>
               <Button onClick={save}>Save connection</Button>
             </Group>
           </Stack>

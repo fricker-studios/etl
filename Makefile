@@ -45,17 +45,17 @@ migrations: build
 
 runserver: migrate
 	docker compose up -d api
-	node frontend/.yarn/releases/yarn-4.9.2.cjs --cwd frontend run dev
+	npm --prefix=frontend run dev
 
 pretty:
 	docker compose up -d api
 	docker compose run --rm api black .
-	node frontend/.yarn/releases/yarn-4.9.2.cjs --cwd frontend run prettier:write
+	npm --prefix=frontend run prettier:write
 
 lint:
 	docker compose up -d api
 	docker compose run --rm api flake8 .
-	node frontend/.yarn/releases/yarn-4.9.2.cjs --cwd frontend run eslint
+	npm --prefix=frontend run eslint
 
 storybook:
-	node frontend/.yarn/releases/yarn-4.9.2.cjs --cwd frontend run storybook
+	npm --prefix=frontend run storybook

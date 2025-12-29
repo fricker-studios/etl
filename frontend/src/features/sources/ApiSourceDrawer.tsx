@@ -14,7 +14,13 @@ import { useAppStore } from "../../store/useAppStore";
 import { notifications } from "@mantine/notifications";
 import { z } from "zod";
 
-export function ApiSourceDrawer({ opened, onClose }: { opened: boolean; onClose: () => void }) {
+export function ApiSourceDrawer({
+  opened,
+  onClose,
+}: {
+  opened: boolean;
+  onClose: () => void;
+}) {
   const upsert = useAppStore((s) => s.upsertApiSource);
 
   const [form, setForm] = useState({
@@ -50,14 +56,27 @@ export function ApiSourceDrawer({ opened, onClose }: { opened: boolean; onClose:
       notifications.show({ message: "API source saved", color: "teal" });
       onClose();
     } catch (e: any) {
-      notifications.show({ message: e?.message ?? "Validation error", color: "red" });
+      notifications.show({
+        message: e?.message ?? "Validation error",
+        color: "red",
+      });
     }
   };
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="Add API source" position="right" size="lg">
+    <Drawer
+      opened={opened}
+      onClose={onClose}
+      title="Add API source"
+      position="right"
+      size="lg"
+    >
       <Stack>
-        <TextInput label="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+        <TextInput
+          label="Name"
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+        />
         <TextInput
           label="Base URL"
           value={form.baseUrl}
@@ -87,25 +106,47 @@ export function ApiSourceDrawer({ opened, onClose }: { opened: boolean; onClose:
 
         {form.authType === "basic" && (
           <SimpleGrid cols={2}>
-            <TextInput label="Username" value={form.basicUser} onChange={(e) => setForm({ ...form, basicUser: e.target.value })} />
-            <TextInput label="Password" type="password" value={form.basicPass} onChange={(e) => setForm({ ...form, basicPass: e.target.value })} />
+            <TextInput
+              label="Username"
+              value={form.basicUser}
+              onChange={(e) => setForm({ ...form, basicUser: e.target.value })}
+            />
+            <TextInput
+              label="Password"
+              type="password"
+              value={form.basicPass}
+              onChange={(e) => setForm({ ...form, basicPass: e.target.value })}
+            />
           </SimpleGrid>
         )}
 
         {form.authType === "header" && (
           <SimpleGrid cols={2}>
-            <TextInput label="Header name" value={form.headerName} onChange={(e) => setForm({ ...form, headerName: e.target.value })} />
-            <TextInput label="Header value" value={form.headerValue} onChange={(e) => setForm({ ...form, headerValue: e.target.value })} />
+            <TextInput
+              label="Header name"
+              value={form.headerName}
+              onChange={(e) => setForm({ ...form, headerName: e.target.value })}
+            />
+            <TextInput
+              label="Header value"
+              value={form.headerValue}
+              onChange={(e) =>
+                setForm({ ...form, headerValue: e.target.value })
+              }
+            />
           </SimpleGrid>
         )}
 
         <Divider />
         <Text c="dimmed" size="sm">
-          This frontend does not call external APIs; preview JSON is provided manually or via the mock generator in Streams.
+          This frontend does not call external APIs; preview JSON is provided
+          manually or via the mock generator in Streams.
         </Text>
 
         <Group justify="flex-end">
-          <Button variant="light" onClick={onClose}>Cancel</Button>
+          <Button variant="light" onClick={onClose}>
+            Cancel
+          </Button>
           <Button onClick={save}>Save</Button>
         </Group>
       </Stack>

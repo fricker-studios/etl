@@ -15,7 +15,13 @@ import { useAppStore } from "../../store/useAppStore";
 import { notifications } from "@mantine/notifications";
 import { ModelCanvasMock } from "./ModelCanvasMock";
 
-export function ModelWizard({ opened, onClose }: { opened: boolean; onClose: () => void }) {
+export function ModelWizard({
+  opened,
+  onClose,
+}: {
+  opened: boolean;
+  onClose: () => void;
+}) {
   const { packages, upsertModel } = useAppStore();
   const [active, setActive] = useState(0);
 
@@ -23,7 +29,10 @@ export function ModelWizard({ opened, onClose }: { opened: boolean; onClose: () 
   const [name, setName] = useState("Customer Model");
   const [selectedPackages, setSelectedPackages] = useState<string[]>([]);
 
-  const pkgOptions = packages.map((p) => ({ value: p.id, label: `${p.name} (${p.status})` }));
+  const pkgOptions = packages.map((p) => ({
+    value: p.id,
+    label: `${p.name} (${p.status})`,
+  }));
 
   const save = () => {
     if (!name.trim()) return;
@@ -33,16 +42,37 @@ export function ModelWizard({ opened, onClose }: { opened: boolean; onClose: () 
         type,
         packages: selectedPackages,
         hubs: [{ name: "HubCustomer", businessKey: "customer_id" }],
-        links: [{ name: "LinkCustomerOrder", hubs: ["HubCustomer", "HubOrder"] }],
-        satellites: [{ name: "SatCustomerProfile", parent: "HubCustomer", attributes: ["email", "created_at"] }],
+        links: [
+          { name: "LinkCustomerOrder", hubs: ["HubCustomer", "HubOrder"] },
+        ],
+        satellites: [
+          {
+            name: "SatCustomerProfile",
+            parent: "HubCustomer",
+            attributes: ["email", "created_at"],
+          },
+        ],
       } as any);
     } else {
       upsertModel({
         name,
         type,
         packages: selectedPackages,
-        facts: [{ name: "FactOrders", grain: "order_id", measures: ["revenue"], dimensions: ["DimCustomer", "DimDate"] }],
-        dimensions: [{ name: "DimCustomer", key: "customer_id", attributes: ["email", "segment"] }],
+        facts: [
+          {
+            name: "FactOrders",
+            grain: "order_id",
+            measures: ["revenue"],
+            dimensions: ["DimCustomer", "DimDate"],
+          },
+        ],
+        dimensions: [
+          {
+            name: "DimCustomer",
+            key: "customer_id",
+            attributes: ["email", "segment"],
+          },
+        ],
       } as any);
     }
     notifications.show({ message: "Model saved", color: "teal" });
@@ -55,14 +85,21 @@ export function ModelWizard({ opened, onClose }: { opened: boolean; onClose: () 
       <Stepper active={active} onStepClick={setActive}>
         <Stepper.Step label="Basics">
           <Stack>
-            <TextInput label="Model name" value={name} onChange={(e) => setName(e.target.value)} />
+            <TextInput
+              label="Model name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
             <Select
               label="Model type"
               value={type}
               onChange={(v) => setType((v as any) ?? "data_vault")}
               data={[
                 { value: "data_vault", label: "Data Vault (hubs/links/sats)" },
-                { value: "dimensional", label: "Dimensional (facts/dimensions)" },
+                {
+                  value: "dimensional",
+                  label: "Dimensional (facts/dimensions)",
+                },
               ]}
             />
             <MultiSelect
@@ -84,12 +121,15 @@ export function ModelWizard({ opened, onClose }: { opened: boolean; onClose: () 
           <Stack>
             <Divider label="Designer (mock)" />
             <Text c="dimmed" size="sm">
-              This is a frontend-only “canvas” that represents what a real modeling UI would look like. You’d typically drag fields
-              from inferred schemas, define keys, grains, and constraints.
+              This is a frontend-only “canvas” that represents what a real
+              modeling UI would look like. You’d typically drag fields from
+              inferred schemas, define keys, grains, and constraints.
             </Text>
             <ModelCanvasMock type={type} />
             <Group justify="space-between">
-              <Button variant="light" onClick={() => setActive(0)}>Back</Button>
+              <Button variant="light" onClick={() => setActive(0)}>
+                Back
+              </Button>
               <Button onClick={() => setActive(2)}>Next</Button>
             </Group>
           </Stack>
@@ -99,10 +139,16 @@ export function ModelWizard({ opened, onClose }: { opened: boolean; onClose: () 
           <Stack>
             <Divider label="Summary" />
             <pre style={{ margin: 0, fontSize: 12, opacity: 0.9 }}>
-              {JSON.stringify({ name, type, packages: selectedPackages }, null, 2)}
+              {JSON.stringify(
+                { name, type, packages: selectedPackages },
+                null,
+                2,
+              )}
             </pre>
             <Group justify="space-between">
-              <Button variant="light" onClick={() => setActive(1)}>Back</Button>
+              <Button variant="light" onClick={() => setActive(1)}>
+                Back
+              </Button>
               <Button onClick={save}>Save model</Button>
             </Group>
           </Stack>

@@ -12,7 +12,9 @@ export function ApiSourcesPage() {
       <Group justify="space-between" align="flex-end">
         <div>
           <Title order={2}>API Sources</Title>
-          <Text c="dimmed">Define root URLs + credentials. Streams reference these sources.</Text>
+          <Text c="dimmed">
+            Define root URLs + credentials. Streams reference these sources.
+          </Text>
         </div>
         <Button onClick={openIt}>Add API source</Button>
       </Group>

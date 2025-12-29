@@ -12,7 +12,8 @@ export function SettingsPage() {
       <Card withBorder>
         <Text fw={600}>Prototype controls</Text>
         <Text c="dimmed" mt={6}>
-          Everything is local-only. Reset clears all saved data from localStorage.
+          Everything is local-only. Reset clears all saved data from
+          localStorage.
         </Text>
         <Group mt="md">
           <Button
@@ -20,7 +21,10 @@ export function SettingsPage() {
             variant="light"
             onClick={() => {
               resetAll();
-              notifications.show({ message: "All local data cleared", color: "red" });
+              notifications.show({
+                message: "All local data cleared",
+                color: "red",
+              });
             }}
           >
             Reset all data

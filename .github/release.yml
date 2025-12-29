@@ -31,7 +31,14 @@ jobs:
         run: make env
 
       - name: Build UI files
+        env:
+          SENTRY_DSN_UI: ${{ secrets.SENTRY_DSN_UI }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN_UI }}
         run: |
+          echo "VITE_SENTRY_ENVIRONMENT=prod" >> frontend/.env
+          echo "VITE_SENTRY_RELEASE=\"$IMAGE_TAG\"" >> frontend/.env
+          echo "VITE_SENTRY_DSN=\"$SENTRY_DSN_UI\"" >> frontend/.env
+          export SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN
           npm --prefix=frontend run build
 
       - name: Cache node modules

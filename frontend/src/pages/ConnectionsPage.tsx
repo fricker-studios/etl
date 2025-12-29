@@ -11,7 +11,10 @@ export function ConnectionsPage() {
       <Group justify="space-between" align="flex-end">
         <div>
           <Title order={2}>Connections</Title>
-          <Text c="dimmed">Configure your storage backends (destinations) like S3 or ClickHouse.</Text>
+          <Text c="dimmed">
+            Configure your storage backends (destinations) like S3 or
+            ClickHouse.
+          </Text>
         </div>
         <Button onClick={openIt}>Add connection</Button>
       </Group>

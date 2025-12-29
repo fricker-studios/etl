@@ -7,15 +7,19 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "prettier": "prettier --check \"**/*.{ts,tsx}\"",
+    "prettier:write": "prettier --write \"**/*.{ts,tsx}\""
   },
   "dependencies": {
     "@mantine/code-highlight": "^8.3.10",
     "@mantine/core": "^8.3.10",
     "@mantine/hooks": "^8.3.10",
     "@mantine/notifications": "^8.3.10",
+    "@sentry/react": "^10.32.1",
     "@tabler/icons-react": "^3.36.0",
     "dayjs": "^1.11.19",
+    "prettier": "^3.7.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.11.0",
