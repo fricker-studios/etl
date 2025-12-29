@@ -1,7 +1,7 @@
 FROM docker.io/library/nginx:latest
 
 COPY frontend/dist /usr/share/nginx/html
-COPY staticfiles /usr/share/nginx/html/djangostatic
+# COPY staticfiles /usr/share/nginx/html/djangostatic
 
 # Default config - override this by mounting custom files in container
 COPY .nginx/nginx.conf /etc/nginx/nginx.conf
