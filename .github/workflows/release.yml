@@ -73,6 +73,7 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: ui-files
+        path: frontend/dist
 
     - name: Build and push image
       env:
