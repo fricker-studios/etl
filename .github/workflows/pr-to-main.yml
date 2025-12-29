@@ -68,6 +68,7 @@ jobs:
         IMAGE_TAG: ${{ env.IMAGE_TAG }}
         UI_IMAGE_NAME: ${{ env.UI_IMAGE_NAME }}
       run: |
+        pwd
         docker build -t $UI_IMAGE_NAME:$IMAGE_TAG -f Dockerfile.nginx .
         docker push $UI_IMAGE_NAME:$IMAGE_TAG
 
