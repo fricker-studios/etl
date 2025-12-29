@@ -74,7 +74,7 @@ jobs:
   update-gitops-manifest:
     runs-on: self-hosted
     name: Update GitOps Manifest
-    needs: [build-image-api, build-image-ui]
+    needs: [build-image-ui]
 
     steps:
     - name: Checkout gitops repo
