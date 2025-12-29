@@ -17,6 +17,7 @@
     "@mantine/hooks": "^8.3.10",
     "@mantine/notifications": "^8.3.10",
     "@sentry/react": "^10.32.1",
+    "@sentry/vite-plugin": "^4.6.1",
     "@tabler/icons-react": "^3.36.0",
     "dayjs": "^1.11.19",
     "prettier": "^3.7.4",
