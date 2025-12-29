@@ -1,0 +1,16 @@
+FROM docker.io/library/nginx:latest
+
+COPY frontend/dist /usr/share/nginx/html
+COPY staticfiles /usr/share/nginx/html/djangostatic
+
+# Default config - override this by mounting custom files in container
+COPY .nginx/nginx.conf /etc/nginx/nginx.conf
+COPY .nginx/default.conf /etc/nginx/conf.d/default.conf
+
+# Permission requirements for Openshift
+RUN chgrp -R 0 /etc/nginx && chmod -R go+rw /etc/nginx
+RUN mkdir -p /var/lib/nginx
+RUN mkdir -p /var/cache/nginx
+RUN chgrp -R 0 /var/lib/nginx && chmod -R go+rw /var/lib/nginx
+RUN chgrp -R 0 /var/cache/nginx && chmod -R go+rw /var/cache/nginx
+RUN chgrp -R 0 /var/run && chmod -R go+rw /var/run

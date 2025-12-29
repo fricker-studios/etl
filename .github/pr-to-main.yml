@@ -1,0 +1,122 @@
+name: Build and Deploy to Development
+
+on:
+  pull_request:
+    branches:
+      - main
+
+env:
+  IMAGE_TAG: pr-${{ github.event.pull_request.number }}-${{ github.run_number }}
+  INTERNAL_REGISTRY_URL: ${{ secrets.INTERNAL_REGISTRY_URL }}
+  API_IMAGE_NAME: ${{ secrets.INTERNAL_REGISTRY_URL }}/etl
+  UI_IMAGE_NAME: ${{ secrets.INTERNAL_REGISTRY_URL }}/etl-ui
+  GITOPS_REPO: fricker-studios/gitops-dev
+  GITOPS_SOURCE_DIR: etl
+  # ARGOCD_APP_NAME: etl-dev
+
+jobs:
+  build-ui-files:
+    runs-on: self-hosted
+    name: Build UI Files
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set Up Environment
+        run: make env
+        
+      - name: Build UI files
+        run: |
+          npm --prefix=frontend run build
+
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: frontend/node_modules
+          key: node-modules-${{ hashFiles('frontend/package.json') }}
+
+      - name: Cache Python venv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: python-venv-${{ hashFiles('pyproject.toml') }}
+
+      - name: Upload UI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-files
+          path: |
+            frontend/dist
+            staticfiles
+
+  build-image-api:
+    runs-on: self-hosted
+    name: Build API Image
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build and push image
+        env:
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+          API_IMAGE_NAME: ${{ env.API_IMAGE_NAME }}
+        run: |
+          docker build -t $API_IMAGE_NAME:$IMAGE_TAG -f Dockerfile .
+          docker push $API_IMAGE_NAME:$IMAGE_TAG
+
+  build-image-ui:
+    runs-on: self-hosted
+    name: Build UI Image
+    needs: build-ui-files
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download UI artifacts 
+      uses: actions/download-artifact@v4
+      with:
+        name: ui-files
+
+    - name: Build and push image
+      env:
+        IMAGE_TAG: ${{ env.IMAGE_TAG }}
+        UI_IMAGE_NAME: ${{ env.UI_IMAGE_NAME }}
+      run: |
+        docker build -t $UI_IMAGE_NAME:$IMAGE_TAG -f Dockerfile.nginx .
+        docker push $UI_IMAGE_NAME:$IMAGE_TAG
+
+  update-gitops-manifest:
+    runs-on: self-hosted
+    name: Update GitOps Manifest
+    needs: [build-image-api, build-image-ui]
+
+    steps:
+    - name: Checkout gitops repo
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ env.GITOPS_REPO }}
+        token: ${{ secrets.GITOPS_PAT }}
+        path: gitops
+
+    - name: Update kustomization.yaml
+      env:
+        IMAGE_TAG: ${{ env.IMAGE_TAG }}
+      run: |
+        cd gitops/${{ env.GITOPS_SOURCE_DIR }}
+        # Update image tags
+        sed -i "s|newTag: .*|newTag: $IMAGE_TAG|g" kustomization.yaml
+        cat kustomization.yaml
+
+    - name: Commit and push changes
+      env:
+        IMAGE_TAG: ${{ env.IMAGE_TAG }}
+      run: |
+        cd gitops
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        git add ${{ env.GITOPS_SOURCE_DIR }}/kustomization.yaml
+        git commit -m "Update ${{ env.GITOPS_SOURCE_DIR }} images to $IMAGE_TAG" || echo "No changes to commit"
+        git push
