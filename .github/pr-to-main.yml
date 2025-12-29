@@ -48,23 +48,6 @@ jobs:
           name: ui-files
           path: |
             frontend/dist
-            staticfiles
-
-  build-image-api:
-    runs-on: self-hosted
-    name: Build API Image
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Build and push image
-        env:
-          IMAGE_TAG: ${{ env.IMAGE_TAG }}
-          API_IMAGE_NAME: ${{ env.API_IMAGE_NAME }}
-        run: |
-          docker build -t $API_IMAGE_NAME:$IMAGE_TAG -f Dockerfile .
-          docker push $API_IMAGE_NAME:$IMAGE_TAG
 
   build-image-ui:
     runs-on: self-hosted

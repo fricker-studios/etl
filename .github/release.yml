@@ -8,15 +8,15 @@ on:
 env:
   IMAGE_TAG: v.${{ github.ref_name }}
   INTERNAL_REGISTRY_URL: ${{ secrets.INTERNAL_REGISTRY_URL }}
-  API_IMAGE_NAME: ${{ secrets.INTERNAL_REGISTRY_URL }}/website
-  UI_IMAGE_NAME: ${{ secrets.INTERNAL_REGISTRY_URL }}/website-ui
+  API_IMAGE_NAME: ${{ secrets.INTERNAL_REGISTRY_URL }}/etl
+  UI_IMAGE_NAME: ${{ secrets.INTERNAL_REGISTRY_URL }}/etl-ui
   GITOPS_REPO: fricker-studios/gitops-prod
-  GITOPS_SOURCE_DIR: website
+  GITOPS_SOURCE_DIR: etl
   GITOPS_DEMO_REPO: fricker-studios/gitops-demo
-  GITOPS_DEMO_SOURCE_DIR: website
+  GITOPS_DEMO_SOURCE_DIR: etl
   # ARGO_CD_APP_REPO: gitlab.alexfricker.com/devops/gitops-prod.git
   # ARGO_CD_DEMO_REPO: gitlab.alexfricker.com/devops/gitops-demo.git
-  # ARGOCD_APP_NAME: website-prod
+  # ARGOCD_APP_NAME: etl-prod
 
 jobs:
   build-ui-files:
@@ -31,31 +31,8 @@ jobs:
         run: make env
 
       - name: Build UI files
-        env:
-          SENTRY_DSN_UI: ${{ secrets.SENTRY_DSN_UI }}
-          RECAPTCHA_SITE_KEY: ${{ secrets.RECAPTCHA_SITE_KEY }}
-          RECAPTCHA_SECRET_KEY: ${{ secrets.RECAPTCHA_SECRET_KEY }}
-          GOOGLE_OAUTH2_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH2_CLIENT_ID }}
-          APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID }}
-          FACEBOOK_APP_ID: ${{ secrets.FACEBOOK_APP_ID }}
-          VITE_STRIPE_PUBLIC_KEY: ${{ secrets.VITE_STRIPE_PUBLIC_KEY }}
-          VITE_GA_TRACKING_ID: ${{ secrets.VITE_GA_TRACKING_ID }}
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN_UI }}
         run: |
-          make env
-          echo "VITE_SENTRY_ENVIRONMENT=prod" >> frontend/.env
-          echo "VITE_SENTRY_RELEASE=\"$IMAGE_TAG\"" >> frontend/.env
-          echo "VITE_SENTRY_DSN=\"$SENTRY_DSN_UI\"" >> frontend/.env
-          echo "VITE_RECAPTCHA_SITE_KEY=\"$RECAPTCHA_SITE_KEY\"" >> frontend/.env
-          echo "VITE_RECAPTCHA_SECRET_KEY=\"$RECAPTCHA_SECRET_KEY\"" >> frontend/.env
-          echo "VITE_GOOGLE_CLIENT_ID=\"$GOOGLE_OAUTH2_CLIENT_ID\"" >> frontend/.env
-          echo "VITE_APPLE_CLIENT_ID=\"$APPLE_CLIENT_ID\"" >> frontend/.env
-          echo "VITE_FACEBOOK_APP_ID=\"$FACEBOOK_APP_ID\"" >> frontend/.env
-          echo "VITE_STRIPE_PUBLIC_KEY=\"$VITE_STRIPE_PUBLIC_KEY\"" >> frontend/.env
-          echo "VITE_GA_TRACKING_ID=\"$VITE_GA_TRACKING_ID\"" >> frontend/.env
-          export SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN
-          node frontend/.yarn/releases/yarn-4.9.2.cjs --cwd frontend run build
-          ./.venv/bin/python3 manage.py collectstatic --noinput
+          npm --prefix=frontend run build
 
       - name: Cache node modules
         uses: actions/cache@v4
@@ -75,23 +52,6 @@ jobs:
           name: ui-files
           path: |
             frontend/dist
-            staticfiles
-
-  build-image-api:
-    runs-on: self-hosted
-    name: Build API Image
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Build and push image
-        env:
-          IMAGE_TAG: ${{ env.IMAGE_TAG }}
-          API_IMAGE_NAME: ${{ env.API_IMAGE_NAME }}
-        run: |
-          docker build -t $API_IMAGE_NAME:$IMAGE_TAG -f Dockerfile . --build-arg SENTRY_RELEASE_VERSION=$IMAGE_TAG
-          docker push $API_IMAGE_NAME:$IMAGE_TAG
 
   build-image-ui:
     runs-on: self-hosted
@@ -223,7 +183,7 @@ jobs:
       run: |
         export SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN
         export SENTRY_ORG=sentry
-        export SENTRY_PROJECT=website
+        export SENTRY_PROJECT=etl
         sentry-cli --url https://sentry.alexfricker.com/ releases new "$IMAGE_TAG"
         sentry-cli --url https://sentry.alexfricker.com/ releases set-commits "$IMAGE_TAG" --auto --ignore-missing
         sentry-cli --url https://sentry.alexfricker.com/ releases finalize "$IMAGE_TAG"

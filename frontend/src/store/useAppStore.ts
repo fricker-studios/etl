@@ -123,7 +123,7 @@ const initial = loadJson<Pick<AppState, "storageBackends" | "apiSources" | "stre
   models: [],
 });
 
-export const useAppStore = create<AppState>((set, get) => ({
+export const useAppStore = create<AppState>((set, _) => ({
   ...initial,
 
   addStorageBackend: (b) =>
