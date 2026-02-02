@@ -21,12 +21,10 @@ jobs:
         env:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          IMAGE_TAG: ${{ github.ref_name }}
+          VITE_SENTRY_RELEASE: ${{ github.ref_name }}
+          VITE_SENTRY_ENVIRONMENT: prod
+          VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
-          echo "VITE_SENTRY_ENVIRONMENT=prod" >> frontend/.env
-          echo "VITE_SENTRY_RELEASE=\"$IMAGE_TAG\"" >> frontend/.env
-          echo "VITE_SENTRY_DSN=\"$SENTRY_DSN\"" >> frontend/.env
-          export SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN
           npm --prefix=frontend run build
 
       - name: Cache node modules
