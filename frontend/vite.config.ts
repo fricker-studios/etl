@@ -7,7 +7,8 @@ export default defineConfig({
   plugins: [react(), sentryVitePlugin({
     org: "sentry",
     project: "etl",
-    url: "https://sentry.alexfricker.com/"
+    url: "https://sentry.alexfricker.com",
+    release: process.env.VITE_SENTRY_RELEASE ? { name: process.env.VITE_SENTRY_RELEASE } : undefined,
   })],
 
   build: {
