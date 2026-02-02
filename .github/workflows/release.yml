@@ -5,19 +5,6 @@ on:
     tags:
       - '*'
 
-env:
-  IMAGE_TAG: v.${{ github.ref_name }}
-  INTERNAL_REGISTRY_URL: ${{ secrets.INTERNAL_REGISTRY_URL }}
-  API_IMAGE_NAME: ${{ secrets.INTERNAL_REGISTRY_URL }}/etl
-  UI_IMAGE_NAME: ${{ secrets.INTERNAL_REGISTRY_URL }}/etl-ui
-  GITOPS_REPO: fricker-studios/gitops-prod
-  GITOPS_SOURCE_DIR: etl
-  GITOPS_DEMO_REPO: fricker-studios/gitops-demo
-  GITOPS_DEMO_SOURCE_DIR: etl
-  # ARGO_CD_APP_REPO: gitlab.alexfricker.com/devops/gitops-prod.git
-  # ARGO_CD_DEMO_REPO: gitlab.alexfricker.com/devops/gitops-demo.git
-  # ARGOCD_APP_NAME: etl-prod
-
 jobs:
   build-ui-files:
     runs-on: self-hosted
@@ -32,12 +19,13 @@ jobs:
 
       - name: Build UI files
         env:
-          SENTRY_DSN_UI: ${{ secrets.SENTRY_DSN_UI }}
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN_UI }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          IMAGE_TAG: ${{ github.ref_name }}
         run: |
           echo "VITE_SENTRY_ENVIRONMENT=prod" >> frontend/.env
           echo "VITE_SENTRY_RELEASE=\"$IMAGE_TAG\"" >> frontend/.env
-          echo "VITE_SENTRY_DSN=\"$SENTRY_DSN_UI\"" >> frontend/.env
+          echo "VITE_SENTRY_DSN=\"$SENTRY_DSN\"" >> frontend/.env
           export SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN
           npm --prefix=frontend run build
 
@@ -60,125 +48,78 @@ jobs:
           path: |
             frontend/dist
 
-  build-image-ui:
-    runs-on: self-hosted
-    name: Build UI Image
+  build-multiarch-internal-ui:
+    name: Build and Push Multi-Arch UI Image (Internal)
     needs: build-ui-files
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Download UI artifacts 
-      uses: actions/download-artifact@v4
-      with:
-        name: ui-files
-        path: frontend/dist
-
-    - name: Build and push image
-      env:
-        IMAGE_TAG: ${{ env.IMAGE_TAG }}
-        UI_IMAGE_NAME: ${{ env.UI_IMAGE_NAME }}
-      run: |
-        docker build -t $UI_IMAGE_NAME:$IMAGE_TAG -f Dockerfile.nginx .
-        docker push $UI_IMAGE_NAME:$IMAGE_TAG
+    uses: fricker-studios/github-actions/.github/workflows/build-multiarch-image.yml@main
+    with:
+      dockerfile_path: Dockerfile.nginx
+      image_name: ${{ vars.INTERNAL_REGISTRY_URL }}/internal/etl-ui
+      registry: ${{ vars.INTERNAL_REGISTRY_URL }}
+      push: true
+      tags: |
+        ${{ github.ref_name }}
+      download_artifacts: true
+      artifact_name: ui-files
+      artifact_path: "frontend/dist"
+    secrets:
+      registry_username: ${{ secrets.REGISTRY_USERNAME }}
+      registry_password: ${{ secrets.REGISTRY_PASSWORD }}
 
   update-gitops-manifest:
-    runs-on: self-hosted
-    name: Update GitOps Manifest
-    needs: [build-image-ui]
+    name: Update GitOps Manifest (Production)
+    needs: build-multiarch-internal-ui
+    uses: fricker-studios/github-actions/.github/workflows/update-gitops-manifest.yml@main
+    with:
+      image_tag: ${{ github.ref_name }}
+      gitops_repo: fricker-studios/gitops-prod
+      project_source_dir: etl
+    secrets:
+      GITOPS_ACCESS_TOKEN: ${{ secrets.GITOPS_PAT }}
 
-    steps:
-    - name: Checkout gitops repo
-      uses: actions/checkout@v4
-      with:
-        repository: ${{ env.GITOPS_REPO }}
-        token: ${{ secrets.GITOPS_PAT }}
-        path: gitops
+  update-demo-manifest:
+    name: Update GitOps Manifest (Demo)
+    needs: build-multiarch-internal-ui
+    uses: fricker-studios/github-actions/.github/workflows/update-gitops-manifest.yml@main
+    with:
+      image_tag: ${{ github.ref_name }}
+      gitops_repo: fricker-studios/gitops-demo
+      project_source_dir: etl
+    secrets:
+      GITOPS_ACCESS_TOKEN: ${{ secrets.GITOPS_PAT }}
 
-    - name: Update kustomization.yaml
-      env:
-        IMAGE_TAG: ${{ env.IMAGE_TAG }}
-      run: |
-        cd gitops/${{ env.GITOPS_SOURCE_DIR }}
-        # Update image tags
-        sed -i "s|newTag: .*|newTag: $IMAGE_TAG|g" kustomization.yaml
-        cat kustomization.yaml
+  argocd-sync-prod:
+    name: ArgoCD Sync Application (Production)
+    needs: update-gitops-manifest
+    uses: fricker-studios/github-actions/.github/workflows/argocd-sync.yml@main
+    with:
+      application: etl-prod
+    secrets:
+      ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
 
-    - name: Commit and push changes
-      env:
-        IMAGE_TAG: ${{ env.IMAGE_TAG }}
-      run: |
-        cd gitops
-        git config user.name "GitHub Actions"
-        git config user.email "actions@github.com"
-        git add ${{ env.GITOPS_SOURCE_DIR }}/kustomization.yaml
-        git commit -m "Update ${{ env.GITOPS_SOURCE_DIR }} images to $IMAGE_TAG" || echo "No changes to commit"
-        git push
+  argocd-sync-demo:
+    name: ArgoCD Sync Application (Demo)
+    needs: update-demo-manifest
+    uses: fricker-studios/github-actions/.github/workflows/argocd-sync.yml@main
+    with:
+      application: etl-demo
+    secrets:
+      ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
 
-  update-demo-manifests:
-    runs-on: self-hosted
-    name: Update GitOps Demo Manifest
-    needs: [build-image-ui]
-
-    steps:
-    - name: Checkout gitops repo
-      uses: actions/checkout@v4
-      with:
-        repository: ${{ env.GITOPS_DEMO_REPO }}
-        token: ${{ secrets.GITOPS_PAT }}
-        path: gitops
-
-    - name: Update kustomization.yaml
-      env:
-        IMAGE_TAG: ${{ env.IMAGE_TAG }}
-      run: |
-        cd gitops/${{ env.GITOPS_DEMO_SOURCE_DIR }}
-        # Update image tags
-        sed -i "s|newTag: .*|newTag: $IMAGE_TAG|g" kustomization.yaml
-        cat kustomization.yaml
-
-    - name: Commit and push changes
-      env:
-        IMAGE_TAG: ${{ env.IMAGE_TAG }}
-      run: |
-        cd gitops
-        git config user.name "GitHub Actions"
-        git config user.email "actions@github.com"
-        git add ${{ env.GITOPS_DEMO_SOURCE_DIR }}/kustomization.yaml
-        git commit -m "Update ${{ env.GITOPS_DEMO_SOURCE_DIR }} images to $IMAGE_TAG" || echo "No changes to commit"
-        git push
-
-  create-github-release:
-    runs-on: self-hosted
+  create-release:
     name: Create GitHub Release
-    needs: [build-image-ui]
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Create Release
-      uses: softprops/action-gh-release@v2
-      with:
-        token: ${{ secrets.GITOPS_PAT }}
-        tag_name: ${{ github.ref_name }}
-        name: Release ${{ env.IMAGE_TAG }}
-        body: |
-          ## Release ${{ env.IMAGE_TAG }}
-          
-          **Docker Images:**
-          - API: `${{ env.API_IMAGE_NAME }}:${{ env.IMAGE_TAG }}`
-          - UI: `${{ env.UI_IMAGE_NAME }}:${{ env.IMAGE_TAG }}`
-          
-          **GitOps Repository:** ${{ env.GITOPS_REPO }}
-        draft: false
-        prerelease: false
+    needs: [build-multiarch-internal-ui, update-gitops-manifest, update-demo-manifest]
+    uses: fricker-studios/github-actions/.github/workflows/github-release.yml@main
+    with:
+      tag: ${{ github.ref_name }}
+      generate_notes: true
+    secrets:
+      gh_token: ${{ secrets.GITOPS_PAT }}
 
   create-sentry-release:
     runs-on: self-hosted
     name: Create Sentry Release
-    needs: [build-image-ui]
+    needs: [build-multiarch-internal-ui, update-gitops-manifest, update-demo-manifest]
 
     steps:
     - name: Checkout code
@@ -186,8 +127,8 @@ jobs:
 
     - name: Create Sentry Release
       env:
-        IMAGE_TAG: ${{ env.IMAGE_TAG }}
-        SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN_UI }}
+        IMAGE_TAG: ${{ github.ref_name }}
+        SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
       run: |
         export SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN
         export SENTRY_ORG=sentry
