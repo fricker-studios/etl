@@ -1,6 +1,15 @@
+# --- build UI ---
+FROM node:20 AS ui-build
+WORKDIR /ui
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
+# --- build server ---
 FROM docker.io/library/nginx:latest
 
-COPY frontend/dist /usr/share/nginx/html
+COPY --from=ui-build /ui/dist /usr/share/nginx/html
 # COPY staticfiles /usr/share/nginx/html/djangostatic
 
 # Default config - override this by mounting custom files in container
