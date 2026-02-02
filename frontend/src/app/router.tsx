@@ -9,6 +9,7 @@ import { PackagesPage } from "../pages/PackagesPage";
 import { ModelsPage } from "../pages/ModelsPage";
 import { RunsPage } from "../pages/RunsPage";
 import { SettingsPage } from "../pages/SettingsPage";
+import { SentryTestPage } from "../pages/SentryTestPage";
 
 export const router = createBrowserRouter([
   {
@@ -23,6 +24,7 @@ export const router = createBrowserRouter([
       { path: "models", element: <ModelsPage /> },
       { path: "runs", element: <RunsPage /> },
       { path: "settings", element: <SettingsPage /> },
+      { path: "sentry-test", element: <SentryTestPage /> },
     ],
   },
 ]);
