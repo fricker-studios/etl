@@ -18,6 +18,9 @@ jobs:
         run: make env
         
       - name: Build UI files
+        env:
+          VITE_SENTRY_ENVIRONMENT: dev
+          VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           npm --prefix=frontend run build
 
