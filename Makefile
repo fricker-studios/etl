@@ -29,7 +29,6 @@ api-build:
 
 ui-build:
 	npm --prefix=frontend run build
-	# python manage.py collectstatic --noinput
 	docker build -t $(APP_NAME)-ui -f Dockerfile.nginx .
 
 build:ui-build api-build
