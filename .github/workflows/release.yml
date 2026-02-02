@@ -61,7 +61,7 @@ jobs:
         ${{ github.ref_name }}
       download_artifacts: true
       artifact_name: ui-files
-      artifact_path: "."
+      artifact_path: "frontend/dist"
     secrets:
       registry_username: ${{ secrets.REGISTRY_USERNAME }}
       registry_password: ${{ secrets.REGISTRY_PASSWORD }}
