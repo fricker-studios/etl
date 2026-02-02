@@ -51,6 +51,8 @@ jobs:
       push: true
       tags: |
         pr-${{ github.event.pull_request.number }}-${{ github.run_number }}
+      download_artifacts: true
+      artifact_name: ui-files
     secrets:
       registry_username: ${{ secrets.REGISTRY_USERNAME }}
       registry_password: ${{ secrets.REGISTRY_PASSWORD }}
