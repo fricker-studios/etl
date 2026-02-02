@@ -115,22 +115,13 @@ jobs:
       gh_token: ${{ secrets.GITOPS_PAT }}
 
   create-sentry-release:
-    runs-on: self-hosted
     name: Create Sentry Release
     needs: [build-multiarch-internal-ui, update-gitops-manifest, update-demo-manifest]
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Create Sentry Release
-      env:
-        IMAGE_TAG: ${{ github.ref_name }}
-        SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-      run: |
-        export SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN
-        export SENTRY_ORG=sentry
-        export SENTRY_PROJECT=etl
-        sentry-cli --url https://sentry.alexfricker.com/ releases new "$IMAGE_TAG"
-        sentry-cli --url https://sentry.alexfricker.com/ releases set-commits "$IMAGE_TAG" --auto --ignore-missing
-        sentry-cli --url https://sentry.alexfricker.com/ releases finalize "$IMAGE_TAG"
+    uses: fricker-studios/github-actions/.github/workflows/sentry-release.yml@main
+    with:
+      release_version: ${{ github.ref_name }}
+      sentry_org: sentry
+      sentry_project: etl
+      sentry_url: https://sentry.alexfricker.com/
+    secrets:
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
