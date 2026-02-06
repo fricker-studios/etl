@@ -1,9 +1,9 @@
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
-from .models import StorageBackend, ApiSource, Stream, DataPackage, Model
+from .models import StorageBackend, DataSource, Stream, DataPackage, Model
 from .serializers import (
     StorageBackendSerializer,
-    ApiSourceSerializer,
+    DataSourceSerializer,
     StreamSerializer,
     DataPackageSerializer,
     ModelSerializer,
@@ -21,12 +21,12 @@ class StorageBackendViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
 
-class ApiSourceViewSet(viewsets.ModelViewSet):
-    serializer_class = ApiSourceSerializer
+class DataSourceViewSet(viewsets.ModelViewSet):
+    serializer_class = DataSourceSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return ApiSource.objects.filter(user=self.request.user)
+        return DataSource.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)

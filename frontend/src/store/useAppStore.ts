@@ -26,16 +26,41 @@ export type StorageBackend =
       secure: boolean;
     };
 
-export type ApiSource = {
+export type DataSource = {
   id: string;
   name: string;
-  base_url: string;
-  auth_type: "none" | "bearer" | "basic" | "header";
+  type: "api" | "database" | "s3" | "sftp";
+  
+  // API fields
+  base_url?: string;
+  auth_type?: "none" | "bearer" | "basic" | "header" | "ssh_key";
   bearer_token?: string;
   basic_user?: string;
   basic_pass?: string;
   header_name?: string;
   header_value?: string;
+  
+  // Database fields
+  database_type?: "postgresql" | "mysql" | "mongodb" | "sqlserver" | "oracle";
+  host?: string;
+  port?: number;
+  database_name?: string;
+  username?: string;
+  password?: string;
+  
+  // S3 fields
+  s3_endpoint?: string;
+  s3_region?: string;
+  s3_bucket?: string;
+  s3_access_key?: string;
+  s3_secret_key?: string;
+  
+  // SFTP fields
+  sftp_host?: string;
+  sftp_port?: number;
+  sftp_username?: string;
+  sftp_password?: string;
+  sftp_key?: string;
 };
 
 export type Pagination =
@@ -51,10 +76,13 @@ export type Pagination =
 
 export type Stream = {
   id: string;
-  api_source: string;
+  data_source: string;
   name: string;
-  method: "GET" | "POST";
-  path: string;
+  source_object: any; // Flexible structure for different source types
+  
+  // API-specific fields (for backward compatibility)
+  method?: "GET" | "POST";
+  path?: string;
   query_params: { key: string; value: string }[];
   headers: { key: string; value: string }[];
   body_template?: string;
@@ -99,7 +127,7 @@ export type Model =
 
 type AppState = {
   storageBackends: StorageBackend[];
-  apiSources: ApiSource[];
+  dataSources: DataSource[];
   streams: Stream[];
   packages: DataPackage[];
   models: Model[];
@@ -110,8 +138,8 @@ type AppState = {
   addStorageBackend: (b: any) => Promise<void>;
   removeStorageBackend: (id: string) => Promise<void>;
 
-  upsertApiSource: (s: any) => Promise<void>;
-  removeApiSource: (id: string) => Promise<void>;
+  upsertDataSource: (s: any) => Promise<void>;
+  removeDataSource: (id: string) => Promise<void>;
 
   upsertStream: (s: any) => Promise<void>;
   removeStream: (id: string) => Promise<void>;
@@ -132,7 +160,7 @@ type AppState = {
 
 export const useAppStore = create<AppState>((set) => ({
   storageBackends: [],
-  apiSources: [],
+  dataSources: [],
   streams: [],
   packages: [],
   models: [],
@@ -141,15 +169,15 @@ export const useAppStore = create<AppState>((set) => ({
   fetchAll: async () => {
     set({ loading: true });
     try {
-      const [storageBackends, apiSources, streams, packages, models] =
+      const [storageBackends, dataSources, streams, packages, models] =
         await Promise.all([
           api.storageBackends.list() as Promise<StorageBackend[]>,
-          api.apiSources.list() as Promise<ApiSource[]>,
+          api.dataSources.list() as Promise<DataSource[]>,
           api.streams.list() as Promise<Stream[]>,
           api.packages.list() as Promise<DataPackage[]>,
           api.models.list() as Promise<Model[]>,
         ]);
-      set({ storageBackends, apiSources, streams, packages, models });
+      set({ storageBackends, dataSources, streams, packages, models });
     } catch (error) {
       console.error("Failed to fetch data:", error);
     } finally {
@@ -169,22 +197,22 @@ export const useAppStore = create<AppState>((set) => ({
     }));
   },
 
-  upsertApiSource: async (s) => {
+  upsertDataSource: async (s) => {
     if (s.id) {
-      const updated = await api.apiSources.update(s.id, s) as ApiSource;
+      const updated = await api.dataSources.update(s.id, s) as DataSource;
       set((st) => ({
-        apiSources: st.apiSources.map((x) => (x.id === s.id ? updated : x)),
+        dataSources: st.dataSources.map((x) => (x.id === s.id ? updated : x)),
       }));
     } else {
-      const created = await api.apiSources.create(s) as ApiSource;
-      set((st) => ({ apiSources: [...st.apiSources, created] }));
+      const created = await api.dataSources.create(s) as DataSource;
+      set((st) => ({ dataSources: [...st.dataSources, created] }));
     }
   },
 
-  removeApiSource: async (id) => {
-    await api.apiSources.delete(id);
+  removeDataSource: async (id) => {
+    await api.dataSources.delete(id);
     set((st) => ({
-      apiSources: st.apiSources.filter((x) => x.id !== id),
+      dataSources: st.dataSources.filter((x) => x.id !== id),
     }));
   },
 
@@ -253,7 +281,7 @@ export const useAppStore = create<AppState>((set) => ({
   resetAll: () => {
     set({
       storageBackends: [],
-      apiSources: [],
+      dataSources: [],
       streams: [],
       packages: [],
       models: [],

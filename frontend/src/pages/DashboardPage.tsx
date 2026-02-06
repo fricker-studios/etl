@@ -14,7 +14,7 @@ import { useEffect } from "react";
 
 export function DashboardPage() {
   const nav = useNavigate();
-  const { storageBackends, apiSources, streams, packages, models, fetchAll } =
+  const { storageBackends, dataSources, streams, packages, models, fetchAll } =
     useAppStore();
 
   useEffect(() => {
@@ -32,7 +32,7 @@ export function DashboardPage() {
           </Text>
         </div>
         <Group>
-          <Button variant="light" onClick={() => nav("/connections")}>
+          <Button variant="light" onClick={() => nav("/settings")}>
             New Connection
           </Button>
           <Button onClick={() => nav("/streams")}>New Stream</Button>
@@ -47,17 +47,17 @@ export function DashboardPage() {
             </Text>
             <Group justify="space-between" mt="xs">
               <Title order={2}>{storageBackends.length}</Title>
-              <Badge variant="light">Destinations</Badge>
+              <Badge variant="light">App Storage</Badge>
             </Group>
           </Card>
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 6, lg: 3 }}>
           <Card withBorder>
             <Text c="dimmed" size="sm">
-              API Sources
+              Data Sources
             </Text>
             <Group justify="space-between" mt="xs">
-              <Title order={2}>{apiSources.length}</Title>
+              <Title order={2}>{dataSources.length}</Title>
               <Badge variant="light">Roots + Auth</Badge>
             </Group>
           </Card>
@@ -69,7 +69,7 @@ export function DashboardPage() {
             </Text>
             <Group justify="space-between" mt="xs">
               <Title order={2}>{streams.length}</Title>
-              <Badge variant="light">Endpoints</Badge>
+              <Badge variant="light">Source Mappings</Badge>
             </Group>
           </Card>
         </Grid.Col>
@@ -94,11 +94,11 @@ export function DashboardPage() {
           schema can be inferred.
         </Text>
         <Group mt="md">
-          <Button variant="light" onClick={() => nav("/connections")}>
-            1) Add Destination
+          <Button variant="light" onClick={() => nav("/settings")}>
+            1) Configure Storage
           </Button>
-          <Button variant="light" onClick={() => nav("/api-sources")}>
-            2) Add API Source
+          <Button variant="light" onClick={() => nav("/data-sources")}>
+            2) Add Data Source
           </Button>
           <Button variant="light" onClick={() => nav("/streams")}>
             3) Add Stream + Preview

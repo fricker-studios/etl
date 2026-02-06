@@ -58,22 +58,22 @@ export const api = {
       }),
   },
 
-  // API Sources
-  apiSources: {
-    list: () => request("/api-sources/"),
-    get: (id: string) => request(`/api-sources/${id}/`),
+  // Data Sources (renamed from apiSources)
+  dataSources: {
+    list: () => request("/data-sources/"),
+    get: (id: string) => request(`/data-sources/${id}/`),
     create: (data: any) =>
-      request("/api-sources/", {
+      request("/data-sources/", {
         method: "POST",
         body: JSON.stringify(data),
       }),
     update: (id: string, data: any) =>
-      request(`/api-sources/${id}/`, {
+      request(`/data-sources/${id}/`, {
         method: "PUT",
         body: JSON.stringify(data),
       }),
     delete: (id: string) =>
-      request(`/api-sources/${id}/`, {
+      request(`/data-sources/${id}/`, {
         method: "DELETE",
       }),
   },

@@ -4,8 +4,7 @@ import { LoginPage } from "../pages/LoginPage";
 import { useAuthStore } from "../store/useAuthStore";
 
 import { DashboardPage } from "../pages/DashboardPage";
-import { ConnectionsPage } from "../pages/ConnectionsPage";
-import { ApiSourcesPage } from "../pages/ApiSourcesPage";
+import { DataSourcesPage } from "../pages/DataSourcesPage";
 import { StreamsPage } from "../pages/StreamsPage";
 import { PackagesPage } from "../pages/PackagesPage";
 import { ModelsPage } from "../pages/ModelsPage";
@@ -38,8 +37,7 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <DashboardPage /> },
-      { path: "connections", element: <ConnectionsPage /> },
-      { path: "api-sources", element: <ApiSourcesPage /> },
+      { path: "data-sources", element: <DataSourcesPage /> },
       { path: "streams", element: <StreamsPage /> },
       { path: "packages", element: <PackagesPage /> },
       { path: "models", element: <ModelsPage /> },

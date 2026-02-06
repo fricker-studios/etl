@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import StorageBackend, ApiSource, Stream, DataPackage, Model
+from .models import StorageBackend, DataSource, Stream, DataPackage, Model
 
 
 class StorageBackendSerializer(serializers.ModelSerializer):
@@ -9,9 +9,9 @@ class StorageBackendSerializer(serializers.ModelSerializer):
         read_only_fields = ('user', 'created_at', 'updated_at')
 
 
-class ApiSourceSerializer(serializers.ModelSerializer):
+class DataSourceSerializer(serializers.ModelSerializer):
     class Meta:
-        model = ApiSource
+        model = DataSource
         fields = '__all__'
         read_only_fields = ('user', 'created_at', 'updated_at')
 

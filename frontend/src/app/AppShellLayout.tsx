@@ -12,7 +12,6 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
-  IconDatabase,
   IconPlug,
   IconStack2,
   IconPackage,
@@ -27,8 +26,7 @@ import { useAuthStore } from "../store/useAuthStore";
 
 const items = [
   { label: "Dashboard", path: "/", icon: IconBolt },
-  { label: "Data Sources", path: "/connections", icon: IconDatabase },
-  { label: "API Sources", path: "/api-sources", icon: IconPlug },
+  { label: "Data Sources", path: "/data-sources", icon: IconPlug },
   { label: "Streams", path: "/streams", icon: IconStack2 },
   { label: "Data Packages", path: "/packages", icon: IconPackage },
   { label: "Data Models", path: "/models", icon: IconBoxMultiple },

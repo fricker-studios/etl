@@ -14,10 +14,10 @@ import { StreamDrawer } from "../features/sources/StreamDrawer";
 
 export function StreamsPage() {
   const [open, { open: openIt, close }] = useDisclosure(false);
-  const { streams, apiSources } = useAppStore();
+  const { streams, dataSources } = useAppStore();
 
   const sourceName = (id: string) =>
-    apiSources.find((s) => s.id === id)?.name ?? "Unknown";
+    dataSources.find((s) => s.id === id)?.name ?? "Unknown";
 
   return (
     <Stack>
@@ -47,7 +47,7 @@ export function StreamsPage() {
             {streams.map((st) => (
               <Table.Tr key={st.id}>
                 <Table.Td>{st.name}</Table.Td>
-                <Table.Td>{sourceName(st.api_source)}</Table.Td>
+                <Table.Td>{sourceName(st.data_source)}</Table.Td>
                 <Table.Td>
                   <Badge variant="light">{st.method}</Badge>
                 </Table.Td>
