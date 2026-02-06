@@ -1,5 +1,7 @@
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppShellLayout } from "./AppShellLayout";
+import { LoginPage } from "../pages/LoginPage";
+import { useAuthStore } from "../store/useAuthStore";
 
 import { DashboardPage } from "../pages/DashboardPage";
 import { ConnectionsPage } from "../pages/ConnectionsPage";
@@ -11,10 +13,29 @@ import { RunsPage } from "../pages/RunsPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { SentryTestPage } from "../pages/SentryTestPage";
 
+// Protected route wrapper
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 export const router = createBrowserRouter([
   {
+    path: "/login",
+    element: <LoginPage />,
+  },
+  {
     path: "/",
-    element: <AppShellLayout />,
+    element: (
+      <ProtectedRoute>
+        <AppShellLayout />
+      </ProtectedRoute>
+    ),
     children: [
       { index: true, element: <DashboardPage /> },
       { path: "connections", element: <ConnectionsPage /> },

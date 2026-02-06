@@ -10,11 +10,16 @@ import {
 } from "@mantine/core";
 import { useNavigate } from "react-router-dom";
 import { useAppStore } from "../store/useAppStore";
+import { useEffect } from "react";
 
 export function DashboardPage() {
   const nav = useNavigate();
-  const { storageBackends, apiSources, streams, packages, models } =
+  const { storageBackends, apiSources, streams, packages, models, fetchAll } =
     useAppStore();
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
 
   return (
     <Stack>

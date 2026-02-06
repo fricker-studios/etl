@@ -1,6 +1,5 @@
 import { create } from "zustand";
-import { nanoid } from "nanoid/non-secure";
-import { loadJson, saveJson } from "../utils/storage";
+import { api } from "../utils/api";
 
 export type StorageBackend =
   | {
@@ -10,10 +9,10 @@ export type StorageBackend =
       endpoint: string;
       region?: string;
       bucket: string;
-      accessKeyId: string;
-      secretAccessKey: string;
-      pathStyle: boolean;
-      tlsVerify: boolean;
+      access_key_id: string;
+      secret_access_key: string;
+      path_style: boolean;
+      tls_verify: boolean;
     }
   | {
       id: string;
@@ -30,13 +29,13 @@ export type StorageBackend =
 export type ApiSource = {
   id: string;
   name: string;
-  baseUrl: string;
-  authType: "none" | "bearer" | "basic" | "header";
-  bearerToken?: string;
-  basicUser?: string;
-  basicPass?: string;
-  headerName?: string;
-  headerValue?: string;
+  base_url: string;
+  auth_type: "none" | "bearer" | "basic" | "header";
+  bearer_token?: string;
+  basic_user?: string;
+  basic_pass?: string;
+  header_name?: string;
+  header_value?: string;
 };
 
 export type Pagination =
@@ -52,25 +51,25 @@ export type Pagination =
 
 export type Stream = {
   id: string;
-  apiSourceId: string;
+  api_source: string;
   name: string;
   method: "GET" | "POST";
-  path: string; // /v1/items
-  queryParams: { key: string; value: string }[];
+  path: string;
+  query_params: { key: string; value: string }[];
   headers: { key: string; value: string }[];
-  bodyTemplate?: string;
+  body_template?: string;
   pagination: Pagination;
-  previewJson?: unknown; // stored sample response
-  inferredSchema?: unknown; // stored schema
+  preview_json?: unknown;
+  inferred_schema?: unknown;
 };
 
 export type DataPackage = {
   id: string;
   name: string;
-  streamId: string;
-  createdAt: string;
-  destinationId?: string; // storage backend chosen
-  rowCountEstimate?: number;
+  stream: string;
+  created_at: string;
+  destination?: string;
+  row_count_estimate?: number;
   status: "draft" | "queued" | "materialized" | "failed";
 };
 
@@ -104,158 +103,160 @@ type AppState = {
   streams: Stream[];
   packages: DataPackage[];
   models: Model[];
+  loading: boolean;
 
-  addStorageBackend: (b: Omit<StorageBackend, "id">) => void;
-  removeStorageBackend: (id: string) => void;
+  fetchAll: () => Promise<void>;
+  
+  addStorageBackend: (b: any) => Promise<void>;
+  removeStorageBackend: (id: string) => Promise<void>;
 
-  upsertApiSource: (s: Omit<ApiSource, "id"> & { id?: string }) => void;
-  removeApiSource: (id: string) => void;
+  upsertApiSource: (s: any) => Promise<void>;
+  removeApiSource: (id: string) => Promise<void>;
 
-  upsertStream: (s: Omit<Stream, "id"> & { id?: string }) => void;
-  removeStream: (id: string) => void;
+  upsertStream: (s: any) => Promise<void>;
+  removeStream: (id: string) => Promise<void>;
   setStreamPreview: (
     id: string,
     previewJson: unknown,
     inferredSchema: unknown,
-  ) => void;
+  ) => Promise<void>;
 
-  addPackage: (p: Omit<DataPackage, "id" | "createdAt" | "status">) => void;
-  updatePackage: (id: string, patch: Partial<DataPackage>) => void;
+  addPackage: (p: any) => Promise<void>;
+  updatePackage: (id: string, patch: Partial<DataPackage>) => Promise<void>;
 
-  upsertModel: (m: Omit<Model, "id"> & { id?: string }) => void;
-  removeModel: (id: string) => void;
+  upsertModel: (m: any) => Promise<void>;
+  removeModel: (id: string) => Promise<void>;
 
   resetAll: () => void;
 };
 
-const KEY = "etl_ui_state_v1";
-
-const initial = loadJson<
-  Pick<
-    AppState,
-    "storageBackends" | "apiSources" | "streams" | "packages" | "models"
-  >
->(KEY, {
+export const useAppStore = create<AppState>((set, get) => ({
   storageBackends: [],
   apiSources: [],
   streams: [],
   packages: [],
   models: [],
-});
+  loading: false,
 
-export const useAppStore = create<AppState>((set, _) => ({
-  ...initial,
+  fetchAll: async () => {
+    set({ loading: true });
+    try {
+      const [storageBackends, apiSources, streams, packages, models] =
+        await Promise.all([
+          api.storageBackends.list(),
+          api.apiSources.list(),
+          api.streams.list(),
+          api.packages.list(),
+          api.models.list(),
+        ]);
+      set({ storageBackends, apiSources, streams, packages, models });
+    } catch (error) {
+      console.error("Failed to fetch data:", error);
+    } finally {
+      set({ loading: false });
+    }
+  },
 
-  addStorageBackend: (b) =>
-    set((st) => {
-      const next = [...st.storageBackends, { ...(b as any), id: nanoid() }];
-      saveJson(KEY, { ...st, storageBackends: next });
-      return { storageBackends: next };
-    }),
+  addStorageBackend: async (b) => {
+    const created = await api.storageBackends.create(b);
+    set((st) => ({ storageBackends: [...st.storageBackends, created] }));
+  },
 
-  removeStorageBackend: (id) =>
-    set((st) => {
-      const next = st.storageBackends.filter((x) => x.id !== id);
-      saveJson(KEY, { ...st, storageBackends: next });
-      return { storageBackends: next };
-    }),
+  removeStorageBackend: async (id) => {
+    await api.storageBackends.delete(id);
+    set((st) => ({
+      storageBackends: st.storageBackends.filter((x) => x.id !== id),
+    }));
+  },
 
-  upsertApiSource: (s) =>
-    set((st) => {
-      const id = s.id ?? nanoid();
-      const next = st.apiSources.some((x) => x.id === id)
-        ? st.apiSources.map((x) => (x.id === id ? { ...x, ...s, id } : x))
-        : [...st.apiSources, { ...(s as any), id }];
-      saveJson(KEY, { ...st, apiSources: next });
-      return { apiSources: next };
-    }),
+  upsertApiSource: async (s) => {
+    if (s.id) {
+      const updated = await api.apiSources.update(s.id, s);
+      set((st) => ({
+        apiSources: st.apiSources.map((x) => (x.id === s.id ? updated : x)),
+      }));
+    } else {
+      const created = await api.apiSources.create(s);
+      set((st) => ({ apiSources: [...st.apiSources, created] }));
+    }
+  },
 
-  removeApiSource: (id) =>
-    set((st) => {
-      const next = st.apiSources.filter((x) => x.id !== id);
-      saveJson(KEY, { ...st, apiSources: next });
-      return { apiSources: next };
-    }),
+  removeApiSource: async (id) => {
+    await api.apiSources.delete(id);
+    set((st) => ({
+      apiSources: st.apiSources.filter((x) => x.id !== id),
+    }));
+  },
 
-  upsertStream: (s) =>
-    set((st) => {
-      const id = s.id ?? nanoid();
-      const next = st.streams.some((x) => x.id === id)
-        ? st.streams.map((x) => (x.id === id ? { ...x, ...s, id } : x))
-        : [...st.streams, { ...(s as any), id }];
-      saveJson(KEY, { ...st, streams: next });
-      return { streams: next };
-    }),
+  upsertStream: async (s) => {
+    if (s.id) {
+      const updated = await api.streams.update(s.id, s);
+      set((st) => ({
+        streams: st.streams.map((x) => (x.id === s.id ? updated : x)),
+      }));
+    } else {
+      const created = await api.streams.create(s);
+      set((st) => ({ streams: [...st.streams, created] }));
+    }
+  },
 
-  removeStream: (id) =>
-    set((st) => {
-      const next = st.streams.filter((x) => x.id !== id);
-      saveJson(KEY, { ...st, streams: next });
-      return { streams: next };
-    }),
+  removeStream: async (id) => {
+    await api.streams.delete(id);
+    set((st) => ({
+      streams: st.streams.filter((x) => x.id !== id),
+    }));
+  },
 
-  setStreamPreview: (id, previewJson, inferredSchema) =>
-    set((st) => {
-      const next = st.streams.map((x) =>
-        x.id === id ? { ...x, previewJson, inferredSchema } : x,
-      );
-      saveJson(KEY, { ...st, streams: next });
-      return { streams: next };
-    }),
+  setStreamPreview: async (id, previewJson, inferredSchema) => {
+    const updated = await api.streams.update(id, {
+      preview_json: previewJson,
+      inferred_schema: inferredSchema,
+    });
+    set((st) => ({
+      streams: st.streams.map((x) => (x.id === id ? updated : x)),
+    }));
+  },
 
-  addPackage: (p) =>
-    set((st) => {
-      const next = [
-        ...st.packages,
-        {
-          ...p,
-          id: nanoid(),
-          createdAt: new Date().toISOString(),
-          status: "draft" as const,
-        },
-      ];
-      saveJson(KEY, { ...st, packages: next });
-      return { packages: next };
-    }),
+  addPackage: async (p) => {
+    const created = await api.packages.create(p);
+    set((st) => ({ packages: [...st.packages, created] }));
+  },
 
-  updatePackage: (id, patch) =>
-    set((st) => {
-      const next = st.packages.map((x) =>
-        x.id === id ? { ...x, ...patch } : x,
-      );
-      saveJson(KEY, { ...st, packages: next });
-      return { packages: next };
-    }),
+  updatePackage: async (id, patch) => {
+    const updated = await api.packages.update(id, patch);
+    set((st) => ({
+      packages: st.packages.map((x) => (x.id === id ? updated : x)),
+    }));
+  },
 
-  upsertModel: (m) =>
-    set((st) => {
-      const id = (m as any).id ?? nanoid();
-      const next = st.models.some((x: any) => (x as any).id === id)
-        ? st.models.map((x: any) =>
-            (x as any).id === id ? { ...x, ...m, id } : x,
-          )
-        : [...st.models, { ...(m as any), id }];
-      saveJson(KEY, { ...st, models: next });
-      return { models: next };
-    }),
+  upsertModel: async (m) => {
+    if ((m as any).id) {
+      const updated = await api.models.update((m as any).id, m);
+      set((st) => ({
+        models: st.models.map((x) =>
+          (x as any).id === (m as any).id ? updated : x,
+        ),
+      }));
+    } else {
+      const created = await api.models.create(m);
+      set((st) => ({ models: [...st.models, created] }));
+    }
+  },
 
-  removeModel: (id) =>
-    set((st) => {
-      const next = st.models.filter((x: any) => (x as any).id !== id);
-      saveJson(KEY, { ...st, models: next });
-      return { models: next };
-    }),
+  removeModel: async (id) => {
+    await api.models.delete(id);
+    set((st) => ({
+      models: st.models.filter((x: any) => (x as any).id !== id),
+    }));
+  },
 
-  resetAll: () =>
-    set(() => {
-      const next = {
-        storageBackends: [],
-        apiSources: [],
-        streams: [],
-        packages: [],
-        models: [],
-      };
-      saveJson(KEY, next);
-      return next as any;
-    }),
+  resetAll: () => {
+    set({
+      storageBackends: [],
+      apiSources: [],
+      streams: [],
+      packages: [],
+      models: [],
+    });
+  },
 }));
