@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 ARG SENTRY_RELEASE_VERSION=dev
 
 EXPOSE 8000
@@ -11,11 +11,12 @@ ENV PYTHONUNBUFFERED=1
 
 ENV DJANGO_SENTRY_RELEASE_VERSION=${SENTRY_RELEASE_VERSION}
 
+# Install python packages
 WORKDIR /app
-
-# Copy requirements and install Python dependencies
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -U pip
+RUN pip install poetry==2.3.2
+COPY backend/poetry.lock backend/pyproject.toml ./
+RUN poetry config virtualenvs.create false && poetry install --no-root
 
 # Copy application code
 COPY backend/ .

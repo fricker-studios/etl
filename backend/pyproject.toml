@@ -1,0 +1,28 @@
+[project]
+name = "backend"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Alex Fricker",email = "alex@alexfricker.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12,<4.0"
+dependencies = [
+    "django (>=5.0,<5.1)",
+    "djangorestframework (>=3.14.0)",
+    "django-cors-headers (>=4.3.0)",
+    "psycopg2-binary (>=2.9.9)",
+    "python-decouple (>=3.8)",
+    "djangorestframework-simplejwt (>=5.3.1)",
+    "drf-spectacular (>=0.27.0)",
+    "cryptography (>=42.0.0)"
+]
+
+[tool.poetry]
+
+[tool.poetry.group.dev.dependencies]
+black = "^26.1.0"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
