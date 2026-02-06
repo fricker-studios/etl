@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from .encryption import encrypt_value, decrypt_value
 
 
 class StorageBackend(models.Model):
@@ -77,11 +78,11 @@ class DataSource(models.Model):
     # API fields
     base_url = models.URLField(blank=True, null=True)
     auth_type = models.CharField(max_length=20, choices=AUTH_TYPE_CHOICES, default='none')
-    bearer_token = models.CharField(max_length=500, blank=True, null=True)
+    bearer_token = models.CharField(max_length=1000, blank=True, null=True)  # Encrypted
     basic_user = models.CharField(max_length=255, blank=True, null=True)
-    basic_pass = models.CharField(max_length=255, blank=True, null=True)
+    basic_pass = models.CharField(max_length=1000, blank=True, null=True)  # Encrypted
     header_name = models.CharField(max_length=255, blank=True, null=True)
-    header_value = models.CharField(max_length=500, blank=True, null=True)
+    header_value = models.CharField(max_length=1000, blank=True, null=True)  # Encrypted
     
     # Database fields
     database_type = models.CharField(max_length=20, choices=DATABASE_TYPE_CHOICES, blank=True, null=True)
@@ -89,21 +90,21 @@ class DataSource(models.Model):
     port = models.IntegerField(blank=True, null=True)
     database_name = models.CharField(max_length=255, blank=True, null=True)
     username = models.CharField(max_length=255, blank=True, null=True)
-    password = models.CharField(max_length=255, blank=True, null=True)
+    password = models.CharField(max_length=1000, blank=True, null=True)  # Encrypted
     
     # S3 fields
     s3_endpoint = models.URLField(blank=True, null=True)
     s3_region = models.CharField(max_length=100, blank=True, null=True)
     s3_bucket = models.CharField(max_length=255, blank=True, null=True)
     s3_access_key = models.CharField(max_length=255, blank=True, null=True)
-    s3_secret_key = models.CharField(max_length=255, blank=True, null=True)
+    s3_secret_key = models.CharField(max_length=1000, blank=True, null=True)  # Encrypted
     
     # SFTP fields
     sftp_host = models.CharField(max_length=255, blank=True, null=True)
     sftp_port = models.IntegerField(default=22, blank=True, null=True)
     sftp_username = models.CharField(max_length=255, blank=True, null=True)
-    sftp_password = models.CharField(max_length=255, blank=True, null=True)
-    sftp_key = models.TextField(blank=True, null=True)
+    sftp_password = models.CharField(max_length=1000, blank=True, null=True)  # Encrypted
+    sftp_key = models.TextField(blank=True, null=True)  # Encrypted
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -113,6 +114,64 @@ class DataSource(models.Model):
     
     def __str__(self):
         return f"{self.name} ({self.type})"
+    
+    def save(self, *args, **kwargs):
+        """Override save to encrypt sensitive fields."""
+        # Encrypt API credentials
+        if self.bearer_token and not self._is_encrypted(self.bearer_token):
+            self.bearer_token = encrypt_value(self.bearer_token)
+        if self.basic_pass and not self._is_encrypted(self.basic_pass):
+            self.basic_pass = encrypt_value(self.basic_pass)
+        if self.header_value and not self._is_encrypted(self.header_value):
+            self.header_value = encrypt_value(self.header_value)
+        
+        # Encrypt database credentials
+        if self.password and not self._is_encrypted(self.password):
+            self.password = encrypt_value(self.password)
+        
+        # Encrypt S3 credentials
+        if self.s3_secret_key and not self._is_encrypted(self.s3_secret_key):
+            self.s3_secret_key = encrypt_value(self.s3_secret_key)
+        
+        # Encrypt SFTP credentials
+        if self.sftp_password and not self._is_encrypted(self.sftp_password):
+            self.sftp_password = encrypt_value(self.sftp_password)
+        if self.sftp_key and not self._is_encrypted(self.sftp_key):
+            self.sftp_key = encrypt_value(self.sftp_key)
+        
+        super().save(*args, **kwargs)
+    
+    def _is_encrypted(self, value):
+        """Check if a value is already encrypted (Fernet encrypted strings start with 'gAAAAA')."""
+        return value and len(value) > 20 and value.startswith('gAAAAA')
+    
+    def get_decrypted_bearer_token(self):
+        """Get decrypted bearer token."""
+        return decrypt_value(self.bearer_token) if self.bearer_token else None
+    
+    def get_decrypted_basic_pass(self):
+        """Get decrypted basic password."""
+        return decrypt_value(self.basic_pass) if self.basic_pass else None
+    
+    def get_decrypted_header_value(self):
+        """Get decrypted header value."""
+        return decrypt_value(self.header_value) if self.header_value else None
+    
+    def get_decrypted_password(self):
+        """Get decrypted database password."""
+        return decrypt_value(self.password) if self.password else None
+    
+    def get_decrypted_s3_secret_key(self):
+        """Get decrypted S3 secret key."""
+        return decrypt_value(self.s3_secret_key) if self.s3_secret_key else None
+    
+    def get_decrypted_sftp_password(self):
+        """Get decrypted SFTP password."""
+        return decrypt_value(self.sftp_password) if self.sftp_password else None
+    
+    def get_decrypted_sftp_key(self):
+        """Get decrypted SFTP key."""
+        return decrypt_value(self.sftp_key) if self.sftp_key else None
 
 
 class Stream(models.Model):

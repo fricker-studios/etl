@@ -1,7 +1,10 @@
-import { Group, Title, Text, Card, Stack, Table } from "@mantine/core";
+import { Group, Title, Text, Card, Stack, Table, Button } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import { useAppStore } from "../store/useAppStore";
+import { DataSourceDrawer } from "../features/sources/DataSourceDrawer";
 
 export function DataSourcesPage() {
+  const [open, { open: openDrawer, close }] = useDisclosure(false);
   const dataSources = useAppStore((s) => s.dataSources);
 
   return (
@@ -13,6 +16,7 @@ export function DataSourcesPage() {
             Configure connections to APIs, databases, S3 buckets, SFTP servers, and more
           </Text>
         </div>
+        <Button onClick={openDrawer}>Add Data Source</Button>
       </Group>
 
       <Card withBorder>
@@ -48,7 +52,7 @@ export function DataSourcesPage() {
         </Table>
       </Card>
 
-      {/* TODO: Add DataSourceDrawer component */}
+      <DataSourceDrawer opened={open} onClose={close} />
     </Stack>
   );
 }
