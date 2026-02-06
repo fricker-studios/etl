@@ -28,7 +28,7 @@ const items = [
   { label: "Dashboard", path: "/", icon: IconBolt },
   { label: "Data Sources", path: "/data-sources", icon: IconPlug },
   { label: "Streams", path: "/streams", icon: IconStack2 },
-  { label: "Data Packages", path: "/packages", icon: IconPackage },
+  { label: "Topics", path: "/topics", icon: IconPackage },
   { label: "Data Models", path: "/models", icon: IconBoxMultiple },
   { label: "Runs", path: "/runs", icon: IconActivity },
   { label: "Settings", path: "/settings", icon: IconSettings },

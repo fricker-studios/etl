@@ -91,13 +91,44 @@ export type Stream = {
   inferred_schema?: unknown;
 };
 
+export type TopicRevision = {
+  id: string;
+  topic: string;
+  revision_number: number;
+  schema: Array<{
+    name: string;
+    position: number;
+    data_type: string;
+    nullable: boolean;
+  }>;
+  change_description?: string;
+  package_count?: number;
+  created_at: string;
+};
+
+export type Topic = {
+  id: string;
+  name: string;
+  description?: string;
+  revisions?: TopicRevision[];
+  current_revision?: TopicRevision;
+  total_packages?: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export type DataPackage = {
   id: string;
   name: string;
-  stream: string;
+  topic_revision: string;
+  topic_name?: string;
+  revision_number?: number;
+  stream?: string;
   created_at: string;
   destination?: string;
   row_count_estimate?: number;
+  file_path?: string;
+  file_size_bytes?: number;
   status: "draft" | "queued" | "materialized" | "failed";
 };
 
@@ -143,6 +174,7 @@ type AppState = {
   storageBackends: StorageBackend[];
   dataSources: DataSource[];
   streams: Stream[];
+  topics: Topic[];
   packages: DataPackage[];
   models: Model[];
   runs: Run[];
@@ -177,6 +209,7 @@ export const useAppStore = create<AppState>((set) => ({
   storageBackends: [],
   dataSources: [],
   streams: [],
+  topics: [],
   packages: [],
   models: [],
   runs: [],
@@ -185,16 +218,17 @@ export const useAppStore = create<AppState>((set) => ({
   fetchAll: async () => {
     set({ loading: true });
     try {
-      const [storageBackends, dataSources, streams, packages, models, runs] =
+      const [storageBackends, dataSources, streams, topics, packages, models, runs] =
         await Promise.all([
           api.storageBackends.list() as Promise<StorageBackend[]>,
           api.dataSources.list() as Promise<DataSource[]>,
           api.streams.list() as Promise<Stream[]>,
+          api.topics.list() as Promise<Topic[]>,
           api.packages.list() as Promise<DataPackage[]>,
           api.models.list() as Promise<Model[]>,
           api.runs.list() as Promise<Run[]>,
         ]);
-      set({ storageBackends, dataSources, streams, packages, models, runs });
+      set({ storageBackends, dataSources, streams, topics, packages, models, runs });
     } catch (error) {
       console.error("Failed to fetch data:", error);
     } finally {
@@ -300,6 +334,7 @@ export const useAppStore = create<AppState>((set) => ({
       storageBackends: [],
       dataSources: [],
       streams: [],
+      topics: [],
       packages: [],
       models: [],
       runs: [],

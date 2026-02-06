@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import StorageBackend, DataSource, Stream, DataPackage, Model, Run
+from .models import StorageBackend, DataSource, Stream, DataPackage, Model, Run, Topic, TopicRevision
 
 
 @admin.register(StorageBackend)
@@ -23,11 +23,33 @@ class StreamAdmin(admin.ModelAdmin):
     search_fields = ('name', 'user__username')
 
 
+@admin.register(Topic)
+class TopicAdmin(admin.ModelAdmin):
+    list_display = ('name', 'user', 'created_at')
+    list_filter = ('created_at',)
+    search_fields = ('name', 'user__username', 'description')
+
+
+class DataPackageInline(admin.TabularInline):
+    model = DataPackage
+    extra = 0
+    fields = ('name', 'status', 'stream', 'row_count_estimate')
+    readonly_fields = ('name', 'status', 'stream', 'row_count_estimate')
+
+
+@admin.register(TopicRevision)
+class TopicRevisionAdmin(admin.ModelAdmin):
+    list_display = ('topic', 'revision_number', 'created_at')
+    list_filter = ('topic', 'created_at')
+    search_fields = ('topic__name', 'change_description')
+    inlines = [DataPackageInline]
+
+
 @admin.register(DataPackage)
 class DataPackageAdmin(admin.ModelAdmin):
-    list_display = ('name', 'stream', 'status', 'user', 'created_at')
+    list_display = ('name', 'topic_revision', 'stream', 'status', 'user', 'created_at')
     list_filter = ('status', 'created_at')
-    search_fields = ('name', 'user__username')
+    search_fields = ('name', 'user__username', 'topic_revision__topic__name')
 
 
 @admin.register(Model)

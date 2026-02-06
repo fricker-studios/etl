@@ -209,8 +209,51 @@ class Stream(models.Model):
         return self.name
 
 
+class Topic(models.Model):
+    """Topic - Collection of data packages with a defined schema"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='topics')
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return self.name
+    
+    @property
+    def current_revision(self):
+        """Get the current (latest) revision of this topic."""
+        return self.revisions.order_by('-revision_number').first()
+
+
+class TopicRevision(models.Model):
+    """Topic revision - Represents a schema version for a topic"""
+    topic = models.ForeignKey(Topic, on_delete=models.CASCADE, related_name='revisions')
+    revision_number = models.IntegerField()
+    
+    # Schema definition - array of column definitions
+    # [{"name": "user_id", "position": 1, "data_type": "integer", "nullable": false}, ...]
+    schema = models.JSONField(default=list)
+    
+    # Change description
+    change_description = models.TextField(blank=True, null=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['topic', '-revision_number']
+        unique_together = ['topic', 'revision_number']
+    
+    def __str__(self):
+        return f"{self.topic.name} - Rev {self.revision_number}"
+
+
 class DataPackage(models.Model):
-    """Data packages - files produced/consumed from streams"""
+    """Data packages - files produced/consumed from streams, linked to topic revisions"""
     STATUS_CHOICES = [
         ('draft', 'Draft'),
         ('queued', 'Queued'),
@@ -219,12 +262,17 @@ class DataPackage(models.Model):
     ]
     
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='packages')
-    stream = models.ForeignKey(Stream, on_delete=models.CASCADE, related_name='packages')
+    topic_revision = models.ForeignKey(TopicRevision, on_delete=models.CASCADE, related_name='packages', null=True, blank=True)
+    stream = models.ForeignKey(Stream, on_delete=models.CASCADE, related_name='packages', null=True, blank=True)
     destination = models.ForeignKey(StorageBackend, on_delete=models.SET_NULL, null=True, blank=True, related_name='packages')
     
     name = models.CharField(max_length=255)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
     row_count_estimate = models.IntegerField(null=True, blank=True)
+    
+    # For S3 data sources: file path/key
+    file_path = models.CharField(max_length=1000, blank=True, null=True)
+    file_size_bytes = models.BigIntegerField(null=True, blank=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

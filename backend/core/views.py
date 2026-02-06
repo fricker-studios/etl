@@ -1,6 +1,6 @@
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
-from .models import StorageBackend, DataSource, Stream, DataPackage, Model, Run
+from .models import StorageBackend, DataSource, Stream, DataPackage, Model, Run, Topic, TopicRevision
 from .serializers import (
     StorageBackendSerializer,
     DataSourceSerializer,
@@ -8,6 +8,8 @@ from .serializers import (
     DataPackageSerializer,
     ModelSerializer,
     RunSerializer,
+    TopicSerializer,
+    TopicRevisionSerializer,
 )
 
 
@@ -42,6 +44,25 @@ class StreamViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+
+class TopicViewSet(viewsets.ModelViewSet):
+    serializer_class = TopicSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Topic.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class TopicRevisionViewSet(viewsets.ModelViewSet):
+    serializer_class = TopicRevisionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return TopicRevision.objects.filter(topic__user=self.request.user)
 
 
 class DataPackageViewSet(viewsets.ModelViewSet):

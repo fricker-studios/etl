@@ -48,7 +48,7 @@ export function PackagesPage() {
             {packages.map((p) => (
               <Table.Tr key={p.id}>
                 <Table.Td>{p.name}</Table.Td>
-                <Table.Td>{streamName(p.stream)}</Table.Td>
+                <Table.Td>{p.stream ? streamName(p.stream) : "—"}</Table.Td>
                 <Table.Td>{new Date(p.created_at).toLocaleString()}</Table.Td>
                 <Table.Td>
                   <Badge

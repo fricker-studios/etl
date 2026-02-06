@@ -6,7 +6,7 @@ import { useAuthStore } from "../store/useAuthStore";
 import { DashboardPage } from "../pages/DashboardPage";
 import { DataSourcesPage } from "../pages/DataSourcesPage";
 import { StreamsPage } from "../pages/StreamsPage";
-import { PackagesPage } from "../pages/PackagesPage";
+import { TopicsPage } from "../pages/TopicsPage";
 import { ModelsPage } from "../pages/ModelsPage";
 import { RunsPage } from "../pages/RunsPage";
 import { SettingsPage } from "../pages/SettingsPage";
@@ -39,7 +39,7 @@ export const router = createBrowserRouter([
       { index: true, element: <DashboardPage /> },
       { path: "data-sources", element: <DataSourcesPage /> },
       { path: "streams", element: <StreamsPage /> },
-      { path: "packages", element: <PackagesPage /> },
+      { path: "topics", element: <TopicsPage /> },
       { path: "models", element: <ModelsPage /> },
       { path: "runs", element: <RunsPage /> },
       { path: "settings", element: <SettingsPage /> },

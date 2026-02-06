@@ -138,6 +138,46 @@ export const api = {
       }),
   },
 
+  // Topics
+  topics: {
+    list: () => request("/topics/"),
+    get: (id: string) => request(`/topics/${id}/`),
+    create: (data: any) =>
+      request("/topics/", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    update: (id: string, data: any) =>
+      request(`/topics/${id}/`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+    delete: (id: string) =>
+      request(`/topics/${id}/`, {
+        method: "DELETE",
+      }),
+  },
+
+  // Topic Revisions
+  topicRevisions: {
+    list: () => request("/topic-revisions/"),
+    get: (id: string) => request(`/topic-revisions/${id}/`),
+    create: (data: any) =>
+      request("/topic-revisions/", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    update: (id: string, data: any) =>
+      request(`/topic-revisions/${id}/`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+    delete: (id: string) =>
+      request(`/topic-revisions/${id}/`, {
+        method: "DELETE",
+      }),
+  },
+
   // Runs
   runs: {
     list: () => request("/runs/"),
