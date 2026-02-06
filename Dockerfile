@@ -1,11 +1,17 @@
 FROM python:3.11-slim
+ARG SENTRY_RELEASE_VERSION=dev
+
+EXPOSE 8000
+
+# Keeps Python from generating .pyc files in the container
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Turns off buffering for easier container logging
+ENV PYTHONUNBUFFERED=1
+
+ENV DJANGO_SENTRY_RELEASE_VERSION=${SENTRY_RELEASE_VERSION}
 
 WORKDIR /app
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    postgresql-client \
-    && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
 COPY backend/requirements.txt .

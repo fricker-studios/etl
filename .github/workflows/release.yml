@@ -127,15 +127,3 @@ jobs:
       generate_notes: true
     secrets:
       gh_token: ${{ secrets.GITOPS_PAT }}
-
-  create-sentry-release:
-    name: Create Sentry Release
-    needs: [build-multiarch-internal-ui, update-gitops-manifest, update-demo-manifest]
-    uses: fricker-studios/github-actions/.github/workflows/sentry-release.yml@main
-    with:
-      release_version: ${{ github.ref_name }}
-      sentry_org: sentry
-      sentry_project: etl
-      sentry_url: https://sentry.alexfricker.com/
-    secrets:
-      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
