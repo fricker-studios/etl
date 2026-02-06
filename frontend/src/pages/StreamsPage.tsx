@@ -47,13 +47,13 @@ export function StreamsPage() {
             {streams.map((st) => (
               <Table.Tr key={st.id}>
                 <Table.Td>{st.name}</Table.Td>
-                <Table.Td>{sourceName(st.apiSourceId)}</Table.Td>
+                <Table.Td>{sourceName(st.api_source)}</Table.Td>
                 <Table.Td>
                   <Badge variant="light">{st.method}</Badge>
                 </Table.Td>
                 <Table.Td>{st.path}</Table.Td>
                 <Table.Td>
-                  {st.inferredSchema ? (
+                  {st.inferred_schema ? (
                     <Badge color="teal" variant="light">
                       Inferred
                     </Badge>

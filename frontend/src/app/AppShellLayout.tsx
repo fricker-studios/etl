@@ -6,7 +6,6 @@ import {
   Text,
   Box,
   ActionIcon,
-  Tooltip,
   Menu,
   Avatar,
 } from "@mantine/core";

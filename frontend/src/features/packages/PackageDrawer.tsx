@@ -98,7 +98,7 @@ export function PackageDrawer({
         <Divider />
         <Badge variant="light">Schema readiness</Badge>
         <Text c="dimmed" size="sm">
-          {stream?.inferredSchema
+          {stream?.inferred_schema
             ? "Schema inferred from preview JSON."
             : "No inferred schema yet. Add a stream preview first."}
         </Text>

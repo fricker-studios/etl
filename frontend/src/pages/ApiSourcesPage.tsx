@@ -32,8 +32,8 @@ export function ApiSourcesPage() {
             {apiSources.map((s) => (
               <Table.Tr key={s.id}>
                 <Table.Td>{s.name}</Table.Td>
-                <Table.Td>{s.baseUrl}</Table.Td>
-                <Table.Td>{s.authType}</Table.Td>
+                <Table.Td>{s.base_url}</Table.Td>
+                <Table.Td>{s.auth_type}</Table.Td>
               </Table.Tr>
             ))}
             {apiSources.length === 0 && (

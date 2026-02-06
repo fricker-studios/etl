@@ -10,15 +10,15 @@ async function request<T>(
 ): Promise<T> {
   const { requiresAuth = true, ...fetchOptions } = options;
 
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...fetchOptions.headers,
+    ...(fetchOptions.headers as Record<string, string>),
   };
 
   if (requiresAuth) {
     const token = localStorage.getItem("accessToken");
     if (token) {
-      headers.Authorization = `Bearer ${token}`;
+      headers["Authorization"] = `Bearer ${token}`;
     }
   }
 

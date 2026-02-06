@@ -188,10 +188,13 @@ export function StreamDrawer({
         rows.filter((r) => r.key.trim().length > 0);
 
       const stream = {
-        ...form,
-        queryParams: cleanKV(queryParams),
+        api_source: form.apiSourceId,
+        name: form.name,
+        method: form.method,
+        path: form.path,
+        query_params: cleanKV(queryParams),
         headers: cleanKV(headers),
-        bodyTemplate: form.method === "POST" ? bodyTemplate : undefined,
+        body_template: form.method === "POST" ? bodyTemplate : undefined,
         pagination,
       };
 
@@ -209,7 +212,7 @@ export function StreamDrawer({
             (s) =>
               s.name === stream.name &&
               s.path === stream.path &&
-              s.apiSourceId === stream.apiSourceId,
+              s.api_source === stream.api_source,
           );
 
         if (created) setStreamPreview(created.id, parsedPreview.json, inferred);

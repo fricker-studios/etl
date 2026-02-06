@@ -130,7 +130,7 @@ type AppState = {
   resetAll: () => void;
 };
 
-export const useAppStore = create<AppState>((set, get) => ({
+export const useAppStore = create<AppState>((set) => ({
   storageBackends: [],
   apiSources: [],
   streams: [],
@@ -143,11 +143,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const [storageBackends, apiSources, streams, packages, models] =
         await Promise.all([
-          api.storageBackends.list(),
-          api.apiSources.list(),
-          api.streams.list(),
-          api.packages.list(),
-          api.models.list(),
+          api.storageBackends.list() as Promise<StorageBackend[]>,
+          api.apiSources.list() as Promise<ApiSource[]>,
+          api.streams.list() as Promise<Stream[]>,
+          api.packages.list() as Promise<DataPackage[]>,
+          api.models.list() as Promise<Model[]>,
         ]);
       set({ storageBackends, apiSources, streams, packages, models });
     } catch (error) {
@@ -158,7 +158,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   addStorageBackend: async (b) => {
-    const created = await api.storageBackends.create(b);
+    const created = await api.storageBackends.create(b) as StorageBackend;
     set((st) => ({ storageBackends: [...st.storageBackends, created] }));
   },
 
@@ -171,12 +171,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   upsertApiSource: async (s) => {
     if (s.id) {
-      const updated = await api.apiSources.update(s.id, s);
+      const updated = await api.apiSources.update(s.id, s) as ApiSource;
       set((st) => ({
         apiSources: st.apiSources.map((x) => (x.id === s.id ? updated : x)),
       }));
     } else {
-      const created = await api.apiSources.create(s);
+      const created = await api.apiSources.create(s) as ApiSource;
       set((st) => ({ apiSources: [...st.apiSources, created] }));
     }
   },
@@ -190,12 +190,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   upsertStream: async (s) => {
     if (s.id) {
-      const updated = await api.streams.update(s.id, s);
+      const updated = await api.streams.update(s.id, s) as Stream;
       set((st) => ({
         streams: st.streams.map((x) => (x.id === s.id ? updated : x)),
       }));
     } else {
-      const created = await api.streams.create(s);
+      const created = await api.streams.create(s) as Stream;
       set((st) => ({ streams: [...st.streams, created] }));
     }
   },
@@ -211,19 +211,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     const updated = await api.streams.update(id, {
       preview_json: previewJson,
       inferred_schema: inferredSchema,
-    });
+    }) as Stream;
     set((st) => ({
       streams: st.streams.map((x) => (x.id === id ? updated : x)),
     }));
   },
 
   addPackage: async (p) => {
-    const created = await api.packages.create(p);
+    const created = await api.packages.create(p) as DataPackage;
     set((st) => ({ packages: [...st.packages, created] }));
   },
 
   updatePackage: async (id, patch) => {
-    const updated = await api.packages.update(id, patch);
+    const updated = await api.packages.update(id, patch) as DataPackage;
     set((st) => ({
       packages: st.packages.map((x) => (x.id === id ? updated : x)),
     }));
@@ -231,14 +231,14 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   upsertModel: async (m) => {
     if ((m as any).id) {
-      const updated = await api.models.update((m as any).id, m);
+      const updated = await api.models.update((m as any).id, m) as Model;
       set((st) => ({
         models: st.models.map((x) =>
           (x as any).id === (m as any).id ? updated : x,
         ),
       }));
     } else {
-      const created = await api.models.create(m);
+      const created = await api.models.create(m) as Model;
       set((st) => ({ models: [...st.models, created] }));
     }
   },
