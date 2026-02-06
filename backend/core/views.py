@@ -1,12 +1,13 @@
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
-from .models import StorageBackend, DataSource, Stream, DataPackage, Model
+from .models import StorageBackend, DataSource, Stream, DataPackage, Model, Run
 from .serializers import (
     StorageBackendSerializer,
     DataSourceSerializer,
     StreamSerializer,
     DataPackageSerializer,
     ModelSerializer,
+    RunSerializer,
 )
 
 
@@ -60,6 +61,17 @@ class ModelViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return Model.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class RunViewSet(viewsets.ModelViewSet):
+    serializer_class = RunSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Run.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)

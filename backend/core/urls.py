@@ -6,6 +6,7 @@ from .views import (
     StreamViewSet,
     DataPackageViewSet,
     ModelViewSet,
+    RunViewSet,
 )
 
 router = DefaultRouter()
@@ -14,6 +15,7 @@ router.register(r'data-sources', DataSourceViewSet, basename='datasource')
 router.register(r'streams', StreamViewSet, basename='stream')
 router.register(r'packages', DataPackageViewSet, basename='datapackage')
 router.register(r'models', ModelViewSet, basename='model')
+router.register(r'runs', RunViewSet, basename='run')
 
 urlpatterns = [
     path('', include(router.urls)),

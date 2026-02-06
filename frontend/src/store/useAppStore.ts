@@ -125,12 +125,27 @@ export type Model =
       dimensions: { name: string; key: string; attributes: string[] }[];
     };
 
+export type Run = {
+  id: string;
+  name: string;
+  status: "queued" | "running" | "success" | "failed" | "cancelled";
+  stream?: string;
+  started_at?: string;
+  completed_at?: string;
+  duration_seconds?: number;
+  rows_processed?: number;
+  error_message?: string;
+  created_at: string;
+  updated_at: string;
+};
+
 type AppState = {
   storageBackends: StorageBackend[];
   dataSources: DataSource[];
   streams: Stream[];
   packages: DataPackage[];
   models: Model[];
+  runs: Run[];
   loading: boolean;
 
   fetchAll: () => Promise<void>;
@@ -164,20 +179,22 @@ export const useAppStore = create<AppState>((set) => ({
   streams: [],
   packages: [],
   models: [],
+  runs: [],
   loading: false,
 
   fetchAll: async () => {
     set({ loading: true });
     try {
-      const [storageBackends, dataSources, streams, packages, models] =
+      const [storageBackends, dataSources, streams, packages, models, runs] =
         await Promise.all([
           api.storageBackends.list() as Promise<StorageBackend[]>,
           api.dataSources.list() as Promise<DataSource[]>,
           api.streams.list() as Promise<Stream[]>,
           api.packages.list() as Promise<DataPackage[]>,
           api.models.list() as Promise<Model[]>,
+          api.runs.list() as Promise<Run[]>,
         ]);
-      set({ storageBackends, dataSources, streams, packages, models });
+      set({ storageBackends, dataSources, streams, packages, models, runs });
     } catch (error) {
       console.error("Failed to fetch data:", error);
     } finally {
@@ -285,6 +302,7 @@ export const useAppStore = create<AppState>((set) => ({
       streams: [],
       packages: [],
       models: [],
+      runs: [],
     });
   },
 }));

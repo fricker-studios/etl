@@ -137,4 +137,24 @@ export const api = {
         method: "DELETE",
       }),
   },
+
+  // Runs
+  runs: {
+    list: () => request("/runs/"),
+    get: (id: string) => request(`/runs/${id}/`),
+    create: (data: any) =>
+      request("/runs/", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    update: (id: string, data: any) =>
+      request(`/runs/${id}/`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+    delete: (id: string) =>
+      request(`/runs/${id}/`, {
+        method: "DELETE",
+      }),
+  },
 };

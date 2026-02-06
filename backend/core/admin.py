@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import StorageBackend, DataSource, Stream, DataPackage, Model
+from .models import StorageBackend, DataSource, Stream, DataPackage, Model, Run
 
 
 @admin.register(StorageBackend)
@@ -34,4 +34,11 @@ class DataPackageAdmin(admin.ModelAdmin):
 class ModelAdmin(admin.ModelAdmin):
     list_display = ('name', 'type', 'user', 'created_at')
     list_filter = ('type', 'created_at')
+    search_fields = ('name', 'user__username')
+
+
+@admin.register(Run)
+class RunAdmin(admin.ModelAdmin):
+    list_display = ('name', 'status', 'stream', 'started_at', 'duration_seconds', 'user', 'created_at')
+    list_filter = ('status', 'created_at')
     search_fields = ('name', 'user__username')
