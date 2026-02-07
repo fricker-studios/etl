@@ -27,6 +27,9 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-^ckr9f**q359!*_j@3o1r
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
+# Demo mode - allows login without credentials (for demos/testing only)
+DEMO_MODE = os.environ.get('DEMO_MODE', 'False') == 'True'
+
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
 
 

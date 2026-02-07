@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
+from django.conf import settings
 
 
 @api_view(['POST'])
@@ -13,6 +14,33 @@ def login_view(request):
     """Login endpoint that returns JWT tokens"""
     username = request.data.get('username')
     password = request.data.get('password')
+    
+    # Demo mode: allow login without credentials
+    if settings.DEMO_MODE:
+        # Get or create demo user
+        user, created = User.objects.get_or_create(
+            username='demo',
+            defaults={
+                'email': 'demo@example.com',
+                'is_staff': False,
+                'is_superuser': False
+            }
+        )
+        if created:
+            user.set_password('demo')
+            user.save()
+        
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+            },
+            'demo_mode': True
+        })
     
     if not username or not password:
         return Response(
