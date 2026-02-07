@@ -1,11 +1,20 @@
 import { Group, Title, Text, Card, Stack, Table, Button } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { useAppStore } from "../store/useAppStore";
+import { useState } from "react";
+import { useAppStore, type DataSource } from "../store/useAppStore";
 import { DataSourceDrawer } from "../features/sources/DataSourceDrawer";
+import { DataSourceDetailDrawer } from "../features/sources/DataSourceDetailDrawer";
 
 export function DataSourcesPage() {
   const [open, { open: openDrawer, close }] = useDisclosure(false);
+  const [detailOpen, { open: openDetail, close: closeDetail }] = useDisclosure(false);
+  const [selectedSource, setSelectedSource] = useState<DataSource | null>(null);
   const dataSources = useAppStore((s) => s.dataSources);
+
+  const handleRowClick = (source: DataSource) => {
+    setSelectedSource(source);
+    openDetail();
+  };
 
   return (
     <Stack>
@@ -30,7 +39,11 @@ export function DataSourcesPage() {
           </Table.Thead>
           <Table.Tbody>
             {dataSources.map((s) => (
-              <Table.Tr key={s.id}>
+              <Table.Tr
+                key={s.id}
+                style={{ cursor: "pointer" }}
+                onClick={() => handleRowClick(s)}
+              >
                 <Table.Td>{s.name}</Table.Td>
                 <Table.Td>{s.type.toUpperCase()}</Table.Td>
                 <Table.Td>
@@ -53,6 +66,11 @@ export function DataSourcesPage() {
       </Card>
 
       <DataSourceDrawer opened={open} onClose={close} />
+      <DataSourceDetailDrawer
+        opened={detailOpen}
+        onClose={closeDetail}
+        dataSource={selectedSource}
+      />
     </Stack>
   );
 }
