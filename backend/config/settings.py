@@ -13,9 +13,31 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 from pathlib import Path
 import os
 from datetime import timedelta
+import sentry_sdk
+from sentry_sdk.integrations.django import DjangoIntegration
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Initialize Sentry for error tracking and performance monitoring
+SENTRY_DSN = os.environ.get('SENTRY_DSN')
+DEFAULT_SENTRY_ENVIRONMENT = 'local'
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[
+            DjangoIntegration(
+                transaction_style='url',
+                middleware_spans=True,
+                signals_spans=True,
+                cache_spans=True,
+            ),
+        ],
+        traces_sample_rate=0.1,
+        send_default_pii=True,
+        environment=os.environ.get('SENTRY_ENVIRONMENT', DEFAULT_SENTRY_ENVIRONMENT),
+        release=os.environ.get('SENTRY_RELEASE'),
+    )
 
 
 # Quick-start development settings - unsuitable for production
