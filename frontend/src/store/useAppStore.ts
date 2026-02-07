@@ -87,6 +87,30 @@ export type Stream = {
   headers: { key: string; value: string }[];
   body_template?: string;
   pagination: Pagination;
+  
+  // Database-specific fields
+  table_name?: string;
+  ingestion_strategy?: "full_refresh" | "incremental" | "snapshot";
+  incremental_key?: string;
+  
+  // S3-specific fields
+  s3_path_pattern?: string;
+  s3_file_format?: string;
+  
+  // SFTP-specific fields
+  sftp_path_pattern?: string;
+  sftp_file_format?: string;
+  
+  // Scheduling
+  schedule_enabled?: boolean;
+  schedule_cron?: string;
+  schedule_interval_minutes?: number;
+  
+  // Data package configuration
+  data_package_name_pattern?: string;
+  
+  // Schema
+  schema?: any;
   preview_json?: unknown;
   inferred_schema?: unknown;
 };
