@@ -1,11 +1,14 @@
 import { Card, Group, Title, Text, Stack, Button, Badge, Accordion, Table } from "@mantine/core";
 import { IconPlus } from "@tabler/icons-react";
+import { useDisclosure } from "@mantine/hooks";
 import { useAppStore } from "../store/useAppStore";
 import { useState } from "react";
+import { TopicDrawer } from "../features/sources/TopicDrawer";
 
 export function TopicsPage() {
   const topics = useAppStore((s) => s.topics);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const [drawerOpen, { open: openDrawer, close: closeDrawer }] = useDisclosure(false);
 
   return (
     <Stack>
@@ -16,7 +19,7 @@ export function TopicsPage() {
             Collections of data packages with defined schemas. Each topic can have multiple revisions.
           </Text>
         </div>
-        <Button leftSection={<IconPlus size={16} />}>Create Topic</Button>
+        <Button leftSection={<IconPlus size={16} />} onClick={openDrawer}>Create Topic</Button>
       </Group>
 
       <Card withBorder>
@@ -125,6 +128,8 @@ export function TopicsPage() {
           </Accordion>
         )}
       </Card>
+      
+      <TopicDrawer opened={drawerOpen} onClose={closeDrawer} />
     </Stack>
   );
 }

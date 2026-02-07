@@ -217,6 +217,9 @@ type AppState = {
     inferredSchema: unknown,
   ) => Promise<void>;
 
+  addTopic: (topic: any, schema: any[]) => Promise<string | null>;
+  removeTopic: (id: string) => Promise<void>;
+
   addPackage: (p: any) => Promise<void>;
   updatePackage: (id: string, patch: Partial<DataPackage>) => Promise<void>;
 
@@ -314,6 +317,40 @@ export const useAppStore = create<AppState>((set) => ({
     }) as Stream;
     set((st) => ({
       streams: st.streams.map((x) => (x.id === id ? updated : x)),
+    }));
+  },
+
+  addTopic: async (topic, schema) => {
+    try {
+      // Create the topic first
+      const createdTopic = await api.topics.create(topic) as Topic;
+      
+      // Then create the initial revision with schema
+      const revisionData = {
+        topic: createdTopic.id,
+        revision_number: 1,
+        schema: schema,
+        change_description: "Initial schema",
+      };
+      
+      await api.topicRevisions.create(revisionData);
+      
+      // Fetch the updated topic with revisions
+      const updatedTopic = await api.topics.get(String(createdTopic.id)) as Topic;
+      
+      set((st) => ({ topics: [...st.topics, updatedTopic] }));
+      
+      return String(createdTopic.id);
+    } catch (error) {
+      console.error("Failed to create topic:", error);
+      throw error;
+    }
+  },
+
+  removeTopic: async (id) => {
+    await api.topics.delete(id);
+    set((st) => ({
+      topics: st.topics.filter((x) => x.id !== id),
     }));
   },
 

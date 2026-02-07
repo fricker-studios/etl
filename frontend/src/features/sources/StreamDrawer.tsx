@@ -17,11 +17,13 @@ import {
   Text,
 } from "@mantine/core";
 import { useMemo, useState, useEffect } from "react";
+import { useDisclosure } from "@mantine/hooks";
 import { useAppStore, type DataSource } from "../../store/useAppStore";
 import { notifications } from "@mantine/notifications";
 import { inferSchemaFromJson, schemaToPretty } from "../../utils/schemaInfer";
 import { IconPlus, IconTrash, IconWand } from "@tabler/icons-react";
 import { JsonPreviewPanel } from "./JsonPreviewPanel";
+import { TopicDrawer } from "./TopicDrawer";
 import { z } from "zod";
 
 type KV = { key: string; value: string };
@@ -103,6 +105,8 @@ export function StreamDrawer({
   onClose: () => void;
 }) {
   const { dataSources, topics, upsertStream, setStreamPreview } = useAppStore();
+  
+  const [topicDrawerOpen, { open: openTopicDrawer, close: closeTopicDrawer }] = useDisclosure(false);
 
   const apiOptions = dataSources.map((s) => ({ value: String(s.id), label: s.name }));
   const defaultApi = apiOptions[0]?.value ?? "";
@@ -194,6 +198,11 @@ export function StreamDrawer({
     const source = dataSources.find(s => s.id === form.dataSourceId);
     setSelectedSource(source || null);
   }, [form.dataSourceId, dataSources]);
+
+  const handleTopicCreated = (topicId: string) => {
+    // Update form with newly created topic
+    setForm({ ...form, topicId });
+  };
 
   const parsedPreview = useMemo(() => {
     try {
@@ -599,16 +608,30 @@ export function StreamDrawer({
 
             <Tabs.Panel value="schedule" pt="md">
               <Stack>
-                <Select
-                  label="Topic (Destination)"
-                  description="Topic defines the schema and holds data packages from this stream"
-                  data={topicOptions}
-                  value={form.topicId}
-                  onChange={(v) =>
-                    setForm({ ...form, topicId: (v as any) ?? "" })
-                  }
-                  required
-                />
+                <Stack gap="xs">
+                  <Group justify="space-between" align="flex-end">
+                    <div style={{ flex: 1 }}>
+                      <Select
+                        label="Topic (Destination)"
+                        description="Topic defines the schema and holds data packages from this stream"
+                        data={topicOptions}
+                        value={form.topicId}
+                        onChange={(v) =>
+                          setForm({ ...form, topicId: (v as any) ?? "" })
+                        }
+                        required
+                      />
+                    </div>
+                  </Group>
+                  <Button
+                    variant="light"
+                    leftSection={<IconPlus size={16} />}
+                    onClick={openTopicDrawer}
+                    fullWidth
+                  >
+                    Create New Topic
+                  </Button>
+                </Stack>
 
                 <Divider label="Scheduling" />
                 
@@ -696,6 +719,12 @@ export function StreamDrawer({
           </Tabs>
         )}
       </Stack>
+      
+      <TopicDrawer
+        opened={topicDrawerOpen}
+        onClose={closeTopicDrawer}
+        onTopicCreated={handleTopicCreated}
+      />
     </Drawer>
   );
 }
