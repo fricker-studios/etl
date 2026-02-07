@@ -36,7 +36,6 @@ build:ui-build api-build
 migrate: build
 	docker compose up -d db
 	docker compose run --rm api python manage.py migrate
-	docker compose run --rm api python manage.py init_site
 
 migrations: build
 	docker compose up -d db

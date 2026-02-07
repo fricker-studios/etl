@@ -99,13 +99,13 @@ export function StreamDrawer({
   opened: boolean;
   onClose: () => void;
 }) {
-  const { apiSources, upsertStream, setStreamPreview } = useAppStore();
+  const { dataSources, upsertStream, setStreamPreview } = useAppStore();
 
-  const apiOptions = apiSources.map((s) => ({ value: s.id, label: s.name }));
+  const apiOptions = dataSources.map((s) => ({ value: s.id, label: s.name }));
   const defaultApi = apiOptions[0]?.value ?? "";
 
   const [form, setForm] = useState({
-    apiSourceId: defaultApi,
+    dataSourceId: defaultApi,
     name: "List Items",
     method: "GET" as "GET" | "POST",
     path: "/v1/items",
@@ -178,7 +178,7 @@ export function StreamDrawer({
   const saveStream = () => {
     try {
       z.object({
-        apiSourceId: z.string().min(1),
+        dataSourceId: z.string().min(1),
         name: z.string().min(2),
         method: z.enum(["GET", "POST"]),
         path: z.string().min(1),
@@ -188,10 +188,13 @@ export function StreamDrawer({
         rows.filter((r) => r.key.trim().length > 0);
 
       const stream = {
-        ...form,
-        queryParams: cleanKV(queryParams),
+        data_source: form.dataSourceId,
+        name: form.name,
+        method: form.method,
+        path: form.path,
+        query_params: cleanKV(queryParams),
         headers: cleanKV(headers),
-        bodyTemplate: form.method === "POST" ? bodyTemplate : undefined,
+        body_template: form.method === "POST" ? bodyTemplate : undefined,
         pagination,
       };
 
@@ -209,7 +212,7 @@ export function StreamDrawer({
             (s) =>
               s.name === stream.name &&
               s.path === stream.path &&
-              s.apiSourceId === stream.apiSourceId,
+              s.data_source === stream.data_source,
           );
 
         if (created) setStreamPreview(created.id, parsedPreview.json, inferred);
@@ -264,7 +267,7 @@ export function StreamDrawer({
       size="xl"
     >
       <Stack>
-        {apiSources.length === 0 ? (
+        {dataSources.length === 0 ? (
           <Badge color="yellow" variant="light">
             Create an API Source first.
           </Badge>
@@ -281,9 +284,9 @@ export function StreamDrawer({
                   <Select
                     label="API Source"
                     data={apiOptions}
-                    value={form.apiSourceId}
+                    value={form.dataSourceId}
                     onChange={(v) =>
-                      setForm({ ...form, apiSourceId: (v as any) ?? "" })
+                      setForm({ ...form, dataSourceId: (v as any) ?? "" })
                     }
                   />
                   <Select

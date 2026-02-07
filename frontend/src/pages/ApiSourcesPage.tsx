@@ -5,7 +5,7 @@ import { ApiSourceDrawer } from "../features/sources/ApiSourceDrawer";
 
 export function ApiSourcesPage() {
   const [open, { open: openIt, close }] = useDisclosure(false);
-  const apiSources = useAppStore((s) => s.apiSources);
+  const dataSources = useAppStore((s) => s.dataSources);
 
   return (
     <Stack>
@@ -29,14 +29,14 @@ export function ApiSourcesPage() {
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {apiSources.map((s) => (
+            {dataSources.map((s) => (
               <Table.Tr key={s.id}>
                 <Table.Td>{s.name}</Table.Td>
-                <Table.Td>{s.baseUrl}</Table.Td>
-                <Table.Td>{s.authType}</Table.Td>
+                <Table.Td>{s.base_url}</Table.Td>
+                <Table.Td>{s.auth_type}</Table.Td>
               </Table.Tr>
             ))}
-            {apiSources.length === 0 && (
+            {dataSources.length === 0 && (
               <Table.Tr>
                 <Table.Td colSpan={3}>
                   <Text c="dimmed">No API sources yet.</Text>

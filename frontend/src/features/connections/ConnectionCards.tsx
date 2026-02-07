@@ -47,8 +47,8 @@ export function ConnectionCards() {
                   </Text>
                 </Text>
                 <Text size="sm" c="dimmed">
-                  Path-style: {String(b.pathStyle)} · TLS verify:{" "}
-                  {String(b.tlsVerify)}
+                  Path-style: {String(b.path_style)} · TLS verify:{" "}
+                  {String(b.tls_verify)}
                 </Text>
               </>
             ) : (

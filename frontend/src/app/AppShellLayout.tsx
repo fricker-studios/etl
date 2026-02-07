@@ -6,12 +6,12 @@ import {
   Text,
   Box,
   ActionIcon,
-  Tooltip,
+  Menu,
+  Avatar,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
-  IconDatabase,
   IconPlug,
   IconStack2,
   IconPackage,
@@ -19,15 +19,17 @@ import {
   IconActivity,
   IconSettings,
   IconBolt,
+  IconLogout,
+  IconUser,
 } from "@tabler/icons-react";
+import { useAuthStore } from "../store/useAuthStore";
 
 const items = [
   { label: "Dashboard", path: "/", icon: IconBolt },
-  { label: "Connections", path: "/connections", icon: IconDatabase },
-  { label: "API Sources", path: "/api-sources", icon: IconPlug },
+  { label: "Data Sources", path: "/data-sources", icon: IconPlug },
   { label: "Streams", path: "/streams", icon: IconStack2 },
-  { label: "Data Packages", path: "/packages", icon: IconPackage },
-  { label: "Models", path: "/models", icon: IconBoxMultiple },
+  { label: "Topics", path: "/topics", icon: IconPackage },
+  { label: "Data Models", path: "/models", icon: IconBoxMultiple },
   { label: "Runs", path: "/runs", icon: IconActivity },
   { label: "Settings", path: "/settings", icon: IconSettings },
 ];
@@ -36,6 +38,12 @@ export function AppShellLayout() {
   const [opened, { toggle }] = useDisclosure();
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, logout } = useAuthStore();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
 
   return (
     <AppShell
@@ -69,11 +77,26 @@ export function AppShellLayout() {
           </Group>
 
           <Group>
-            <Tooltip label="This is a frontend-only prototype">
-              <ActionIcon variant="light">
-                <IconBolt size={18} />
-              </ActionIcon>
-            </Tooltip>
+            <Menu shadow="md" width={200}>
+              <Menu.Target>
+                <ActionIcon variant="subtle" size="lg">
+                  <Avatar size="sm" color="blue">
+                    <IconUser size={18} />
+                  </Avatar>
+                </ActionIcon>
+              </Menu.Target>
+
+              <Menu.Dropdown>
+                <Menu.Label>{user?.username || "User"}</Menu.Label>
+                <Menu.Item
+                  leftSection={<IconLogout size={16} />}
+                  onClick={handleLogout}
+                  color="red"
+                >
+                  Logout
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
           </Group>
         </Group>
       </AppShell.Header>
@@ -98,8 +121,7 @@ export function AppShellLayout() {
           );
         })}
         <Text c="dimmed" size="xs" mt="md" px="xs">
-          Tip: Everything is saved to localStorage so you can refresh without
-          losing your setup.
+          Connected to backend. All data is persisted to the database.
         </Text>
       </AppShell.Navbar>
 

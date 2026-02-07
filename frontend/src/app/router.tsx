@@ -1,26 +1,45 @@
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppShellLayout } from "./AppShellLayout";
+import { LoginPage } from "../pages/LoginPage";
+import { useAuthStore } from "../store/useAuthStore";
 
 import { DashboardPage } from "../pages/DashboardPage";
-import { ConnectionsPage } from "../pages/ConnectionsPage";
-import { ApiSourcesPage } from "../pages/ApiSourcesPage";
+import { DataSourcesPage } from "../pages/DataSourcesPage";
 import { StreamsPage } from "../pages/StreamsPage";
-import { PackagesPage } from "../pages/PackagesPage";
+import { TopicsPage } from "../pages/TopicsPage";
 import { ModelsPage } from "../pages/ModelsPage";
 import { RunsPage } from "../pages/RunsPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { SentryTestPage } from "../pages/SentryTestPage";
 
+// Protected route wrapper
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 export const router = createBrowserRouter([
   {
+    path: "/login",
+    element: <LoginPage />,
+  },
+  {
     path: "/",
-    element: <AppShellLayout />,
+    element: (
+      <ProtectedRoute>
+        <AppShellLayout />
+      </ProtectedRoute>
+    ),
     children: [
       { index: true, element: <DashboardPage /> },
-      { path: "connections", element: <ConnectionsPage /> },
-      { path: "api-sources", element: <ApiSourcesPage /> },
+      { path: "data-sources", element: <DataSourcesPage /> },
       { path: "streams", element: <StreamsPage /> },
-      { path: "packages", element: <PackagesPage /> },
+      { path: "topics", element: <TopicsPage /> },
       { path: "models", element: <ModelsPage /> },
       { path: "runs", element: <RunsPage /> },
       { path: "settings", element: <SettingsPage /> },

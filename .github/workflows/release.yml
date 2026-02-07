@@ -64,9 +64,23 @@ jobs:
       registry_username: ${{ secrets.REGISTRY_USERNAME }}
       registry_password: ${{ secrets.REGISTRY_PASSWORD }}
 
+  build-multiarch-internal-api:
+    name: Build and Push Multi-Arch API Image (Internal)
+    uses: fricker-studios/github-actions/.github/workflows/build-multiarch-image.yml@main
+    with:
+      dockerfile_path: Dockerfile
+      image_name: ${{ vars.INTERNAL_REGISTRY_URL }}/internal/etl-api
+      registry: ${{ vars.INTERNAL_REGISTRY_URL }}
+      push: true
+      tags: |
+        ${{ github.ref_name }}
+    secrets:
+      registry_username: ${{ secrets.REGISTRY_USERNAME }}
+      registry_password: ${{ secrets.REGISTRY_PASSWORD }}
+
   update-gitops-manifest:
     name: Update GitOps Manifest (Production)
-    needs: build-multiarch-internal-ui
+    needs: [build-multiarch-internal-ui, build-multiarch-internal-api]
     uses: fricker-studios/github-actions/.github/workflows/update-gitops-manifest.yml@main
     with:
       image_tag: ${{ github.ref_name }}
@@ -113,15 +127,3 @@ jobs:
       generate_notes: true
     secrets:
       gh_token: ${{ secrets.GITOPS_PAT }}
-
-  create-sentry-release:
-    name: Create Sentry Release
-    needs: [build-multiarch-internal-ui, update-gitops-manifest, update-demo-manifest]
-    uses: fricker-studios/github-actions/.github/workflows/sentry-release.yml@main
-    with:
-      release_version: ${{ github.ref_name }}
-      sentry_org: sentry
-      sentry_project: etl
-      sentry_url: https://sentry.alexfricker.com/
-    secrets:
-      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}

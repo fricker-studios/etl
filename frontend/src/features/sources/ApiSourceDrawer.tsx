@@ -21,7 +21,7 @@ export function ApiSourceDrawer({
   opened: boolean;
   onClose: () => void;
 }) {
-  const upsert = useAppStore((s) => s.upsertApiSource);
+  const upsert = useAppStore((s) => s.upsertDataSource);
 
   const [form, setForm] = useState({
     name: "My API",

@@ -1,5 +1,208 @@
-# ETL
+# ETL Pipeline Studio
 [![Release to Production](https://github.com/fricker-studios/etl/actions/workflows/release.yml/badge.svg)](https://github.com/fricker-studios/etl/actions/workflows/release.yml)
 [![Release](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Ffricker-studios%2Fetl%2Freleases%2Flatest&query=%24.tag_name&label=release&cacheSeconds=60)](https://github.com/fricker-studios/etl/releases/latest)
 
-ETL Tool - WIP
+A full-stack ETL/ELT pipeline management tool with Django backend and React frontend.
+
+## Features
+
+- **Authentication**: JWT-based authentication with login (no signup by default)
+- **Data Sources**: Manage API sources with various authentication methods
+- **Streams**: Define data streams with pagination and schema inference
+- **Data Packages**: Create and materialize data packages from streams
+- **Data Models**: Support for both Dimensional and Data Vault modeling
+- **Backend Storage**: Configure S3 and ClickHouse storage backends
+
+## Architecture
+
+- **Backend**: Django + Django REST Framework + PostgreSQL
+- **Frontend**: React + TypeScript + Vite + Mantine UI
+- **Authentication**: JWT tokens via djangorestframework-simplejwt
+- **API Documentation**: Swagger UI via drf-spectacular
+
+## Quick Start
+
+### Prerequisites
+
+- Docker and Docker Compose
+- Node.js 18+ (for local frontend development)
+- Python 3.11+ (for local backend development)
+
+### Running with Docker
+
+1. Clone the repository:
+```bash
+git clone https://github.com/fricker-studios/etl.git
+cd etl
+```
+
+2. Start the services:
+```bash
+docker-compose up -d
+```
+
+3. Create a superuser:
+```bash
+docker-compose exec api python manage.py createsuperuser
+```
+
+4. Access the application:
+   - Frontend: http://localhost:5173
+   - Backend API: http://localhost:8000/api
+   - Admin Panel: http://localhost:8000/admin
+   - API Documentation: http://localhost:8000/api/docs
+
+### Local Development
+
+#### Backend Setup
+
+1. Create and activate a virtual environment:
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+2. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+3. Set up environment variables:
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+4. Run migrations:
+```bash
+python manage.py migrate
+```
+
+5. Create a superuser:
+```bash
+python manage.py createsuperuser
+```
+
+6. Start the development server:
+```bash
+python manage.py runserver
+```
+
+#### Frontend Setup
+
+1. Install dependencies:
+```bash
+cd frontend
+npm install
+```
+
+2. Set up environment variables:
+```bash
+cp .env.example .env
+# Edit .env with your API URL
+```
+
+3. Start the development server:
+```bash
+npm run dev
+```
+
+## Environment Variables
+
+### Backend (.env)
+
+```bash
+SECRET_KEY=your-secret-key-here
+DEBUG=True
+DB_NAME=etl
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_HOST=localhost  # or 'db' for Docker
+DB_PORT=5432
+ALLOWED_HOSTS=*
+CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
+```
+
+### Frontend (.env)
+
+```bash
+VITE_API_URL=http://localhost:8000/api
+```
+
+## API Endpoints
+
+- `POST /api/auth/login/` - Login and get JWT tokens
+- `GET /api/auth/me/` - Get current user info
+- `GET/POST /api/storage-backends/` - Manage storage backends
+- `GET/POST /api/api-sources/` - Manage API sources
+- `GET/POST /api/streams/` - Manage streams
+- `GET/POST /api/packages/` - Manage data packages
+- `GET/POST /api/models/` - Manage data models
+
+## Project Structure
+
+```
+etl/
+├── backend/
+│   ├── authentication/     # Authentication app
+│   ├── core/              # Core models and APIs
+│   ├── config/            # Django settings
+│   ├── manage.py
+│   └── requirements.txt
+├── frontend/
+│   ├── src/
+│   │   ├── app/          # App layout and routing
+│   │   ├── features/     # Feature components
+│   │   ├── pages/        # Page components
+│   │   ├── store/        # Zustand stores
+│   │   └── utils/        # Utilities and API client
+│   └── package.json
+└── docker-compose.yml
+```
+
+## Development Commands
+
+### Backend
+
+```bash
+# Run migrations
+python manage.py migrate
+
+# Create migrations
+python manage.py makemigrations
+
+# Create superuser
+python manage.py createsuperuser
+
+# Run tests
+python manage.py test
+```
+
+### Frontend
+
+```bash
+# Start dev server
+npm run dev
+
+# Build for production
+npm run build
+
+# Run linter
+npm run lint
+
+# Format code
+npm run prettier:write
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License.

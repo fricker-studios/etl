@@ -11,6 +11,7 @@ import {
 } from "react-router-dom";
 import { router } from "./app/router";
 import { theme } from "./theme";
+import { useAuthStore } from "./store/useAuthStore";
 import * as Sentry from "@sentry/react";
 
 // Initialize Sentry for error tracking and performance monitoring
@@ -44,11 +45,21 @@ import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 import "@mantine/code-highlight/styles.css";
 
+function App() {
+  const checkAuth = useAuthStore((state) => state.checkAuth);
+
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
+  return <RouterProvider router={router} />;
+}
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <MantineProvider theme={theme} defaultColorScheme="dark">
       <Notifications position="top-right" />
-      <RouterProvider router={router} />
+      <App />
     </MantineProvider>
   </React.StrictMode>,
 );
