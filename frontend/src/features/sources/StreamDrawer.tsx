@@ -213,7 +213,7 @@ export function StreamDrawer({
 
   // Update selected source when dataSourceId changes
   useEffect(() => {
-    const source = dataSources.find(s => s.id === form.dataSourceId);
+    const source = dataSources.find(s => String(s.id) === form.dataSourceId);
     setSelectedSource(source || null);
   }, [form.dataSourceId, dataSources]);
 
