@@ -102,14 +102,18 @@ export function StreamDrawer({
   opened: boolean;
   onClose: () => void;
 }) {
-  const { dataSources, upsertStream, setStreamPreview } = useAppStore();
+  const { dataSources, topics, upsertStream, setStreamPreview } = useAppStore();
 
-  const apiOptions = dataSources.map((s) => ({ value: s.id, label: s.name }));
+  const apiOptions = dataSources.map((s) => ({ value: String(s.id), label: s.name }));
   const defaultApi = apiOptions[0]?.value ?? "";
+  
+  const topicOptions = topics.map((t) => ({ value: String(t.id), label: t.name }));
+  const defaultTopic = topicOptions[0]?.value ?? "";
 
   const [selectedSource, setSelectedSource] = useState<DataSource | null>(null);
   const [form, setForm] = useState({
     dataSourceId: defaultApi,
+    topicId: defaultTopic,
     name: "My Stream",
     method: "GET" as "GET" | "POST",
     path: "/v1/items",
@@ -132,9 +136,6 @@ export function StreamDrawer({
     schedule_cron: "0 0 * * *",
     schedule_interval_minutes: 60,
     use_cron: true,
-    
-    // Data package naming
-    data_package_name_pattern: "{stream_name}_{date}_{time}",
   });
 
   const [queryParams, setQueryParams] = useState<KV[]>([
@@ -211,6 +212,7 @@ export function StreamDrawer({
     try {
       z.object({
         dataSourceId: z.string().min(1),
+        topicId: z.string().min(1),
         name: z.string().min(2),
       }).parse(form);
 
@@ -219,9 +221,9 @@ export function StreamDrawer({
 
       let stream: any = {
         data_source: form.dataSourceId,
+        topic: form.topicId,
         name: form.name,
         schedule_enabled: form.schedule_enabled,
-        data_package_name_pattern: form.data_package_name_pattern,
       };
 
       // Add scheduling config
@@ -341,7 +343,7 @@ export function StreamDrawer({
           <Tabs defaultValue="config">
             <Tabs.List>
               <Tabs.Tab value="config">Configuration</Tabs.Tab>
-              <Tabs.Tab value="schedule">Schedule & Naming</Tabs.Tab>
+              <Tabs.Tab value="schedule">Destination & Schedule</Tabs.Tab>
               {selectedSource?.type === "api" && (
                 <Tabs.Tab value="preview">Preview & Schema</Tabs.Tab>
               )}
@@ -597,6 +599,19 @@ export function StreamDrawer({
 
             <Tabs.Panel value="schedule" pt="md">
               <Stack>
+                <Select
+                  label="Topic (Destination)"
+                  description="Topic defines the schema and holds data packages from this stream"
+                  data={topicOptions}
+                  value={form.topicId}
+                  onChange={(v) =>
+                    setForm({ ...form, topicId: (v as any) ?? "" })
+                  }
+                  required
+                />
+
+                <Divider label="Scheduling" />
+                
                 <Switch
                   label="Enable Scheduled Extraction"
                   description="Automatically extract data on a schedule"
@@ -642,25 +657,6 @@ export function StreamDrawer({
                     )}
                   </>
                 )}
-
-                <Divider label="Data Package Naming" />
-                <TextInput
-                  label="Data Package Name Pattern"
-                  value={form.data_package_name_pattern}
-                  onChange={(e) =>
-                    setForm({ ...form, data_package_name_pattern: e.target.value })
-                  }
-                  description="Pattern for naming generated data packages"
-                />
-                <Text size="sm" c="dimmed">
-                  Available placeholders: {"{stream_name}"}, {"{date}"}, {"{time}"}, {"{timestamp}"}
-                </Text>
-                <Badge variant="light">
-                  Example: {form.data_package_name_pattern.replace("{stream_name}", form.name)
-                    .replace("{date}", "2026-02-07")
-                    .replace("{time}", "142530")
-                    .replace("{timestamp}", "1707318330")}
-                </Badge>
               </Stack>
             </Tabs.Panel>
 

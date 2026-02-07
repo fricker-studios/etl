@@ -184,6 +184,7 @@ class Stream(models.Model):
     
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='streams')
     data_source = models.ForeignKey(DataSource, on_delete=models.CASCADE, related_name='streams', null=True, blank=True)
+    topic = models.ForeignKey('Topic', on_delete=models.SET_NULL, related_name='streams', null=True, blank=True)
     name = models.CharField(max_length=255)
     
     # Source object definition (varies by data source type)
@@ -224,22 +225,7 @@ class Stream(models.Model):
     schedule_cron = models.CharField(max_length=100, blank=True, null=True)  # Cron expression
     schedule_interval_minutes = models.IntegerField(blank=True, null=True)  # Alternative to cron
     
-    # Data package configuration
-    data_package_name_pattern = models.CharField(
-        max_length=500,
-        blank=True,
-        null=True,
-        help_text="Pattern for naming data packages, e.g., '{stream_name}_{date}_{time}'"
-    )
-    
-    # Schema definition (user-defined, separate from inferred_schema)
-    schema = models.JSONField(
-        blank=True,
-        null=True,
-        help_text="User-defined schema for the stream"
-    )
-    
-    # Schema and preview
+    # Schema and preview (for API sources)
     preview_json = models.JSONField(blank=True, null=True)
     inferred_schema = models.JSONField(blank=True, null=True)
     

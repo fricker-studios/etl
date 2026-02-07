@@ -77,6 +77,7 @@ export type Pagination =
 export type Stream = {
   id: string;
   data_source: string;
+  topic?: string;
   name: string;
   source_object: any; // Flexible structure for different source types
   
@@ -106,11 +107,7 @@ export type Stream = {
   schedule_cron?: string;
   schedule_interval_minutes?: number;
   
-  // Data package configuration
-  data_package_name_pattern?: string;
-  
-  // Schema
-  schema?: any;
+  // Preview and schema (for API sources)
   preview_json?: unknown;
   inferred_schema?: unknown;
 };
