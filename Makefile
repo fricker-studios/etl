@@ -1,5 +1,5 @@
 POETRY_VERSION=2.1.3
-APP_NAME=etl
+APP_NAME=etl-api
 
 python-env:
 	# Create virtual environment if it doesn't exist

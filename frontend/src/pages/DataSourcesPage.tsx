@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Group, Title, Text, Card, Stack, Table, Button } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useState } from "react";
@@ -10,6 +11,11 @@ export function DataSourcesPage() {
   const [detailOpen, { open: openDetail, close: closeDetail }] = useDisclosure(false);
   const [selectedSource, setSelectedSource] = useState<DataSource | null>(null);
   const dataSources = useAppStore((s) => s.dataSources);
+  const fetchAll = useAppStore((s) => s.fetchAll);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
 
   const handleRowClick = (source: DataSource) => {
     setSelectedSource(source);
