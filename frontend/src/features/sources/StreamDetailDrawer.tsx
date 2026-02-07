@@ -27,7 +27,9 @@ export function StreamDetailDrawer({
   stream,
 }: StreamDetailDrawerProps) {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const { removeStream, dataSources, topics } = useAppStore();
+  const removeStream = useAppStore((s) => s.removeStream);
+  const dataSources = useAppStore((s) => s.dataSources);
+  const topics = useAppStore((s) => s.topics);
 
   const dataSource = dataSources.find((s) => String(s.id) === stream?.data_source);
   const topic = topics.find((t) => String(t.id) === stream?.topic);
