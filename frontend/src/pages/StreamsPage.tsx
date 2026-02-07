@@ -12,23 +12,34 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { IconPlus, IconPlayerPlay } from "@tabler/icons-react";
-import { useAppStore } from "../store/useAppStore";
+import { useAppStore, type Stream } from "../store/useAppStore";
 import { StreamDrawer } from "../features/sources/StreamDrawer";
+import { StreamDetailDrawer } from "../features/sources/StreamDetailDrawer";
 import { api } from "../utils/api";
 import { notifications } from "@mantine/notifications";
 import { useState } from "react";
 
 export function StreamsPage() {
   const [open, { open: openIt, close }] = useDisclosure(false);
+  const [detailOpen, { open: openDetail, close: closeDetail }] = useDisclosure(false);
   const { streams, dataSources } = useAppStore();
   const [executingStreams, setExecutingStreams] = useState<Set<string>>(
     new Set(),
   );
+  const [selectedStream, setSelectedStream] = useState<Stream | null>(null);
 
   const sourceName = (id: string) =>
     dataSources.find((s) => s.id === id)?.name ?? "Unknown";
 
-  const executeStream = async (streamId: string) => {
+  const handleStreamClick = (stream: Stream) => {
+    setSelectedStream(stream);
+    openDetail();
+  };
+
+  const executeStream = async (streamId: string, event: React.MouseEvent) => {
+    // Stop propagation to prevent row click
+    event.stopPropagation();
+    
     setExecutingStreams((prev) => new Set(prev).add(streamId));
 
     try {
@@ -78,7 +89,11 @@ export function StreamsPage() {
           </Table.Thead>
           <Table.Tbody>
             {streams.map((st) => (
-              <Table.Tr key={st.id}>
+              <Table.Tr 
+                key={st.id}
+                onClick={() => handleStreamClick(st)}
+                style={{ cursor: "pointer" }}
+              >
                 <Table.Td>{st.name}</Table.Td>
                 <Table.Td>{sourceName(st.data_source)}</Table.Td>
                 <Table.Td>
@@ -103,7 +118,7 @@ export function StreamsPage() {
                     <ActionIcon
                       variant="light"
                       color="blue"
-                      onClick={() => executeStream(st.id)}
+                      onClick={(e) => executeStream(st.id, e)}
                       loading={executingStreams.has(st.id)}
                     >
                       <IconPlayerPlay size={16} />
@@ -124,6 +139,11 @@ export function StreamsPage() {
       </Card>
 
       <StreamDrawer opened={open} onClose={close} />
+      <StreamDetailDrawer 
+        opened={detailOpen} 
+        onClose={closeDetail} 
+        stream={selectedStream}
+      />
     </Stack>
   );
 }
