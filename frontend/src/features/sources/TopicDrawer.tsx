@@ -10,7 +10,6 @@ import {
   ActionIcon,
   Table,
   Select,
-  NumberInput,
   Switch,
 } from "@mantine/core";
 import { useState } from "react";
