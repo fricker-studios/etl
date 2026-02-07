@@ -2,6 +2,7 @@ from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.throttling import UserRateThrottle
 from .models import StorageBackend, DataSource, Stream, DataPackage, Model, Run, Topic, TopicRevision
 from .serializers import (
     StorageBackendSerializer,
@@ -13,6 +14,14 @@ from .serializers import (
     TopicSerializer,
     TopicRevisionSerializer,
 )
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class DecryptRateThrottle(UserRateThrottle):
+    """Rate limiting for decrypt endpoints - 10 requests per minute"""
+    rate = '10/min'
 
 
 class StorageBackendViewSet(viewsets.ModelViewSet):
@@ -36,10 +45,21 @@ class DataSourceViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
     
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get'], throttle_classes=[DecryptRateThrottle])
     def decrypt(self, request, pk=None):
-        """Get decrypted sensitive fields for a data source"""
+        """Get decrypted sensitive fields for a data source
+        
+        This endpoint returns sensitive credentials in plaintext.
+        Rate limited to 10 requests per minute per user.
+        All requests are logged for audit purposes.
+        """
         data_source = self.get_object()
+        
+        # Audit log
+        logger.warning(
+            f"User {request.user.username} (ID: {request.user.id}) "
+            f"requested decrypted credentials for data source '{data_source.name}' (ID: {data_source.id})"
+        )
         
         decrypted_data = {
             'id': data_source.id,

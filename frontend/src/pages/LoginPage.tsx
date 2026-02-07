@@ -28,20 +28,15 @@ export function LoginPage() {
   useEffect(() => {
     const checkDemoMode = async () => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000/api'}/auth/login/`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ username: "", password: "" }),
-        });
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000/api'}/auth/demo-mode/`);
         
-        const data = await response.json();
-        if (data.demo_mode) {
-          setDemoMode(true);
+        if (response.ok) {
+          const data = await response.json();
+          setDemoMode(data.demo_mode || false);
         }
       } catch (err) {
         // Not demo mode or error checking
+        setDemoMode(false);
       }
     };
     

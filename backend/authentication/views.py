@@ -6,6 +6,16 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from django.conf import settings
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def demo_mode_check(request):
+    """Check if demo mode is enabled"""
+    return Response({'demo_mode': settings.DEMO_MODE})
 
 
 @api_view(['POST'])
@@ -17,6 +27,16 @@ def login_view(request):
     
     # Demo mode: allow login without credentials
     if settings.DEMO_MODE:
+        # Security: Only allow demo mode in DEBUG mode
+        if not settings.DEBUG:
+            logger.error("DEMO_MODE is enabled but DEBUG is False - this is a security risk!")
+            return Response(
+                {'error': 'Configuration error'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        logger.warning("Demo mode is active - authentication bypassed")
+        
         # Get or create demo user
         user, created = User.objects.get_or_create(
             username='demo',
