@@ -13,7 +13,7 @@ import {
 import { useState } from "react";
 import { IconTrash } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
-import { useAppStore, type Stream, type DataSource, type Topic } from "../../store/useAppStore";
+import { useAppStore, type Stream } from "../../store/useAppStore";
 
 interface StreamDetailDrawerProps {
   opened: boolean;
@@ -130,7 +130,7 @@ export function StreamDetailDrawer({
         </Card>
 
         {/* Source-Specific Configuration */}
-        {dataSource?.type === "api" && (
+        {dataSource?.type === "api" ? (
           <Card withBorder>
             <Text fw={500} mb="sm">
               API Configuration
@@ -139,7 +139,7 @@ export function StreamDetailDrawer({
               <Table.Tbody>
                 {renderBadgeField("Method", stream.method?.toUpperCase())}
                 {renderField("Path", stream.path)}
-                {stream.query_params && stream.query_params.length > 0 && (
+                {stream.query_params && stream.query_params.length > 0 ? (
                   <Table.Tr>
                     <Table.Td style={{ fontWeight: 500 }}>Query Parameters</Table.Td>
                     <Table.Td>
@@ -152,8 +152,8 @@ export function StreamDetailDrawer({
                       </Stack>
                     </Table.Td>
                   </Table.Tr>
-                )}
-                {stream.headers && stream.headers.length > 0 && (
+                ) : null}
+                {stream.headers && stream.headers.length > 0 ? (
                   <Table.Tr>
                     <Table.Td style={{ fontWeight: 500 }}>Headers</Table.Td>
                     <Table.Td>
@@ -166,21 +166,21 @@ export function StreamDetailDrawer({
                       </Stack>
                     </Table.Td>
                   </Table.Tr>
-                )}
-                {stream.pagination && stream.pagination.type && (
+                ) : null}
+                {stream.pagination && stream.pagination.type ? (
                   <Table.Tr>
                     <Table.Td style={{ fontWeight: 500 }}>Pagination</Table.Td>
                     <Table.Td>
                       <Badge variant="light">{stream.pagination.type}</Badge>
                     </Table.Td>
                   </Table.Tr>
-                )}
+                ) : null}
               </Table.Tbody>
             </Table>
           </Card>
-        )}
+        ) : null}
 
-        {dataSource?.type === "database" && (
+        {dataSource?.type === "database" ? (
           <Card withBorder>
             <Text fw={500} mb="sm">
               Database Configuration
@@ -192,14 +192,13 @@ export function StreamDetailDrawer({
                   "Ingestion Strategy",
                   stream.ingestion_strategy?.replace("_", " ").toUpperCase()
                 )}
-                {stream.ingestion_strategy === "incremental" &&
-                  renderField("Incremental Key", stream.incremental_key)}
+                {stream.ingestion_strategy === "incremental" ? renderField("Incremental Key", stream.incremental_key) : null}
               </Table.Tbody>
             </Table>
           </Card>
-        )}
+        ) : null}
 
-        {dataSource?.type === "s3" && (
+        {dataSource?.type === "s3" ? (
           <Card withBorder>
             <Text fw={500} mb="sm">
               S3 Configuration
@@ -211,9 +210,9 @@ export function StreamDetailDrawer({
               </Table.Tbody>
             </Table>
           </Card>
-        )}
+        ) : null}
 
-        {dataSource?.type === "sftp" && (
+        {dataSource?.type === "sftp" ? (
           <Card withBorder>
             <Text fw={500} mb="sm">
               SFTP Configuration
@@ -225,10 +224,10 @@ export function StreamDetailDrawer({
               </Table.Tbody>
             </Table>
           </Card>
-        )}
+        ) : null}
 
         {/* Schema Information (for API streams) */}
-        {stream.inferred_schema && (
+        {stream.inferred_schema ? (
           <Card withBorder>
             <Text fw={500} mb="sm">
               Inferred Schema
@@ -237,7 +236,7 @@ export function StreamDetailDrawer({
               Schema Available
             </Badge>
           </Card>
-        )}
+        ) : null}
 
         <Divider />
 
