@@ -237,6 +237,31 @@ class Stream(models.Model):
     
     def __str__(self):
         return self.name
+    
+    def save(self, *args, **kwargs):
+        """Override save to handle scheduling."""
+        super().save(*args, **kwargs)
+        
+        # Update schedule after saving
+        try:
+            from .scheduler import schedule_stream, unschedule_stream
+            if self.schedule_enabled:
+                schedule_stream(self)
+            else:
+                unschedule_stream(self.id)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error updating schedule for stream {self.id}: {e}")
+    
+    def delete(self, *args, **kwargs):
+        """Override delete to remove from scheduler."""
+        try:
+            from .scheduler import unschedule_stream
+            unschedule_stream(self.id)
+        except Exception:
+            pass
+        super().delete(*args, **kwargs)
 
 
 class Topic(models.Model):
