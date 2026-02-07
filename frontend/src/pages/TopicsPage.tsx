@@ -1,4 +1,14 @@
-import { Card, Group, Title, Text, Stack, Button, Badge, Accordion, Table } from "@mantine/core";
+import {
+  Card,
+  Group,
+  Title,
+  Text,
+  Stack,
+  Button,
+  Badge,
+  Accordion,
+  Table,
+} from "@mantine/core";
 import { IconPlus } from "@tabler/icons-react";
 import { useDisclosure } from "@mantine/hooks";
 import { useAppStore } from "../store/useAppStore";
@@ -8,7 +18,8 @@ import { TopicDrawer } from "../features/sources/TopicDrawer";
 export function TopicsPage() {
   const topics = useAppStore((s) => s.topics);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
-  const [drawerOpen, { open: openDrawer, close: closeDrawer }] = useDisclosure(false);
+  const [drawerOpen, { open: openDrawer, close: closeDrawer }] =
+    useDisclosure(false);
 
   return (
     <Stack>
@@ -16,16 +27,20 @@ export function TopicsPage() {
         <div>
           <Title order={2}>Topics</Title>
           <Text c="dimmed">
-            Collections of data packages with defined schemas. Each topic can have multiple revisions.
+            Collections of data packages with defined schemas. Each topic can
+            have multiple revisions.
           </Text>
         </div>
-        <Button leftSection={<IconPlus size={16} />} onClick={openDrawer}>Create Topic</Button>
+        <Button leftSection={<IconPlus size={16} />} onClick={openDrawer}>
+          Create Topic
+        </Button>
       </Group>
 
       <Card withBorder>
         {topics.length === 0 ? (
           <Text c="dimmed">
-            No topics yet. Create a topic to organize data packages with a defined schema.
+            No topics yet. Create a topic to organize data packages with a
+            defined schema.
           </Text>
         ) : (
           <Accordion value={selectedTopic} onChange={setSelectedTopic}>
@@ -43,10 +58,12 @@ export function TopicsPage() {
                     </div>
                     <Group>
                       <Badge variant="light">
-                        {topic.revisions?.length || 0} revision{topic.revisions?.length !== 1 ? 's' : ''}
+                        {topic.revisions?.length || 0} revision
+                        {topic.revisions?.length !== 1 ? "s" : ""}
                       </Badge>
                       <Badge variant="light" color="blue">
-                        {topic.total_packages || 0} package{topic.total_packages !== 1 ? 's' : ''}
+                        {topic.total_packages || 0} package
+                        {topic.total_packages !== 1 ? "s" : ""}
                       </Badge>
                     </Group>
                   </Group>
@@ -58,10 +75,14 @@ export function TopicsPage() {
                         <Card key={revision.id} withBorder>
                           <Stack gap="xs">
                             <Group justify="space-between">
-                              <Text fw={500}>Revision {revision.revision_number}</Text>
-                              <Badge variant="light">{revision.package_count || 0} packages</Badge>
+                              <Text fw={500}>
+                                Revision {revision.revision_number}
+                              </Text>
+                              <Badge variant="light">
+                                {revision.package_count || 0} packages
+                              </Badge>
                             </Group>
-                            
+
                             {revision.change_description && (
                               <Text size="sm" c="dimmed">
                                 {revision.change_description}
@@ -84,7 +105,10 @@ export function TopicsPage() {
                                   </Table.Thead>
                                   <Table.Tbody>
                                     {revision.schema
-                                      .sort((a: any, b: any) => a.position - b.position)
+                                      .sort(
+                                        (a: any, b: any) =>
+                                          a.position - b.position,
+                                      )
                                       .map((col: any) => (
                                         <Table.Tr key={col.position}>
                                           <Table.Td>{col.position}</Table.Td>
@@ -98,9 +122,13 @@ export function TopicsPage() {
                                           </Table.Td>
                                           <Table.Td>
                                             {col.nullable ? (
-                                              <Text c="dimmed" size="sm">Yes</Text>
+                                              <Text c="dimmed" size="sm">
+                                                Yes
+                                              </Text>
                                             ) : (
-                                              <Text fw={500} size="sm">No</Text>
+                                              <Text fw={500} size="sm">
+                                                No
+                                              </Text>
                                             )}
                                           </Table.Td>
                                         </Table.Tr>
@@ -111,7 +139,8 @@ export function TopicsPage() {
                             )}
 
                             <Text size="xs" c="dimmed">
-                              Created: {new Date(revision.created_at).toLocaleString()}
+                              Created:{" "}
+                              {new Date(revision.created_at).toLocaleString()}
                             </Text>
                           </Stack>
                         </Card>
@@ -128,7 +157,7 @@ export function TopicsPage() {
           </Accordion>
         )}
       </Card>
-      
+
       <TopicDrawer opened={drawerOpen} onClose={closeDrawer} />
     </Stack>
   );

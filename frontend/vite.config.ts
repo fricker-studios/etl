@@ -4,28 +4,33 @@ import react from "@vitejs/plugin-react";
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), sentryVitePlugin({
-    org: "sentry",
-    project: "etl",
-    url: "https://sentry.alexfricker.com",
-    release: process.env.VITE_SENTRY_RELEASE ? { name: process.env.VITE_SENTRY_RELEASE } : undefined,
-  })],
+  plugins: [
+    react(),
+    sentryVitePlugin({
+      org: "sentry",
+      project: "etl",
+      url: "https://sentry.alexfricker.com",
+      release: process.env.VITE_SENTRY_RELEASE
+        ? { name: process.env.VITE_SENTRY_RELEASE }
+        : undefined,
+    }),
+  ],
 
   build: {
-    sourcemap: true
+    sourcemap: true,
   },
 
   server: {
-      proxy: {
-        '/api': {
-          target: 'http://localhost:8000',
-          changeOrigin: true,
-        },
-        '/admin': {
-          target: 'http://localhost:8000/admin',
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/admin/, ''),
-        },
+    proxy: {
+      "/api": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+      },
+      "/admin": {
+        target: "http://localhost:8000/admin",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/admin/, ""),
       },
     },
+  },
 });

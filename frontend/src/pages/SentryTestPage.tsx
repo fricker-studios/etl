@@ -24,21 +24,18 @@ export function SentryTestPage() {
     <Container size="sm" py="xl">
       <Stack gap="md">
         <Title order={2}>Sentry Integration Test</Title>
-        
+
         <Text c="dimmed">
           Use these buttons to test different Sentry error tracking scenarios:
         </Text>
 
         <Stack gap="sm">
-          <Button
-            onClick={handleTestError}
-            color="red"
-            variant="filled"
-          >
+          <Button onClick={handleTestError} color="red" variant="filled">
             Throw Unhandled Error
           </Button>
           <Text size="sm" c="dimmed">
-            This will throw an uncaught error that should be automatically captured by Sentry
+            This will throw an uncaught error that should be automatically
+            captured by Sentry
           </Text>
 
           <Button
@@ -52,11 +49,7 @@ export function SentryTestPage() {
             This will catch an error and manually send it to Sentry
           </Text>
 
-          <Button
-            onClick={handleTestMessage}
-            color="blue"
-            variant="filled"
-          >
+          <Button onClick={handleTestMessage} color="blue" variant="filled">
             Send Test Message
           </Button>
           <Text size="sm" c="dimmed">

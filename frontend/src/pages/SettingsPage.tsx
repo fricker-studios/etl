@@ -47,7 +47,9 @@ export function SettingsPage() {
                 color="red"
                 variant="light"
                 onClick={() => {
-                  if (confirm("Are you sure? This will delete all your data.")) {
+                  if (
+                    confirm("Are you sure? This will delete all your data.")
+                  ) {
                     resetAll();
                     notifications.show({
                       message: "All data cleared",

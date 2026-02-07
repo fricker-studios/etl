@@ -30,7 +30,7 @@ export type DataSource = {
   id: string;
   name: string;
   type: "api" | "database" | "s3" | "sftp";
-  
+
   // API fields
   base_url?: string;
   auth_type?: "none" | "bearer" | "basic" | "header" | "ssh_key";
@@ -39,7 +39,7 @@ export type DataSource = {
   basic_pass?: string;
   header_name?: string;
   header_value?: string;
-  
+
   // Database fields
   database_type?: "postgresql" | "mysql" | "mongodb" | "sqlserver" | "oracle";
   host?: string;
@@ -47,14 +47,14 @@ export type DataSource = {
   database_name?: string;
   username?: string;
   password?: string;
-  
+
   // S3 fields
   s3_endpoint?: string;
   s3_region?: string;
   s3_bucket?: string;
   s3_access_key?: string;
   s3_secret_key?: string;
-  
+
   // SFTP fields
   sftp_host?: string;
   sftp_port?: number;
@@ -80,7 +80,7 @@ export type Stream = {
   topic?: string;
   name: string;
   source_object: any; // Flexible structure for different source types
-  
+
   // API-specific fields (for backward compatibility)
   method?: "GET" | "POST";
   path?: string;
@@ -88,25 +88,25 @@ export type Stream = {
   headers: { key: string; value: string }[];
   body_template?: string;
   pagination: Pagination;
-  
+
   // Database-specific fields
   table_name?: string;
   ingestion_strategy?: "full_refresh" | "incremental" | "snapshot";
   incremental_key?: string;
-  
+
   // S3-specific fields
   s3_path_pattern?: string;
   s3_file_format?: string;
-  
+
   // SFTP-specific fields
   sftp_path_pattern?: string;
   sftp_file_format?: string;
-  
+
   // Scheduling
   schedule_enabled?: boolean;
   schedule_cron?: string;
   schedule_interval_minutes?: number;
-  
+
   // Preview and schema (for API sources)
   preview_json?: unknown;
   inferred_schema?: unknown;
@@ -202,7 +202,7 @@ type AppState = {
   loading: boolean;
 
   fetchAll: () => Promise<void>;
-  
+
   addStorageBackend: (b: any) => Promise<void>;
   removeStorageBackend: (id: string) => Promise<void>;
 
@@ -242,17 +242,32 @@ export const useAppStore = create<AppState>((set) => ({
   fetchAll: async () => {
     set({ loading: true });
     try {
-      const [storageBackends, dataSources, streams, topics, packages, models, runs] =
-        await Promise.all([
-          api.storageBackends.list() as Promise<StorageBackend[]>,
-          api.dataSources.list() as Promise<DataSource[]>,
-          api.streams.list() as Promise<Stream[]>,
-          api.topics.list() as Promise<Topic[]>,
-          api.packages.list() as Promise<DataPackage[]>,
-          api.models.list() as Promise<Model[]>,
-          api.runs.list() as Promise<Run[]>,
-        ]);
-      set({ storageBackends, dataSources, streams, topics, packages, models, runs });
+      const [
+        storageBackends,
+        dataSources,
+        streams,
+        topics,
+        packages,
+        models,
+        runs,
+      ] = await Promise.all([
+        api.storageBackends.list() as Promise<StorageBackend[]>,
+        api.dataSources.list() as Promise<DataSource[]>,
+        api.streams.list() as Promise<Stream[]>,
+        api.topics.list() as Promise<Topic[]>,
+        api.packages.list() as Promise<DataPackage[]>,
+        api.models.list() as Promise<Model[]>,
+        api.runs.list() as Promise<Run[]>,
+      ]);
+      set({
+        storageBackends,
+        dataSources,
+        streams,
+        topics,
+        packages,
+        models,
+        runs,
+      });
     } catch (error) {
       console.error("Failed to fetch data:", error);
     } finally {
@@ -261,7 +276,7 @@ export const useAppStore = create<AppState>((set) => ({
   },
 
   addStorageBackend: async (b) => {
-    const created = await api.storageBackends.create(b) as StorageBackend;
+    const created = (await api.storageBackends.create(b)) as StorageBackend;
     set((st) => ({ storageBackends: [...st.storageBackends, created] }));
   },
 
@@ -274,12 +289,12 @@ export const useAppStore = create<AppState>((set) => ({
 
   upsertDataSource: async (s) => {
     if (s.id) {
-      const updated = await api.dataSources.update(s.id, s) as DataSource;
+      const updated = (await api.dataSources.update(s.id, s)) as DataSource;
       set((st) => ({
         dataSources: st.dataSources.map((x) => (x.id === s.id ? updated : x)),
       }));
     } else {
-      const created = await api.dataSources.create(s) as DataSource;
+      const created = (await api.dataSources.create(s)) as DataSource;
       set((st) => ({ dataSources: [...st.dataSources, created] }));
     }
   },
@@ -293,12 +308,12 @@ export const useAppStore = create<AppState>((set) => ({
 
   upsertStream: async (s) => {
     if (s.id) {
-      const updated = await api.streams.update(s.id, s) as Stream;
+      const updated = (await api.streams.update(s.id, s)) as Stream;
       set((st) => ({
         streams: st.streams.map((x) => (x.id === s.id ? updated : x)),
       }));
     } else {
-      const created = await api.streams.create(s) as Stream;
+      const created = (await api.streams.create(s)) as Stream;
       set((st) => ({ streams: [...st.streams, created] }));
     }
   },
@@ -311,10 +326,10 @@ export const useAppStore = create<AppState>((set) => ({
   },
 
   setStreamPreview: async (id, previewJson, inferredSchema) => {
-    const updated = await api.streams.update(id, {
+    const updated = (await api.streams.update(id, {
       preview_json: previewJson,
       inferred_schema: inferredSchema,
-    }) as Stream;
+    })) as Stream;
     set((st) => ({
       streams: st.streams.map((x) => (x.id === id ? updated : x)),
     }));
@@ -323,8 +338,8 @@ export const useAppStore = create<AppState>((set) => ({
   addTopic: async (topic, schema) => {
     try {
       // Create the topic first
-      const createdTopic = await api.topics.create(topic) as Topic;
-      
+      const createdTopic = (await api.topics.create(topic)) as Topic;
+
       // Then create the initial revision with schema
       const revisionData = {
         topic: createdTopic.id,
@@ -332,14 +347,16 @@ export const useAppStore = create<AppState>((set) => ({
         schema: schema,
         change_description: "Initial schema",
       };
-      
+
       await api.topicRevisions.create(revisionData);
-      
+
       // Fetch the updated topic with revisions
-      const updatedTopic = await api.topics.get(String(createdTopic.id)) as Topic;
-      
+      const updatedTopic = (await api.topics.get(
+        String(createdTopic.id),
+      )) as Topic;
+
       set((st) => ({ topics: [...st.topics, updatedTopic] }));
-      
+
       return String(createdTopic.id);
     } catch (error) {
       console.error("Failed to create topic:", error);
@@ -355,12 +372,12 @@ export const useAppStore = create<AppState>((set) => ({
   },
 
   addPackage: async (p) => {
-    const created = await api.packages.create(p) as DataPackage;
+    const created = (await api.packages.create(p)) as DataPackage;
     set((st) => ({ packages: [...st.packages, created] }));
   },
 
   updatePackage: async (id, patch) => {
-    const updated = await api.packages.update(id, patch) as DataPackage;
+    const updated = (await api.packages.update(id, patch)) as DataPackage;
     set((st) => ({
       packages: st.packages.map((x) => (x.id === id ? updated : x)),
     }));
@@ -368,14 +385,14 @@ export const useAppStore = create<AppState>((set) => ({
 
   upsertModel: async (m) => {
     if ((m as any).id) {
-      const updated = await api.models.update((m as any).id, m) as Model;
+      const updated = (await api.models.update((m as any).id, m)) as Model;
       set((st) => ({
         models: st.models.map((x) =>
           (x as any).id === (m as any).id ? updated : x,
         ),
       }));
     } else {
-      const created = await api.models.create(m) as Model;
+      const created = (await api.models.create(m)) as Model;
       set((st) => ({ models: [...st.models, created] }));
     }
   },

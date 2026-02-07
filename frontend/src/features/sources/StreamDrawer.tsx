@@ -107,13 +107,20 @@ export function StreamDrawer({
   onClose: () => void;
 }) {
   const { dataSources, topics, upsertStream, setStreamPreview } = useAppStore();
-  
-  const [topicDrawerOpen, { open: openTopicDrawer, close: closeTopicDrawer }] = useDisclosure(false);
 
-  const apiOptions = dataSources.map((s) => ({ value: String(s.id), label: s.name }));
+  const [topicDrawerOpen, { open: openTopicDrawer, close: closeTopicDrawer }] =
+    useDisclosure(false);
+
+  const apiOptions = dataSources.map((s) => ({
+    value: String(s.id),
+    label: s.name,
+  }));
   const defaultApi = apiOptions[0]?.value ?? "";
-  
-  const topicOptions = topics.map((t) => ({ value: String(t.id), label: t.name }));
+
+  const topicOptions = topics.map((t) => ({
+    value: String(t.id),
+    label: t.name,
+  }));
   const defaultTopic = topicOptions[0]?.value ?? "";
 
   const [selectedSource, setSelectedSource] = useState<DataSource | null>(null);
@@ -123,20 +130,23 @@ export function StreamDrawer({
     name: "My Stream",
     method: "GET" as "GET" | "POST",
     path: "/v1/items",
-    
+
     // Database fields
     table_name: "",
-    ingestion_strategy: "full_refresh" as "full_refresh" | "incremental" | "snapshot",
+    ingestion_strategy: "full_refresh" as
+      | "full_refresh"
+      | "incremental"
+      | "snapshot",
     incremental_key: "",
-    
+
     // S3 fields
     s3_path_pattern: "data/*.parquet",
     s3_file_format: "parquet",
-    
+
     // SFTP fields
     sftp_path_pattern: "/data/*.csv",
     sftp_file_format: "csv",
-    
+
     // Scheduling
     schedule_enabled: false,
     schedule_cron: "0 0 * * *",
@@ -198,22 +208,22 @@ export function StreamDrawer({
   // S3 file preview state
   const [s3Files, setS3Files] = useState<any[]>([]);
   const [s3PreviewLoading, setS3PreviewLoading] = useState(false);
-  
+
   const s3FilesTotalSize = useMemo(() => {
     return s3Files.reduce((sum, file) => sum + (file.size || 0), 0);
   }, [s3Files]);
-  
+
   const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 B';
+    if (bytes === 0) return "0 B";
     const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const sizes = ["B", "KB", "MB", "GB", "TB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
   };
 
   // Update selected source when dataSourceId changes
   useEffect(() => {
-    const source = dataSources.find(s => String(s.id) === form.dataSourceId);
+    const source = dataSources.find((s) => String(s.id) === form.dataSourceId);
     setSelectedSource(source || null);
   }, [form.dataSourceId, dataSources]);
 
@@ -254,7 +264,7 @@ export function StreamDrawer({
       });
 
       setS3Files(response.files || []);
-      
+
       if (response.files && response.files.length > 0) {
         notifications.show({
           message: `Found ${response.count} file(s) matching pattern`,
@@ -319,7 +329,10 @@ export function StreamDrawer({
           ...stream,
           table_name: form.table_name,
           ingestion_strategy: form.ingestion_strategy,
-          incremental_key: form.ingestion_strategy === "incremental" ? form.incremental_key : undefined,
+          incremental_key:
+            form.ingestion_strategy === "incremental"
+              ? form.incremental_key
+              : undefined,
         };
       } else if (selectedSource?.type === "s3") {
         stream = {
@@ -452,13 +465,19 @@ export function StreamDrawer({
                       <TextInput
                         label="Path"
                         value={form.path}
-                        onChange={(e) => setForm({ ...form, path: e.target.value })}
+                        onChange={(e) =>
+                          setForm({ ...form, path: e.target.value })
+                        }
                         description="Relative to the API Source base URL"
                       />
                     </SimpleGrid>
 
                     <Divider label="Parameters" />
-                    {kvRowEditor(queryParams, setQueryParams, "Query parameters")}
+                    {kvRowEditor(
+                      queryParams,
+                      setQueryParams,
+                      "Query parameters",
+                    )}
                     {kvRowEditor(headers, setHeaders, "Request headers")}
 
                     {form.method === "POST" && (
@@ -582,7 +601,9 @@ export function StreamDrawer({
                     <TextInput
                       label="Table Name"
                       value={form.table_name}
-                      onChange={(e) => setForm({ ...form, table_name: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, table_name: e.target.value })
+                      }
                       required
                       description="Name of the table or view to extract from"
                     />
@@ -590,19 +611,33 @@ export function StreamDrawer({
                       label="Ingestion Strategy"
                       value={form.ingestion_strategy}
                       onChange={(v) =>
-                        setForm({ ...form, ingestion_strategy: (v as any) ?? "full_refresh" })
+                        setForm({
+                          ...form,
+                          ingestion_strategy: (v as any) ?? "full_refresh",
+                        })
                       }
                       data={[
-                        { value: "full_refresh", label: "Full Refresh (replace all data)" },
-                        { value: "incremental", label: "Incremental Load (append new/changed)" },
-                        { value: "snapshot", label: "Snapshot (point-in-time copy)" },
+                        {
+                          value: "full_refresh",
+                          label: "Full Refresh (replace all data)",
+                        },
+                        {
+                          value: "incremental",
+                          label: "Incremental Load (append new/changed)",
+                        },
+                        {
+                          value: "snapshot",
+                          label: "Snapshot (point-in-time copy)",
+                        },
                       ]}
                     />
                     {form.ingestion_strategy === "incremental" && (
                       <TextInput
                         label="Incremental Key Column"
                         value={form.incremental_key}
-                        onChange={(e) => setForm({ ...form, incremental_key: e.target.value })}
+                        onChange={(e) =>
+                          setForm({ ...form, incremental_key: e.target.value })
+                        }
                         description="Column name for tracking incremental loads (e.g., updated_at, id)"
                         required
                       />
@@ -615,7 +650,9 @@ export function StreamDrawer({
                     <TextInput
                       label="S3 Path Pattern"
                       value={form.s3_path_pattern}
-                      onChange={(e) => setForm({ ...form, s3_path_pattern: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, s3_path_pattern: e.target.value })
+                      }
                       description="Path pattern for S3 objects (e.g., data/*.parquet or data/year={year}/*.csv)"
                       required
                     />
@@ -623,7 +660,10 @@ export function StreamDrawer({
                       label="File Format"
                       value={form.s3_file_format}
                       onChange={(v) =>
-                        setForm({ ...form, s3_file_format: (v as any) ?? "parquet" })
+                        setForm({
+                          ...form,
+                          s3_file_format: (v as any) ?? "parquet",
+                        })
                       }
                       data={[
                         { value: "parquet", label: "Parquet" },
@@ -640,13 +680,17 @@ export function StreamDrawer({
                     >
                       Preview Files
                     </Button>
-                    
+
                     {s3Files.length > 0 && (
                       <Card withBorder>
                         <Stack gap="xs">
                           <Group justify="space-between">
-                            <Text fw={500}>Matching Files ({s3Files.length})</Text>
-                            <Badge variant="light">{formatBytes(s3FilesTotalSize)}</Badge>
+                            <Text fw={500}>
+                              Matching Files ({s3Files.length})
+                            </Text>
+                            <Badge variant="light">
+                              {formatBytes(s3FilesTotalSize)}
+                            </Badge>
                           </Group>
                           <Table>
                             <Table.Thead>
@@ -657,21 +701,32 @@ export function StreamDrawer({
                               </Table.Tr>
                             </Table.Thead>
                             <Table.Tbody>
-                              {s3Files.slice(0, 10).map((file: any, idx: number) => (
-                                <Table.Tr key={idx}>
-                                  <Table.Td>
-                                    <Text size="sm" style={{ fontFamily: "monospace" }}>
-                                      {file.key}
-                                    </Text>
-                                  </Table.Td>
-                                  <Table.Td>
-                                    <Text size="sm">{formatBytes(file.size)}</Text>
-                                  </Table.Td>
-                                  <Table.Td>
-                                    <Text size="sm">{new Date(file.last_modified).toLocaleString()}</Text>
-                                  </Table.Td>
-                                </Table.Tr>
-                              ))}
+                              {s3Files
+                                .slice(0, 10)
+                                .map((file: any, idx: number) => (
+                                  <Table.Tr key={idx}>
+                                    <Table.Td>
+                                      <Text
+                                        size="sm"
+                                        style={{ fontFamily: "monospace" }}
+                                      >
+                                        {file.key}
+                                      </Text>
+                                    </Table.Td>
+                                    <Table.Td>
+                                      <Text size="sm">
+                                        {formatBytes(file.size)}
+                                      </Text>
+                                    </Table.Td>
+                                    <Table.Td>
+                                      <Text size="sm">
+                                        {new Date(
+                                          file.last_modified,
+                                        ).toLocaleString()}
+                                      </Text>
+                                    </Table.Td>
+                                  </Table.Tr>
+                                ))}
                             </Table.Tbody>
                           </Table>
                           {s3Files.length > 10 && (
@@ -682,9 +737,10 @@ export function StreamDrawer({
                         </Stack>
                       </Card>
                     )}
-                    
+
                     <Text size="sm" c="dimmed">
-                      For S3 sources, data packages will point to the external S3 location without copying data.
+                      For S3 sources, data packages will point to the external
+                      S3 location without copying data.
                     </Text>
                   </>
                 )}
@@ -694,7 +750,9 @@ export function StreamDrawer({
                     <TextInput
                       label="SFTP Path Pattern"
                       value={form.sftp_path_pattern}
-                      onChange={(e) => setForm({ ...form, sftp_path_pattern: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, sftp_path_pattern: e.target.value })
+                      }
                       description="Path pattern for SFTP files (e.g., /data/*.csv or /exports/daily_*.json)"
                       required
                     />
@@ -702,7 +760,10 @@ export function StreamDrawer({
                       label="File Format"
                       value={form.sftp_file_format}
                       onChange={(v) =>
-                        setForm({ ...form, sftp_file_format: (v as any) ?? "csv" })
+                        setForm({
+                          ...form,
+                          sftp_file_format: (v as any) ?? "csv",
+                        })
                       }
                       data={[
                         { value: "csv", label: "CSV" },
@@ -744,13 +805,16 @@ export function StreamDrawer({
                 </Stack>
 
                 <Divider label="Scheduling" />
-                
+
                 <Switch
                   label="Enable Scheduled Extraction"
                   description="Automatically extract data on a schedule"
                   checked={form.schedule_enabled}
                   onChange={(e) =>
-                    setForm({ ...form, schedule_enabled: e.currentTarget.checked })
+                    setForm({
+                      ...form,
+                      schedule_enabled: e.currentTarget.checked,
+                    })
                   }
                 />
 
@@ -782,7 +846,10 @@ export function StreamDrawer({
                         label="Interval (minutes)"
                         value={form.schedule_interval_minutes}
                         onChange={(v) =>
-                          setForm({ ...form, schedule_interval_minutes: Number(v) || 60 })
+                          setForm({
+                            ...form,
+                            schedule_interval_minutes: Number(v) || 60,
+                          })
                         }
                         min={1}
                         description="How often to run the extraction"
@@ -811,7 +878,9 @@ export function StreamDrawer({
                 <JsonPreviewPanel
                   value={previewText}
                   onChange={setPreviewText}
-                  parseError={parsedPreview.ok ? undefined : parsedPreview.error}
+                  parseError={
+                    parsedPreview.ok ? undefined : parsedPreview.error
+                  }
                   inferredSchemaText={
                     inferred ? schemaToPretty(inferred) : undefined
                   }
@@ -829,7 +898,7 @@ export function StreamDrawer({
           </Tabs>
         )}
       </Stack>
-      
+
       <TopicDrawer
         opened={topicDrawerOpen}
         onClose={closeTopicDrawer}

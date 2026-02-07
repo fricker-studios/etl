@@ -65,7 +65,10 @@ export function RunsPage() {
             {runs.length === 0 && (
               <Table.Tr>
                 <Table.Td colSpan={5}>
-                  <Text c="dimmed">No runs yet. Create a stream and execute it to see run history here.</Text>
+                  <Text c="dimmed">
+                    No runs yet. Create a stream and execute it to see run
+                    history here.
+                  </Text>
                 </Table.Td>
               </Table.Tr>
             )}

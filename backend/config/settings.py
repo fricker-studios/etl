@@ -21,7 +21,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Initialize Sentry for error tracking and performance monitoring
 SENTRY_DSN = os.environ.get('SENTRY_DSN')
-DEFAULT_SENTRY_ENVIRONMENT = 'local'
+DEFAULT_SENTRY_ENVIRONMENT = 'dev'
 if SENTRY_DSN:
     sentry_sdk.init(
         dsn=SENTRY_DSN,
@@ -36,7 +36,7 @@ if SENTRY_DSN:
         traces_sample_rate=0.1,
         send_default_pii=True,
         environment=os.environ.get('SENTRY_ENVIRONMENT', DEFAULT_SENTRY_ENVIRONMENT),
-        release=os.environ.get('SENTRY_RELEASE'),
+        release=os.environ.get('SENTRY_RELEASE_VERSION', 'dev'),
     )
 
 

@@ -43,7 +43,12 @@ export function DataSourceDrawer({
 
   const [dbForm, setDbForm] = useState({
     name: "",
-    database_type: "postgresql" as "postgresql" | "mysql" | "mongodb" | "sqlserver" | "oracle",
+    database_type: "postgresql" as
+      | "postgresql"
+      | "mysql"
+      | "mongodb"
+      | "sqlserver"
+      | "oracle",
     host: "",
     port: 5432,
     database_name: "",
@@ -83,10 +88,16 @@ export function DataSourceDrawer({
         if (apiForm.auth_type === "bearer" && !apiForm.bearer_token) {
           throw new Error("Bearer token is required");
         }
-        if (apiForm.auth_type === "basic" && (!apiForm.basic_user || !apiForm.basic_pass)) {
+        if (
+          apiForm.auth_type === "basic" &&
+          (!apiForm.basic_user || !apiForm.basic_pass)
+        ) {
           throw new Error("Username and password are required for basic auth");
         }
-        if (apiForm.auth_type === "header" && (!apiForm.header_name || !apiForm.header_value)) {
+        if (
+          apiForm.auth_type === "header" &&
+          (!apiForm.header_name || !apiForm.header_value)
+        ) {
           throw new Error("Header name and value are required");
         }
 
@@ -94,7 +105,13 @@ export function DataSourceDrawer({
       } else if (type === "database") {
         z.object({
           name: z.string().min(2),
-          database_type: z.enum(["postgresql", "mysql", "mongodb", "sqlserver", "oracle"]),
+          database_type: z.enum([
+            "postgresql",
+            "mysql",
+            "mongodb",
+            "sqlserver",
+            "oracle",
+          ]),
           host: z.string().min(1, "Host is required"),
           port: z.number().min(1).max(65535),
           database_name: z.string().min(1, "Database name is required"),
@@ -130,7 +147,7 @@ export function DataSourceDrawer({
       upsert(payload);
       notifications.show({ message: "Data source saved", color: "teal" });
       onClose();
-      
+
       // Reset forms
       setApiForm({
         name: "",
@@ -198,21 +215,28 @@ export function DataSourceDrawer({
 
         <Divider />
 
-        <Tabs value={type} onChange={(v) => setType((v as DataSourceType) ?? "api")}>
+        <Tabs
+          value={type}
+          onChange={(v) => setType((v as DataSourceType) ?? "api")}
+        >
           <Tabs.Panel value="api">
             <Stack>
               <TextInput
                 label="Name"
                 placeholder="My API"
                 value={apiForm.name}
-                onChange={(e) => setApiForm({ ...apiForm, name: e.target.value })}
+                onChange={(e) =>
+                  setApiForm({ ...apiForm, name: e.target.value })
+                }
                 required
               />
               <TextInput
                 label="Base URL"
                 placeholder="https://api.example.com"
                 value={apiForm.base_url}
-                onChange={(e) => setApiForm({ ...apiForm, base_url: e.target.value })}
+                onChange={(e) =>
+                  setApiForm({ ...apiForm, base_url: e.target.value })
+                }
                 description="Root URL for API requests"
                 required
               />
@@ -301,7 +325,10 @@ export function DataSourceDrawer({
                 label="Database Type"
                 value={dbForm.database_type}
                 onChange={(v) =>
-                  setDbForm({ ...dbForm, database_type: (v as any) ?? "postgresql" })
+                  setDbForm({
+                    ...dbForm,
+                    database_type: (v as any) ?? "postgresql",
+                  })
                 }
                 data={[
                   { value: "postgresql", label: "PostgreSQL" },
@@ -316,13 +343,17 @@ export function DataSourceDrawer({
                   label="Host"
                   placeholder="localhost"
                   value={dbForm.host}
-                  onChange={(e) => setDbForm({ ...dbForm, host: e.target.value })}
+                  onChange={(e) =>
+                    setDbForm({ ...dbForm, host: e.target.value })
+                  }
                   required
                 />
                 <NumberInput
                   label="Port"
                   value={dbForm.port}
-                  onChange={(v) => setDbForm({ ...dbForm, port: Number(v) || 5432 })}
+                  onChange={(v) =>
+                    setDbForm({ ...dbForm, port: Number(v) || 5432 })
+                  }
                   min={1}
                   max={65535}
                   required
@@ -340,13 +371,17 @@ export function DataSourceDrawer({
                 <TextInput
                   label="Username"
                   value={dbForm.username}
-                  onChange={(e) => setDbForm({ ...dbForm, username: e.target.value })}
+                  onChange={(e) =>
+                    setDbForm({ ...dbForm, username: e.target.value })
+                  }
                   required
                 />
                 <PasswordInput
                   label="Password"
                   value={dbForm.password}
-                  onChange={(e) => setDbForm({ ...dbForm, password: e.target.value })}
+                  onChange={(e) =>
+                    setDbForm({ ...dbForm, password: e.target.value })
+                  }
                   required
                 />
               </SimpleGrid>
@@ -376,13 +411,17 @@ export function DataSourceDrawer({
                   label="Region"
                   placeholder="us-east-1"
                   value={s3Form.s3_region}
-                  onChange={(e) => setS3Form({ ...s3Form, s3_region: e.target.value })}
+                  onChange={(e) =>
+                    setS3Form({ ...s3Form, s3_region: e.target.value })
+                  }
                 />
                 <TextInput
                   label="Bucket Name"
                   placeholder="my-bucket"
                   value={s3Form.s3_bucket}
-                  onChange={(e) => setS3Form({ ...s3Form, s3_bucket: e.target.value })}
+                  onChange={(e) =>
+                    setS3Form({ ...s3Form, s3_bucket: e.target.value })
+                  }
                   required
                 />
               </SimpleGrid>
@@ -411,7 +450,9 @@ export function DataSourceDrawer({
                 label="Name"
                 placeholder="My SFTP Server"
                 value={sftpForm.name}
-                onChange={(e) => setSftpForm({ ...sftpForm, name: e.target.value })}
+                onChange={(e) =>
+                  setSftpForm({ ...sftpForm, name: e.target.value })
+                }
                 required
               />
               <SimpleGrid cols={2}>
@@ -427,7 +468,9 @@ export function DataSourceDrawer({
                 <NumberInput
                   label="Port"
                   value={sftpForm.sftp_port}
-                  onChange={(v) => setSftpForm({ ...sftpForm, sftp_port: Number(v) || 22 })}
+                  onChange={(v) =>
+                    setSftpForm({ ...sftpForm, sftp_port: Number(v) || 22 })
+                  }
                   min={1}
                   max={65535}
                   required
@@ -465,7 +508,8 @@ export function DataSourceDrawer({
 
         <Divider />
         <Text c="dimmed" size="sm">
-          All sensitive credentials (passwords, tokens, keys) are encrypted before being stored in the database.
+          All sensitive credentials (passwords, tokens, keys) are encrypted
+          before being stored in the database.
         </Text>
 
         <Group justify="flex-end">

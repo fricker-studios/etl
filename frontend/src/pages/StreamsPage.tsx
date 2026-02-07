@@ -21,14 +21,16 @@ import { useState } from "react";
 export function StreamsPage() {
   const [open, { open: openIt, close }] = useDisclosure(false);
   const { streams, dataSources } = useAppStore();
-  const [executingStreams, setExecutingStreams] = useState<Set<string>>(new Set());
+  const [executingStreams, setExecutingStreams] = useState<Set<string>>(
+    new Set(),
+  );
 
   const sourceName = (id: string) =>
     dataSources.find((s) => s.id === id)?.name ?? "Unknown";
 
   const executeStream = async (streamId: string) => {
-    setExecutingStreams(prev => new Set(prev).add(streamId));
-    
+    setExecutingStreams((prev) => new Set(prev).add(streamId));
+
     try {
       const result: any = await api.streams.execute(streamId);
       notifications.show({
@@ -41,7 +43,7 @@ export function StreamsPage() {
         color: "red",
       });
     } finally {
-      setExecutingStreams(prev => {
+      setExecutingStreams((prev) => {
         const next = new Set(prev);
         next.delete(streamId);
         return next;
@@ -81,13 +83,16 @@ export function StreamsPage() {
                 <Table.Td>{sourceName(st.data_source)}</Table.Td>
                 <Table.Td>
                   <Badge variant="light">
-                    {dataSources.find(s => s.id === st.data_source)?.type?.toUpperCase() || "Unknown"}
+                    {dataSources
+                      .find((s) => s.id === st.data_source)
+                      ?.type?.toUpperCase() || "Unknown"}
                   </Badge>
                 </Table.Td>
                 <Table.Td>
                   {st.schedule_enabled ? (
                     <Badge color="green" variant="light">
-                      {st.schedule_cron || `Every ${st.schedule_interval_minutes}m`}
+                      {st.schedule_cron ||
+                        `Every ${st.schedule_interval_minutes}m`}
                     </Badge>
                   ) : (
                     <Badge variant="light">Manual</Badge>

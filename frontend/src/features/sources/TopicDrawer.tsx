@@ -31,7 +31,11 @@ interface TopicDrawerProps {
   onTopicCreated?: (topicId: string) => void;
 }
 
-export function TopicDrawer({ opened, onClose, onTopicCreated }: TopicDrawerProps) {
+export function TopicDrawer({
+  opened,
+  onClose,
+  onTopicCreated,
+}: TopicDrawerProps) {
   const { addTopic } = useAppStore();
 
   const [form, setForm] = useState({
@@ -70,11 +74,15 @@ export function TopicDrawer({ opened, onClose, onTopicCreated }: TopicDrawerProp
     setSchemaColumns(updated);
   };
 
-  const updateColumn = (position: number, field: keyof SchemaColumn, value: any) => {
+  const updateColumn = (
+    position: number,
+    field: keyof SchemaColumn,
+    value: any,
+  ) => {
     setSchemaColumns(
       schemaColumns.map((col) =>
-        col.position === position ? { ...col, [field]: value } : col
-      )
+        col.position === position ? { ...col, [field]: value } : col,
+      ),
     );
   };
 
@@ -86,7 +94,9 @@ export function TopicDrawer({ opened, onClose, onTopicCreated }: TopicDrawerProp
       }).parse(form);
 
       // Validate schema - at least one column with a name
-      const validColumns = schemaColumns.filter((col) => col.name.trim().length > 0);
+      const validColumns = schemaColumns.filter(
+        (col) => col.name.trim().length > 0,
+      );
       if (validColumns.length === 0) {
         throw new Error("At least one schema column is required");
       }
@@ -152,7 +162,8 @@ export function TopicDrawer({ opened, onClose, onTopicCreated }: TopicDrawerProp
         <Divider label="Schema Definition" />
 
         <Text size="sm" c="dimmed">
-          Define the schema for this topic. This will create the initial revision (v1).
+          Define the schema for this topic. This will create the initial
+          revision (v1).
         </Text>
 
         <Stack gap="xs">
@@ -215,7 +226,7 @@ export function TopicDrawer({ opened, onClose, onTopicCreated }: TopicDrawerProp
                         updateColumn(
                           col.position,
                           "nullable",
-                          e.currentTarget.checked
+                          e.currentTarget.checked,
                         )
                       }
                       size="sm"
