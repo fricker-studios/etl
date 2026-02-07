@@ -126,6 +126,68 @@ class StreamViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
     
+    @action(detail=True, methods=['post'])
+    def execute(self, request, pk=None):
+        """
+        Execute a stream immediately (discover files and create data packages).
+        """
+        import subprocess
+        
+        stream = self.get_object()
+        
+        # Only S3 supported for now
+        if not stream.data_source or stream.data_source.type != 's3':
+            return Response(
+                {'error': 'Only S3 streams are supported for execution'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not stream.topic:
+            return Response(
+                {'error': 'Stream must have a topic assigned'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Execute the management command
+            result = subprocess.run(
+                ['python', 'manage.py', 'execute_stream', str(stream.id)],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            
+            # Parse output for results
+            output_lines = result.stdout.split('\n')
+            created_count = 0
+            for line in output_lines:
+                if 'Created' in line and 'data package' in line:
+                    # Extract number from "Created X data package(s)"
+                    import re
+                    match = re.search(r'Created (\d+)', line)
+                    if match:
+                        created_count = int(match.group(1))
+            
+            return Response({
+                'status': 'success',
+                'message': f'Stream executed successfully',
+                'packages_created': created_count,
+                'output': result.stdout
+            })
+            
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Error executing stream {stream.id}: {e.stderr}")
+            return Response(
+                {'error': 'Stream execution failed', 'details': e.stderr},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        except Exception as e:
+            logger.error(f"Unexpected error executing stream: {e}")
+            return Response(
+                {'error': 'Internal server error'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
     @action(detail=False, methods=['post'])
     def preview_s3_files(self, request):
         """

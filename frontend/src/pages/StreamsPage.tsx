@@ -7,17 +7,47 @@ import {
   Stack,
   Table,
   Badge,
+  ActionIcon,
+  Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import { IconPlus, IconPlayerPlay } from "@tabler/icons-react";
 import { useAppStore } from "../store/useAppStore";
 import { StreamDrawer } from "../features/sources/StreamDrawer";
+import { api } from "../utils/api";
+import { notifications } from "@mantine/notifications";
+import { useState } from "react";
 
 export function StreamsPage() {
   const [open, { open: openIt, close }] = useDisclosure(false);
   const { streams, dataSources } = useAppStore();
+  const [executingStreams, setExecutingStreams] = useState<Set<string>>(new Set());
 
   const sourceName = (id: string) =>
     dataSources.find((s) => s.id === id)?.name ?? "Unknown";
+
+  const executeStream = async (streamId: string) => {
+    setExecutingStreams(prev => new Set(prev).add(streamId));
+    
+    try {
+      const result: any = await api.streams.execute(streamId);
+      notifications.show({
+        message: `${result.packages_created || 0} data package(s) created`,
+        color: "teal",
+      });
+    } catch (error: any) {
+      notifications.show({
+        message: error.message || "Failed to execute stream",
+        color: "red",
+      });
+    } finally {
+      setExecutingStreams(prev => {
+        const next = new Set(prev);
+        next.delete(streamId);
+        return next;
+      });
+    }
+  };
 
   return (
     <Stack>
@@ -25,11 +55,12 @@ export function StreamsPage() {
         <div>
           <Title order={2}>Streams</Title>
           <Text c="dimmed">
-            Streams are API endpoints + request config. Add a preview JSON to
-            infer schema.
+            Scheduled data extraction from sources to topics
           </Text>
         </div>
-        <Button onClick={openIt}>Add stream</Button>
+        <Button onClick={openIt} leftSection={<IconPlus size={16} />}>
+          Add stream
+        </Button>
       </Group>
 
       <Card withBorder>
@@ -37,10 +68,10 @@ export function StreamsPage() {
           <Table.Thead>
             <Table.Tr>
               <Table.Th>Name</Table.Th>
-              <Table.Th>API Source</Table.Th>
-              <Table.Th>Method</Table.Th>
-              <Table.Th>Path</Table.Th>
-              <Table.Th>Schema</Table.Th>
+              <Table.Th>Data Source</Table.Th>
+              <Table.Th>Type</Table.Th>
+              <Table.Th>Schedule</Table.Th>
+              <Table.Th>Actions</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -49,17 +80,30 @@ export function StreamsPage() {
                 <Table.Td>{st.name}</Table.Td>
                 <Table.Td>{sourceName(st.data_source)}</Table.Td>
                 <Table.Td>
-                  <Badge variant="light">{st.method}</Badge>
+                  <Badge variant="light">
+                    {dataSources.find(s => s.id === st.data_source)?.type?.toUpperCase() || "Unknown"}
+                  </Badge>
                 </Table.Td>
-                <Table.Td>{st.path}</Table.Td>
                 <Table.Td>
-                  {st.inferred_schema ? (
-                    <Badge color="teal" variant="light">
-                      Inferred
+                  {st.schedule_enabled ? (
+                    <Badge color="green" variant="light">
+                      {st.schedule_cron || `Every ${st.schedule_interval_minutes}m`}
                     </Badge>
                   ) : (
-                    <Badge variant="light">Missing</Badge>
+                    <Badge variant="light">Manual</Badge>
                   )}
+                </Table.Td>
+                <Table.Td>
+                  <Tooltip label="Run Now">
+                    <ActionIcon
+                      variant="light"
+                      color="blue"
+                      onClick={() => executeStream(st.id)}
+                      loading={executingStreams.has(st.id)}
+                    >
+                      <IconPlayerPlay size={16} />
+                    </ActionIcon>
+                  </Tooltip>
                 </Table.Td>
               </Table.Tr>
             ))}
