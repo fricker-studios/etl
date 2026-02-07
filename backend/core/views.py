@@ -1,4 +1,4 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -125,6 +125,72 @@ class StreamViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+    
+    @action(detail=False, methods=['post'])
+    def preview_s3_files(self, request):
+        """
+        Preview S3 files matching a pattern.
+        Expects: data_source_id, path_pattern
+        Returns: list of matching files
+        """
+        from .s3_utils import S3FileDiscovery
+        from .models import DataSource
+        
+        data_source_id = request.data.get('data_source_id')
+        path_pattern = request.data.get('path_pattern')
+        
+        if not data_source_id or not path_pattern:
+            return Response(
+                {'error': 'data_source_id and path_pattern are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Get data source
+            data_source = DataSource.objects.get(
+                id=data_source_id,
+                user=request.user,
+                type='s3'
+            )
+            
+            # Initialize S3 client with decrypted credentials
+            s3_discovery = S3FileDiscovery(
+                endpoint_url=data_source.s3_endpoint,
+                region=data_source.s3_region or 'us-east-1',
+                access_key=data_source.s3_access_key,
+                secret_key=data_source.get_decrypted_s3_secret_key()
+            )
+            
+            # List files matching pattern
+            files = s3_discovery.list_files(
+                bucket=data_source.s3_bucket,
+                path_pattern=path_pattern,
+                max_files=50  # Limit preview to 50 files
+            )
+            
+            return Response({
+                'files': files,
+                'count': len(files),
+                'bucket': data_source.s3_bucket,
+                'pattern': path_pattern
+            })
+            
+        except DataSource.DoesNotExist:
+            return Response(
+                {'error': 'Data source not found or not an S3 source'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except ValueError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Error previewing S3 files: {e}")
+            return Response(
+                {'error': 'Internal server error'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class TopicViewSet(viewsets.ModelViewSet):

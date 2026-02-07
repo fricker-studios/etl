@@ -15,6 +15,7 @@ import {
   Switch,
   NumberInput,
   Text,
+  Card,
 } from "@mantine/core";
 import { useMemo, useState, useEffect } from "react";
 import { useDisclosure } from "@mantine/hooks";
@@ -24,6 +25,7 @@ import { inferSchemaFromJson, schemaToPretty } from "../../utils/schemaInfer";
 import { IconPlus, IconTrash, IconWand } from "@tabler/icons-react";
 import { JsonPreviewPanel } from "./JsonPreviewPanel";
 import { TopicDrawer } from "./TopicDrawer";
+import { api } from "../../utils/api";
 import { z } from "zod";
 
 type KV = { key: string; value: string };
@@ -193,6 +195,22 @@ export function StreamDrawer({
     ),
   );
 
+  // S3 file preview state
+  const [s3Files, setS3Files] = useState<any[]>([]);
+  const [s3PreviewLoading, setS3PreviewLoading] = useState(false);
+  
+  const s3FilesTotalSize = useMemo(() => {
+    return s3Files.reduce((sum, file) => sum + (file.size || 0), 0);
+  }, [s3Files]);
+  
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
+
   // Update selected source when dataSourceId changes
   useEffect(() => {
     const source = dataSources.find(s => s.id === form.dataSourceId);
@@ -216,6 +234,47 @@ export function StreamDrawer({
     if (!parsedPreview.ok) return null;
     return inferSchemaFromJson(parsedPreview.json);
   }, [parsedPreview]);
+
+  const previewS3Files = async () => {
+    if (!form.dataSourceId || !form.s3_path_pattern) {
+      notifications.show({
+        message: "Please select a data source and enter a path pattern",
+        color: "orange",
+      });
+      return;
+    }
+
+    setS3PreviewLoading(true);
+    setS3Files([]);
+
+    try {
+      const response: any = await api.streams.previewS3Files({
+        data_source_id: form.dataSourceId,
+        path_pattern: form.s3_path_pattern,
+      });
+
+      setS3Files(response.files || []);
+      
+      if (response.files && response.files.length > 0) {
+        notifications.show({
+          message: `Found ${response.count} file(s) matching pattern`,
+          color: "teal",
+        });
+      } else {
+        notifications.show({
+          message: "No files found matching the pattern",
+          color: "orange",
+        });
+      }
+    } catch (error: any) {
+      notifications.show({
+        message: error.message || "Failed to preview S3 files",
+        color: "red",
+      });
+    } finally {
+      setS3PreviewLoading(false);
+    }
+  };
 
   const saveStream = () => {
     try {
@@ -573,6 +632,57 @@ export function StreamDrawer({
                         { value: "avro", label: "Avro" },
                       ]}
                     />
+                    <Button
+                      variant="light"
+                      onClick={previewS3Files}
+                      loading={s3PreviewLoading}
+                      disabled={!form.s3_path_pattern || !form.dataSourceId}
+                    >
+                      Preview Files
+                    </Button>
+                    
+                    {s3Files.length > 0 && (
+                      <Card withBorder>
+                        <Stack gap="xs">
+                          <Group justify="space-between">
+                            <Text fw={500}>Matching Files ({s3Files.length})</Text>
+                            <Badge variant="light">{formatBytes(s3FilesTotalSize)}</Badge>
+                          </Group>
+                          <Table>
+                            <Table.Thead>
+                              <Table.Tr>
+                                <Table.Th>File</Table.Th>
+                                <Table.Th>Size</Table.Th>
+                                <Table.Th>Last Modified</Table.Th>
+                              </Table.Tr>
+                            </Table.Thead>
+                            <Table.Tbody>
+                              {s3Files.slice(0, 10).map((file: any, idx: number) => (
+                                <Table.Tr key={idx}>
+                                  <Table.Td>
+                                    <Text size="sm" style={{ fontFamily: "monospace" }}>
+                                      {file.key}
+                                    </Text>
+                                  </Table.Td>
+                                  <Table.Td>
+                                    <Text size="sm">{formatBytes(file.size)}</Text>
+                                  </Table.Td>
+                                  <Table.Td>
+                                    <Text size="sm">{new Date(file.last_modified).toLocaleString()}</Text>
+                                  </Table.Td>
+                                </Table.Tr>
+                              ))}
+                            </Table.Tbody>
+                          </Table>
+                          {s3Files.length > 10 && (
+                            <Text size="xs" c="dimmed">
+                              Showing 10 of {s3Files.length} files
+                            </Text>
+                          )}
+                        </Stack>
+                      </Card>
+                    )}
+                    
                     <Text size="sm" c="dimmed">
                       For S3 sources, data packages will point to the external S3 location without copying data.
                     </Text>
