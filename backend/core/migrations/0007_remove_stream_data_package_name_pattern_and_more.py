@@ -7,21 +7,27 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0006_stream_data_package_name_pattern_and_more'),
+        ("core", "0006_stream_data_package_name_pattern_and_more"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='stream',
-            name='data_package_name_pattern',
+            model_name="stream",
+            name="data_package_name_pattern",
         ),
         migrations.RemoveField(
-            model_name='stream',
-            name='schema',
+            model_name="stream",
+            name="schema",
         ),
         migrations.AddField(
-            model_name='stream',
-            name='topic',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='streams', to='core.topic'),
+            model_name="stream",
+            name="topic",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="streams",
+                to="core.topic",
+            ),
         ),
     ]

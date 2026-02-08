@@ -31,7 +31,9 @@ export function StreamDetailDrawer({
   const dataSources = useAppStore((s) => s.dataSources);
   const topics = useAppStore((s) => s.topics);
 
-  const dataSource = dataSources.find((s) => String(s.id) === stream?.data_source);
+  const dataSource = dataSources.find(
+    (s) => String(s.id) === stream?.data_source,
+  );
   const topic = topics.find((t) => String(t.id) === stream?.topic);
 
   const renderField = (label: string, value?: string | number | boolean) => {
@@ -121,9 +123,10 @@ export function StreamDetailDrawer({
               {renderBadgeField(
                 "Schedule",
                 stream.schedule_enabled
-                  ? stream.schedule_cron || `Every ${stream.schedule_interval_minutes}m`
+                  ? stream.schedule_cron ||
+                      `Every ${stream.schedule_interval_minutes}m`
                   : "Manual",
-                stream.schedule_enabled ? "green" : undefined
+                stream.schedule_enabled ? "green" : undefined,
               )}
             </Table.Tbody>
           </Table>
@@ -141,11 +144,17 @@ export function StreamDetailDrawer({
                 {renderField("Path", stream.path)}
                 {stream.query_params && stream.query_params.length > 0 ? (
                   <Table.Tr>
-                    <Table.Td style={{ fontWeight: 500 }}>Query Parameters</Table.Td>
+                    <Table.Td style={{ fontWeight: 500 }}>
+                      Query Parameters
+                    </Table.Td>
                     <Table.Td>
                       <Stack gap="xs">
                         {stream.query_params.map((param: any, idx: number) => (
-                          <Text key={idx} size="sm" style={{ fontFamily: "monospace" }}>
+                          <Text
+                            key={idx}
+                            size="sm"
+                            style={{ fontFamily: "monospace" }}
+                          >
                             {param.key}={param.value}
                           </Text>
                         ))}
@@ -159,7 +168,11 @@ export function StreamDetailDrawer({
                     <Table.Td>
                       <Stack gap="xs">
                         {stream.headers.map((header: any, idx: number) => (
-                          <Text key={idx} size="sm" style={{ fontFamily: "monospace" }}>
+                          <Text
+                            key={idx}
+                            size="sm"
+                            style={{ fontFamily: "monospace" }}
+                          >
                             {header.key}={header.value}
                           </Text>
                         ))}
@@ -190,9 +203,11 @@ export function StreamDetailDrawer({
                 {renderField("Table Name", stream.table_name)}
                 {renderBadgeField(
                   "Ingestion Strategy",
-                  stream.ingestion_strategy?.replace("_", " ").toUpperCase()
+                  stream.ingestion_strategy?.replace("_", " ").toUpperCase(),
                 )}
-                {stream.ingestion_strategy === "incremental" ? renderField("Incremental Key", stream.incremental_key) : null}
+                {stream.ingestion_strategy === "incremental"
+                  ? renderField("Incremental Key", stream.incremental_key)
+                  : null}
               </Table.Tbody>
             </Table>
           </Card>
@@ -206,7 +221,10 @@ export function StreamDetailDrawer({
             <Table>
               <Table.Tbody>
                 {renderField("Path Pattern", stream.s3_path_pattern)}
-                {renderBadgeField("File Format", stream.s3_file_format?.toUpperCase())}
+                {renderBadgeField(
+                  "File Format",
+                  stream.s3_file_format?.toUpperCase(),
+                )}
               </Table.Tbody>
             </Table>
           </Card>
@@ -220,7 +238,10 @@ export function StreamDetailDrawer({
             <Table>
               <Table.Tbody>
                 {renderField("Path Pattern", stream.sftp_path_pattern)}
-                {renderBadgeField("File Format", stream.sftp_file_format?.toUpperCase())}
+                {renderBadgeField(
+                  "File Format",
+                  stream.sftp_file_format?.toUpperCase(),
+                )}
               </Table.Tbody>
             </Table>
           </Card>
@@ -257,8 +278,8 @@ export function StreamDetailDrawer({
       >
         <Stack>
           <Text size="sm">
-            Are you sure you want to delete <strong>{stream.name}</strong>?
-            This action cannot be undone.
+            Are you sure you want to delete <strong>{stream.name}</strong>? This
+            action cannot be undone.
           </Text>
           <Group justify="flex-end" mt="md">
             <Button variant="default" onClick={() => setDeleteModalOpen(false)}>

@@ -45,7 +45,7 @@ export function TopicsPage() {
         ) : (
           <Accordion value={selectedTopic} onChange={setSelectedTopic}>
             {topics.map((topic) => (
-              <Accordion.Item key={topic.id} value={topic.id}>
+              <Accordion.Item key={topic.id} value={String(topic.id)}>
                 <Accordion.Control>
                   <Group justify="space-between">
                     <div>
