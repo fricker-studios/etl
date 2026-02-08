@@ -42,10 +42,9 @@ export function TopicsPage() {
   const loadPackagesForRevision = async (revisionId: string, page: number = 1) => {
     setLoadingPackages((prev) => ({ ...prev, [revisionId]: true }));
     try {
-      const response = await api.packages.list();
-      const allPackages = response as DataPackage[];
-      const filtered = allPackages.filter(p => String(p.topic_revision) === revisionId);
-      setRevisionPackages((prev) => ({ ...prev, [revisionId]: filtered }));
+      const response = await api.packages.list({ topic_revision: revisionId });
+      const packages = response as DataPackage[];
+      setRevisionPackages((prev) => ({ ...prev, [revisionId]: packages }));
       setRevisionPackagesPage((prev) => ({ ...prev, [revisionId]: page }));
     } catch (error) {
       console.error("Failed to load packages:", error);

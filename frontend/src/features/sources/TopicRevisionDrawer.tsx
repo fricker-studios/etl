@@ -106,7 +106,11 @@ export function TopicRevisionDrawer({
       }
 
       // Create new revision
-      const nextRevisionNumber = (topic.revisions?.length || 0) + 1;
+      const maxRevisionNumber = Math.max(
+        0,
+        ...(topic.revisions?.map((r) => r.revision_number) || [])
+      );
+      const nextRevisionNumber = maxRevisionNumber + 1;
       const revisionData = {
         topic: topic.id,
         revision_number: nextRevisionNumber,
