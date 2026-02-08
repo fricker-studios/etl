@@ -1,10 +1,7 @@
 import {
   Card,
-  Group,
-  Title,
   Text,
   Stack,
-  Button,
   Badge,
   Accordion,
   Table,
@@ -13,21 +10,26 @@ import {
   Center,
   ActionIcon,
   Tooltip,
+  Group,
+  Button,
 } from "@mantine/core";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useDisclosure } from "@mantine/hooks";
-import { useAppStore, type Topic, type DataPackage } from "../store/useAppStore";
+import type { Topic, DataPackage } from "../store/useAppStore";
 import { useState } from "react";
 import { TopicDrawer } from "../features/sources/TopicDrawer";
 import { TopicRevisionDrawer } from "../features/sources/TopicRevisionDrawer";
-import { api } from "../utils/api";
 import { modals } from "@mantine/modals";
+import { PageHeader } from "../components/common/PageHeader";
+import { useTopics, useDeleteTopic } from "../hooks/useTopics";
+import { api } from "../utils/api";
 import { notifications } from "@mantine/notifications";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function TopicsPage() {
-  const topics = useAppStore((s) => s.topics);
-  const removeTopic = useAppStore((s) => s.removeTopic);
-  const fetchAll = useAppStore((s) => s.fetchAll);
+  const { data: topics = [], isLoading } = useTopics();
+  const deleteTopic = useDeleteTopic();
+  const queryClient = useQueryClient();
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [drawerOpen, { open: openDrawer, close: closeDrawer }] =
     useDisclosure(false);
@@ -81,19 +83,8 @@ export function TopicsPage() {
       ),
       labels: { confirm: "Delete", cancel: "Cancel" },
       confirmProps: { color: "red" },
-      onConfirm: async () => {
-        try {
-          await removeTopic(String(topic.id));
-          notifications.show({
-            message: "Topic deleted successfully",
-            color: "teal",
-          });
-        } catch (error: any) {
-          notifications.show({
-            message: error?.message || "Failed to delete topic",
-            color: "red",
-          });
-        }
+      onConfirm: () => {
+        deleteTopic.mutate(String(topic.id));
       },
     });
   };
@@ -116,7 +107,7 @@ export function TopicsPage() {
             color: "teal",
           });
           // Refresh the topics to update the UI
-          await fetchAll();
+          queryClient.invalidateQueries({ queryKey: ["topics"] });
         } catch (error: any) {
           notifications.show({
             message: error?.message || "Failed to delete revision",
@@ -129,21 +120,22 @@ export function TopicsPage() {
 
   return (
     <Stack>
-      <Group justify="space-between" align="flex-end">
-        <div>
-          <Title order={2}>Topics</Title>
-          <Text c="dimmed">
-            Collections of data packages with defined schemas. Each topic can
-            have multiple revisions.
-          </Text>
-        </div>
-        <Button leftSection={<IconPlus size={16} />} onClick={openDrawer}>
-          Create Topic
-        </Button>
-      </Group>
+      <PageHeader
+        title="Topics"
+        description="Collections of data packages with defined schemas. Each topic can have multiple revisions."
+        action={{
+          label: "Create Topic",
+          onClick: openDrawer,
+          icon: <IconPlus size={16} />,
+        }}
+      />
 
       <Card withBorder>
-        {topics.length === 0 ? (
+        {isLoading ? (
+          <Center p="xl">
+            <Loader />
+          </Center>
+        ) : topics.length === 0 ? (
           <Text c="dimmed">
             No topics yet. Create a topic to organize data packages with a
             defined schema.

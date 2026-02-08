@@ -9,34 +9,33 @@ import {
   Stack,
 } from "@mantine/core";
 import { useNavigate } from "react-router-dom";
-import { useAppStore } from "../store/useAppStore";
-import { useEffect } from "react";
+import { PageHeader } from "../components/common/PageHeader";
+import { useStorageBackends } from "../hooks/useStorageBackends";
+import { useDataSources } from "../hooks/useDataSources";
+import { useStreams } from "../hooks/useStreams";
+import { useModels } from "../hooks/useModels";
+import { usePackages } from "../hooks/usePackages";
 
 export function DashboardPage() {
   const nav = useNavigate();
-  const { storageBackends, dataSources, streams, packages, models, fetchAll } =
-    useAppStore();
-
-  useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
+  const { data: storageBackends = [] } = useStorageBackends();
+  const { data: dataSources = [] } = useDataSources();
+  const { data: streams = [] } = useStreams();
+  const { data: models = [] } = useModels();
+  const { data: packages = [] } = usePackages();
 
   return (
     <Stack>
-      <Group justify="space-between">
-        <div>
-          <Title order={2}>Dashboard</Title>
-          <Text c="dimmed">
-            Configure sources → define streams → materialize data packages →
-            model it.
-          </Text>
-        </div>
-        <Group>
-          <Button variant="light" onClick={() => nav("/settings")}>
-            New Connection
-          </Button>
-          <Button onClick={() => nav("/streams")}>New Stream</Button>
-        </Group>
+      <PageHeader
+        title="Dashboard"
+        description="Configure sources → define streams → materialize data packages → model it."
+      />
+
+      <Group>
+        <Button variant="light" onClick={() => nav("/settings")}>
+          New Connection
+        </Button>
+        <Button onClick={() => nav("/streams")}>New Stream</Button>
       </Group>
 
       <Grid>
