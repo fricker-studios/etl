@@ -12,8 +12,10 @@ import {
 } from "@mantine/core";
 import { useState } from "react";
 import { IconTrash } from "@tabler/icons-react";
-import { notifications } from "@mantine/notifications";
-import { useAppStore, type Stream } from "../../store/useAppStore";
+import type { Stream } from "../../store/useAppStore";
+import { useDataSources } from "../../hooks/useDataSources";
+import { useTopics } from "../../hooks/useTopics";
+import { useDeleteStream } from "../../hooks/useStreams";
 
 interface StreamDetailDrawerProps {
   opened: boolean;
@@ -27,9 +29,9 @@ export function StreamDetailDrawer({
   stream,
 }: StreamDetailDrawerProps) {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const removeStream = useAppStore((s) => s.removeStream);
-  const dataSources = useAppStore((s) => s.dataSources);
-  const topics = useAppStore((s) => s.topics);
+  const { data: dataSources = [] } = useDataSources();
+  const { data: topics = [] } = useTopics();
+  const deleteStreamMutation = useDeleteStream();
 
   const dataSource = dataSources.find(
     (s) => String(s.id) === stream?.data_source,
@@ -67,22 +69,12 @@ export function StreamDetailDrawer({
   const handleDelete = async () => {
     if (!stream) return;
 
-    try {
-      await removeStream(stream.id);
-      notifications.show({
-        title: "Success",
-        message: "Stream deleted successfully",
-        color: "green",
-      });
-      setDeleteModalOpen(false);
-      onClose();
-    } catch (error) {
-      notifications.show({
-        title: "Error",
-        message: "Failed to delete stream",
-        color: "red",
-      });
-    }
+    deleteStreamMutation.mutate(stream.id, {
+      onSuccess: () => {
+        setDeleteModalOpen(false);
+        onClose();
+      },
+    });
   };
 
   if (!stream) return null;
@@ -118,8 +110,14 @@ export function StreamDetailDrawer({
           </Text>
           <Table>
             <Table.Tbody>
+              {renderField("Stream Name", stream.name)}
               {renderField("Data Source", dataSource?.name)}
-              {renderField("Topic", topic?.name)}
+              {renderBadgeField(
+                "Source Type",
+                dataSource?.type?.toUpperCase(),
+                "blue",
+              )}
+              {renderField("Destination Topic", topic?.name)}
               {renderBadgeField(
                 "Schedule",
                 stream.schedule_enabled

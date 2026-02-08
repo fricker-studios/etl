@@ -27,6 +27,8 @@ import { JsonPreviewPanel } from "./JsonPreviewPanel";
 import { TopicDrawer } from "./TopicDrawer";
 import { api } from "../../utils/api";
 import { z } from "zod";
+import { useDataSources } from "../../hooks/useDataSources";
+import { useTopics } from "../../hooks/useTopics";
 
 type KV = { key: string; value: string };
 
@@ -106,7 +108,9 @@ export function StreamDrawer({
   opened: boolean;
   onClose: () => void;
 }) {
-  const { dataSources, topics, upsertStream, setStreamPreview } = useAppStore();
+  const { upsertStream, setStreamPreview } = useAppStore();
+  const { data: dataSources = [] } = useDataSources();
+  const { data: topics = [] } = useTopics();
 
   const [topicDrawerOpen, { open: openTopicDrawer, close: closeTopicDrawer }] =
     useDisclosure(false);
