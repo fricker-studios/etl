@@ -34,9 +34,9 @@ export function StreamDetailDrawer({
   const deleteStreamMutation = useDeleteStream();
 
   const dataSource = dataSources.find(
-    (s) => String(s.id) === stream?.data_source,
+    (s) => String(s.id) === String(stream?.data_source),
   );
-  const topic = topics.find((t) => String(t.id) === stream?.topic);
+  const topic = topics.find((t) => String(t.id) === String(stream?.topic));
 
   const renderField = (label: string, value?: string | number | boolean, alwaysShow = true) => {
     if (!alwaysShow && (value === undefined || value === null || value === "")) return null;
