@@ -112,7 +112,6 @@ class Command(BaseCommand):
                     stream=stream,
                     file_path=file['key'],
                     file_size_bytes=file['size'],
-                    destination=f"s3://{data_source.s3_bucket}/{file['key']}",
                     status='materialized'  # S3 files already exist
                 )
                 

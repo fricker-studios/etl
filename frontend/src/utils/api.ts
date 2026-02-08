@@ -32,6 +32,11 @@ async function request<T>(
     throw new Error(error.detail || error.error || "Request failed");
   }
 
+  // Handle 204 No Content responses (e.g., DELETE)
+  if (response.status === 204) {
+    return {} as T;
+  }
+
   return response.json();
 }
 
