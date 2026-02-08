@@ -13,6 +13,7 @@ import {
   Center,
   ActionIcon,
   Tooltip,
+  Modal,
 } from "@mantine/core";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useDisclosure } from "@mantine/hooks";
@@ -21,7 +22,6 @@ import { useState } from "react";
 import { TopicDrawer } from "../features/sources/TopicDrawer";
 import { TopicRevisionDrawer } from "../features/sources/TopicRevisionDrawer";
 import { api } from "../utils/api";
-import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
 
 export function TopicsPage() {
@@ -34,6 +34,12 @@ export function TopicsPage() {
   const [revisionDrawerOpen, { open: openRevisionDrawer, close: closeRevisionDrawer }] =
     useDisclosure(false);
   const [selectedTopicForRevision, setSelectedTopicForRevision] = useState<Topic | null>(null);
+  const [deleteTopicModalOpen, { open: openDeleteTopicModal, close: closeDeleteTopicModal }] =
+    useDisclosure(false);
+  const [topicToDelete, setTopicToDelete] = useState<Topic | null>(null);
+  const [deleteRevisionModalOpen, { open: openDeleteRevisionModal, close: closeDeleteRevisionModal }] =
+    useDisclosure(false);
+  const [revisionToDelete, setRevisionToDelete] = useState<{ id: string; number: number } | null>(null);
   const [revisionPackages, setRevisionPackages] = useState<Record<string, DataPackage[]>>({});
   const [revisionPackagesPage, setRevisionPackagesPage] = useState<Record<string, number>>({});
   const [loadingPackages, setLoadingPackages] = useState<Record<string, boolean>>({});
@@ -72,59 +78,51 @@ export function TopicsPage() {
   };
 
   const handleDeleteTopic = (topic: Topic) => {
-    modals.openConfirmModal({
-      title: "Delete Topic",
-      children: (
-        <Text size="sm">
-          Are you sure you want to delete <strong>{topic.name}</strong>? This will delete all revisions and associated data packages. This action cannot be undone.
-        </Text>
-      ),
-      labels: { confirm: "Delete", cancel: "Cancel" },
-      confirmProps: { color: "red" },
-      onConfirm: async () => {
-        try {
-          await removeTopic(String(topic.id));
-          notifications.show({
-            message: "Topic deleted successfully",
-            color: "teal",
-          });
-        } catch (error: any) {
-          notifications.show({
-            message: error?.message || "Failed to delete topic",
-            color: "red",
-          });
-        }
-      },
-    });
+    setTopicToDelete(topic);
+    openDeleteTopicModal();
+  };
+
+  const confirmDeleteTopic = async () => {
+    if (!topicToDelete) return;
+    try {
+      await removeTopic(String(topicToDelete.id));
+      notifications.show({
+        message: "Topic deleted successfully",
+        color: "teal",
+      });
+      closeDeleteTopicModal();
+      setTopicToDelete(null);
+    } catch (error: any) {
+      notifications.show({
+        message: error?.message || "Failed to delete topic",
+        color: "red",
+      });
+    }
   };
 
   const handleDeleteRevision = (revisionId: string, revisionNumber: number) => {
-    modals.openConfirmModal({
-      title: "Delete Topic Revision",
-      children: (
-        <Text size="sm">
-          Are you sure you want to delete <strong>Revision {revisionNumber}</strong>? This will delete all data packages associated with this revision. This action cannot be undone.
-        </Text>
-      ),
-      labels: { confirm: "Delete", cancel: "Cancel" },
-      confirmProps: { color: "red" },
-      onConfirm: async () => {
-        try {
-          await api.topicRevisions.delete(revisionId);
-          notifications.show({
-            message: "Revision deleted successfully",
-            color: "teal",
-          });
-          // Refresh the topics to update the UI
-          await fetchAll();
-        } catch (error: any) {
-          notifications.show({
-            message: error?.message || "Failed to delete revision",
-            color: "red",
-          });
-        }
-      },
-    });
+    setRevisionToDelete({ id: revisionId, number: revisionNumber });
+    openDeleteRevisionModal();
+  };
+
+  const confirmDeleteRevision = async () => {
+    if (!revisionToDelete) return;
+    try {
+      await api.topicRevisions.delete(revisionToDelete.id);
+      notifications.show({
+        message: "Revision deleted successfully",
+        color: "teal",
+      });
+      // Refresh the topics to update the UI
+      await fetchAll();
+      closeDeleteRevisionModal();
+      setRevisionToDelete(null);
+    } catch (error: any) {
+      notifications.show({
+        message: error?.message || "Failed to delete revision",
+        color: "red",
+      });
+    }
   };
 
   return (
@@ -406,6 +404,46 @@ export function TopicsPage() {
         onClose={closeRevisionDrawer}
         topic={selectedTopicForRevision}
       />
+
+      <Modal
+        opened={deleteTopicModalOpen}
+        onClose={closeDeleteTopicModal}
+        title="Delete Topic"
+      >
+        <Stack>
+          <Text size="sm">
+            Are you sure you want to delete <strong>{topicToDelete?.name}</strong>? This will delete all revisions and associated data packages. This action cannot be undone.
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={closeDeleteTopicModal}>
+              Cancel
+            </Button>
+            <Button color="red" onClick={confirmDeleteTopic}>
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={deleteRevisionModalOpen}
+        onClose={closeDeleteRevisionModal}
+        title="Delete Topic Revision"
+      >
+        <Stack>
+          <Text size="sm">
+            Are you sure you want to delete <strong>Revision {revisionToDelete?.number}</strong>? This will delete all data packages associated with this revision. This action cannot be undone.
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={closeDeleteRevisionModal}>
+              Cancel
+            </Button>
+            <Button color="red" onClick={confirmDeleteRevision}>
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }
