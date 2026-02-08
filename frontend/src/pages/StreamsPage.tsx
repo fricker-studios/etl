@@ -1,8 +1,5 @@
 import {
-  Group,
-  Title,
   Text,
-  Button,
   Card,
   Stack,
   Table,
@@ -12,22 +9,23 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { IconPlus, IconPlayerPlay } from "@tabler/icons-react";
-import { useAppStore, type Stream } from "../store/useAppStore";
+import type { Stream } from "../store/useAppStore";
 import { StreamDrawer } from "../features/sources/StreamDrawer";
 import { StreamDetailDrawer } from "../features/sources/StreamDetailDrawer";
-import { api } from "../utils/api";
-import { notifications } from "@mantine/notifications";
+import { PageHeader } from "../components/common/PageHeader";
+import { useStreams, useExecuteStream } from "../hooks/useStreams";
+import { useDataSources } from "../hooks/useDataSources";
 import { useState } from "react";
 
 export function StreamsPage() {
   const [open, { open: openIt, close }] = useDisclosure(false);
   const [detailOpen, { open: openDetail, close: closeDetail }] =
     useDisclosure(false);
-  const { streams, dataSources } = useAppStore();
-  const [executingStreams, setExecutingStreams] = useState<Set<string>>(
-    new Set(),
-  );
   const [selectedStream, setSelectedStream] = useState<Stream | null>(null);
+
+  const { data: streams = [], isLoading } = useStreams();
+  const { data: dataSources = [] } = useDataSources();
+  const executeStream = useExecuteStream();
 
   const sourceName = (id: string) =>
     dataSources.find((s) => s.id === id)?.name ?? "Unknown";
@@ -37,45 +35,25 @@ export function StreamsPage() {
     openDetail();
   };
 
-  const executeStream = async (streamId: string, event: React.MouseEvent) => {
-    // Stop propagation to prevent row click
+  const handleExecuteStream = async (
+    streamId: string,
+    event: React.MouseEvent,
+  ) => {
     event.stopPropagation();
-
-    setExecutingStreams((prev) => new Set(prev).add(streamId));
-
-    try {
-      const result: any = await api.streams.execute(streamId);
-      notifications.show({
-        message: `${result.packages_created || 0} data package(s) created`,
-        color: "teal",
-      });
-    } catch (error: any) {
-      notifications.show({
-        message: error.message || "Failed to execute stream",
-        color: "red",
-      });
-    } finally {
-      setExecutingStreams((prev) => {
-        const next = new Set(prev);
-        next.delete(streamId);
-        return next;
-      });
-    }
+    executeStream.mutate(streamId);
   };
 
   return (
     <Stack>
-      <Group justify="space-between" align="flex-end">
-        <div>
-          <Title order={2}>Streams</Title>
-          <Text c="dimmed">
-            Scheduled data extraction from sources to topics
-          </Text>
-        </div>
-        <Button onClick={openIt} leftSection={<IconPlus size={16} />}>
-          Add stream
-        </Button>
-      </Group>
+      <PageHeader
+        title="Streams"
+        description="Scheduled data extraction from sources to topics"
+        action={{
+          label: "Add stream",
+          onClick: openIt,
+          icon: <IconPlus size={16} />,
+        }}
+      />
 
       <Card withBorder>
         <Table highlightOnHover>
@@ -89,51 +67,61 @@ export function StreamsPage() {
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {streams.map((st) => (
-              <Table.Tr
-                key={st.id}
-                onClick={() => handleStreamClick(st)}
-                style={{ cursor: "pointer" }}
-              >
-                <Table.Td>{st.name}</Table.Td>
-                <Table.Td>{sourceName(st.data_source)}</Table.Td>
-                <Table.Td>
-                  <Badge variant="light">
-                    {dataSources
-                      .find((s) => s.id === st.data_source)
-                      ?.type?.toUpperCase() || "Unknown"}
-                  </Badge>
-                </Table.Td>
-                <Table.Td>
-                  {st.schedule_enabled ? (
-                    <Badge color="green" variant="light">
-                      {st.schedule_cron ||
-                        `Every ${st.schedule_interval_minutes}m`}
-                    </Badge>
-                  ) : (
-                    <Badge variant="light">Manual</Badge>
-                  )}
-                </Table.Td>
-                <Table.Td>
-                  <Tooltip label="Run Now">
-                    <ActionIcon
-                      variant="light"
-                      color="blue"
-                      onClick={(e) => executeStream(st.id, e)}
-                      loading={executingStreams.has(st.id)}
-                    >
-                      <IconPlayerPlay size={16} />
-                    </ActionIcon>
-                  </Tooltip>
+            {isLoading ? (
+              <Table.Tr>
+                <Table.Td colSpan={5}>
+                  <Text c="dimmed">Loading...</Text>
                 </Table.Td>
               </Table.Tr>
-            ))}
-            {streams.length === 0 && (
+            ) : streams.length === 0 ? (
               <Table.Tr>
                 <Table.Td colSpan={5}>
                   <Text c="dimmed">No streams yet.</Text>
                 </Table.Td>
               </Table.Tr>
+            ) : (
+              streams.map((st) => (
+                <Table.Tr
+                  key={st.id}
+                  onClick={() => handleStreamClick(st)}
+                  style={{ cursor: "pointer" }}
+                >
+                  <Table.Td>{st.name}</Table.Td>
+                  <Table.Td>{sourceName(st.data_source)}</Table.Td>
+                  <Table.Td>
+                    <Badge variant="light">
+                      {dataSources
+                        .find((s) => s.id === st.data_source)
+                        ?.type?.toUpperCase() || "Unknown"}
+                    </Badge>
+                  </Table.Td>
+                  <Table.Td>
+                    {st.schedule_enabled ? (
+                      <Badge color="green" variant="light">
+                        {st.schedule_cron ||
+                          `Every ${st.schedule_interval_minutes}m`}
+                      </Badge>
+                    ) : (
+                      <Badge variant="light">Manual</Badge>
+                    )}
+                  </Table.Td>
+                  <Table.Td>
+                    <Tooltip label="Run Now">
+                      <ActionIcon
+                        variant="light"
+                        color="blue"
+                        onClick={(e) => handleExecuteStream(st.id, e)}
+                        loading={
+                          executeStream.isPending &&
+                          executeStream.variables === st.id
+                        }
+                      >
+                        <IconPlayerPlay size={16} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Table.Td>
+                </Table.Tr>
+              ))
             )}
           </Table.Tbody>
         </Table>
