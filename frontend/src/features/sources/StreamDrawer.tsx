@@ -117,7 +117,7 @@ export function StreamDrawer({
 
   const apiOptions = dataSources.map((s) => ({
     value: String(s.id),
-    label: s.name,
+    label: `${s.name} (${s.type.toUpperCase()})`,
   }));
   const defaultApi = apiOptions[0]?.value ?? "";
 
