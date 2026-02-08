@@ -218,6 +218,7 @@ type AppState = {
   ) => Promise<void>;
 
   addTopic: (topic: any, schema: any[]) => Promise<string | null>;
+  addTopicRevision: (revision: any) => Promise<void>;
   removeTopic: (id: string) => Promise<void>;
 
   addPackage: (p: any) => Promise<void>;
@@ -360,6 +361,26 @@ export const useAppStore = create<AppState>((set) => ({
       return String(createdTopic.id);
     } catch (error) {
       console.error("Failed to create topic:", error);
+      throw error;
+    }
+  },
+
+  addTopicRevision: async (revision) => {
+    try {
+      await api.topicRevisions.create(revision);
+
+      // Fetch the updated topic with new revision
+      const updatedTopic = (await api.topics.get(
+        String(revision.topic),
+      )) as Topic;
+
+      set((st) => ({
+        topics: st.topics.map((t) =>
+          t.id === revision.topic ? updatedTopic : t
+        ),
+      }));
+    } catch (error) {
+      console.error("Failed to create topic revision:", error);
       throw error;
     }
   },

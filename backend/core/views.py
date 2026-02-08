@@ -297,7 +297,14 @@ class DataPackageViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return DataPackage.objects.filter(user=self.request.user)
+        queryset = DataPackage.objects.filter(user=self.request.user)
+        
+        # Filter by topic_revision if provided
+        topic_revision = self.request.query_params.get('topic_revision', None)
+        if topic_revision:
+            queryset = queryset.filter(topic_revision=topic_revision)
+        
+        return queryset
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
