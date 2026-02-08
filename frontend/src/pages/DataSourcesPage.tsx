@@ -1,11 +1,27 @@
+import { useEffect } from "react";
 import { Group, Title, Text, Card, Stack, Table, Button } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { useAppStore } from "../store/useAppStore";
+import { useState } from "react";
+import { useAppStore, type DataSource } from "../store/useAppStore";
 import { DataSourceDrawer } from "../features/sources/DataSourceDrawer";
+import { DataSourceDetailDrawer } from "../features/sources/DataSourceDetailDrawer";
 
 export function DataSourcesPage() {
   const [open, { open: openDrawer, close }] = useDisclosure(false);
+  const [detailOpen, { open: openDetail, close: closeDetail }] =
+    useDisclosure(false);
+  const [selectedSource, setSelectedSource] = useState<DataSource | null>(null);
   const dataSources = useAppStore((s) => s.dataSources);
+  const fetchAll = useAppStore((s) => s.fetchAll);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
+
+  const handleRowClick = (source: DataSource) => {
+    setSelectedSource(source);
+    openDetail();
+  };
 
   return (
     <Stack>
@@ -13,7 +29,8 @@ export function DataSourcesPage() {
         <div>
           <Title order={2}>Data Sources</Title>
           <Text c="dimmed">
-            Configure connections to APIs, databases, S3 buckets, SFTP servers, and more
+            Configure connections to APIs, databases, S3 buckets, SFTP servers,
+            and more
           </Text>
         </div>
         <Button onClick={openDrawer}>Add Data Source</Button>
@@ -30,14 +47,19 @@ export function DataSourcesPage() {
           </Table.Thead>
           <Table.Tbody>
             {dataSources.map((s) => (
-              <Table.Tr key={s.id}>
+              <Table.Tr
+                key={s.id}
+                style={{ cursor: "pointer" }}
+                onClick={() => handleRowClick(s)}
+              >
                 <Table.Td>{s.name}</Table.Td>
                 <Table.Td>{s.type.toUpperCase()}</Table.Td>
                 <Table.Td>
-                  {s.type === 'api' && s.base_url}
-                  {s.type === 'database' && `${s.database_type} - ${s.host}:${s.port}`}
-                  {s.type === 's3' && `s3://${s.s3_bucket}`}
-                  {s.type === 'sftp' && `${s.sftp_host}:${s.sftp_port}`}
+                  {s.type === "api" && s.base_url}
+                  {s.type === "database" &&
+                    `${s.database_type} - ${s.host}:${s.port}`}
+                  {s.type === "s3" && `s3://${s.s3_bucket}`}
+                  {s.type === "sftp" && `${s.sftp_host}:${s.sftp_port}`}
                 </Table.Td>
               </Table.Tr>
             ))}
@@ -53,6 +75,11 @@ export function DataSourcesPage() {
       </Card>
 
       <DataSourceDrawer opened={open} onClose={close} />
+      <DataSourceDetailDrawer
+        opened={detailOpen}
+        onClose={closeDetail}
+        dataSource={selectedSource}
+      />
     </Stack>
   );
 }

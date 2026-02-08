@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Container,
   Paper,
@@ -20,8 +20,30 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [demoMode, setDemoMode] = useState(false);
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
+
+  // Check if demo mode is enabled
+  useEffect(() => {
+    const checkDemoMode = async () => {
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL || "http://localhost:8000/api"}/auth/demo-mode/`,
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          setDemoMode(data.demo_mode || false);
+        }
+      } catch (err) {
+        // Not demo mode or error checking
+        setDemoMode(false);
+      }
+    };
+
+    checkDemoMode();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +55,20 @@ export function LoginPage() {
       navigate("/");
     } catch (err: any) {
       setError(err.message || "Invalid credentials. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDemoLogin = async () => {
+    setError("");
+    setLoading(true);
+
+    try {
+      await login("", "");
+      navigate("/");
+    } catch (err: any) {
+      setError(err.message || "Demo login failed.");
     } finally {
       setLoading(false);
     }
@@ -68,6 +104,12 @@ export function LoginPage() {
           Sign in to access your ETL pipelines
         </Text>
 
+        {demoMode && (
+          <Alert color="blue" mb="md">
+            Demo mode is enabled - you can login without credentials
+          </Alert>
+        )}
+
         <form onSubmit={handleSubmit}>
           <Stack>
             {error && (
@@ -83,7 +125,7 @@ export function LoginPage() {
             <TextInput
               label="Username"
               placeholder="Enter your username"
-              required
+              required={!demoMode}
               value={username}
               onChange={(e) => setUsername(e.currentTarget.value)}
             />
@@ -91,7 +133,7 @@ export function LoginPage() {
             <PasswordInput
               label="Password"
               placeholder="Enter your password"
-              required
+              required={!demoMode}
               value={password}
               onChange={(e) => setPassword(e.currentTarget.value)}
             />
@@ -99,6 +141,17 @@ export function LoginPage() {
             <Button type="submit" fullWidth loading={loading}>
               Sign in
             </Button>
+
+            {demoMode && (
+              <Button
+                variant="light"
+                fullWidth
+                loading={loading}
+                onClick={handleDemoLogin}
+              >
+                Continue in Demo Mode
+              </Button>
+            )}
           </Stack>
         </form>
       </Paper>

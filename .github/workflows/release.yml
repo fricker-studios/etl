@@ -74,6 +74,8 @@ jobs:
       push: true
       tags: |
         ${{ github.ref_name }}
+      build_args: |
+        SENTRY_RELEASE_VERSION=${{ github.ref_name }}
     secrets:
       registry_username: ${{ secrets.REGISTRY_USERNAME }}
       registry_password: ${{ secrets.REGISTRY_PASSWORD }}

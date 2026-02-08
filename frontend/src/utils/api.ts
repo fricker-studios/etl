@@ -96,6 +96,15 @@ export const api = {
       request(`/streams/${id}/`, {
         method: "DELETE",
       }),
+    execute: (id: string) =>
+      request(`/streams/${id}/execute/`, {
+        method: "POST",
+      }),
+    previewS3Files: (data: { data_source_id: string; path_pattern: string }) =>
+      request("/streams/preview_s3_files/", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
   },
 
   // Data Packages

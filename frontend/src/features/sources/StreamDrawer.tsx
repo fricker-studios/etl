@@ -12,13 +12,20 @@ import {
   ActionIcon,
   Table,
   Badge,
+  Switch,
+  NumberInput,
+  Text,
+  Card,
 } from "@mantine/core";
-import { useMemo, useState } from "react";
-import { useAppStore } from "../../store/useAppStore";
+import { useMemo, useState, useEffect } from "react";
+import { useDisclosure } from "@mantine/hooks";
+import { useAppStore, type DataSource } from "../../store/useAppStore";
 import { notifications } from "@mantine/notifications";
 import { inferSchemaFromJson, schemaToPretty } from "../../utils/schemaInfer";
 import { IconPlus, IconTrash, IconWand } from "@tabler/icons-react";
 import { JsonPreviewPanel } from "./JsonPreviewPanel";
+import { TopicDrawer } from "./TopicDrawer";
+import { api } from "../../utils/api";
 import { z } from "zod";
 
 type KV = { key: string; value: string };
@@ -99,16 +106,52 @@ export function StreamDrawer({
   opened: boolean;
   onClose: () => void;
 }) {
-  const { dataSources, upsertStream, setStreamPreview } = useAppStore();
+  const { dataSources, topics, upsertStream, setStreamPreview } = useAppStore();
 
-  const apiOptions = dataSources.map((s) => ({ value: s.id, label: s.name }));
+  const [topicDrawerOpen, { open: openTopicDrawer, close: closeTopicDrawer }] =
+    useDisclosure(false);
+
+  const apiOptions = dataSources.map((s) => ({
+    value: String(s.id),
+    label: s.name,
+  }));
   const defaultApi = apiOptions[0]?.value ?? "";
 
+  const topicOptions = topics.map((t) => ({
+    value: String(t.id),
+    label: t.name,
+  }));
+  const defaultTopic = topicOptions[0]?.value ?? "";
+
+  const [selectedSource, setSelectedSource] = useState<DataSource | null>(null);
   const [form, setForm] = useState({
     dataSourceId: defaultApi,
-    name: "List Items",
+    topicId: defaultTopic,
+    name: "My Stream",
     method: "GET" as "GET" | "POST",
     path: "/v1/items",
+
+    // Database fields
+    table_name: "",
+    ingestion_strategy: "full_refresh" as
+      | "full_refresh"
+      | "incremental"
+      | "snapshot",
+    incremental_key: "",
+
+    // S3 fields
+    s3_path_pattern: "data/*.parquet",
+    s3_file_format: "parquet",
+
+    // SFTP fields
+    sftp_path_pattern: "/data/*.csv",
+    sftp_file_format: "csv",
+
+    // Scheduling
+    schedule_enabled: false,
+    schedule_cron: "0 0 * * *",
+    schedule_interval_minutes: 60,
+    use_cron: true,
   });
 
   const [queryParams, setQueryParams] = useState<KV[]>([
@@ -162,6 +205,33 @@ export function StreamDrawer({
     ),
   );
 
+  // S3 file preview state
+  const [s3Files, setS3Files] = useState<any[]>([]);
+  const [s3PreviewLoading, setS3PreviewLoading] = useState(false);
+
+  const s3FilesTotalSize = useMemo(() => {
+    return s3Files.reduce((sum, file) => sum + (file.size || 0), 0);
+  }, [s3Files]);
+
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
+  };
+
+  // Update selected source when dataSourceId changes
+  useEffect(() => {
+    const source = dataSources.find((s) => String(s.id) === form.dataSourceId);
+    setSelectedSource(source || null);
+  }, [form.dataSourceId, dataSources]);
+
+  const handleTopicCreated = (topicId: string) => {
+    // Update form with newly created topic
+    setForm({ ...form, topicId });
+  };
+
   const parsedPreview = useMemo(() => {
     try {
       return { ok: true as const, json: JSON.parse(previewText) as unknown };
@@ -175,35 +245,114 @@ export function StreamDrawer({
     return inferSchemaFromJson(parsedPreview.json);
   }, [parsedPreview]);
 
+  const previewS3Files = async () => {
+    if (!form.dataSourceId || !form.s3_path_pattern) {
+      notifications.show({
+        message: "Please select a data source and enter a path pattern",
+        color: "orange",
+      });
+      return;
+    }
+
+    setS3PreviewLoading(true);
+    setS3Files([]);
+
+    try {
+      const response: any = await api.streams.previewS3Files({
+        data_source_id: form.dataSourceId,
+        path_pattern: form.s3_path_pattern,
+      });
+
+      setS3Files(response.files || []);
+
+      if (response.files && response.files.length > 0) {
+        notifications.show({
+          message: `Found ${response.count} file(s) matching pattern`,
+          color: "teal",
+        });
+      } else {
+        notifications.show({
+          message: "No files found matching the pattern",
+          color: "orange",
+        });
+      }
+    } catch (error: any) {
+      notifications.show({
+        message: error.message || "Failed to preview S3 files",
+        color: "red",
+      });
+    } finally {
+      setS3PreviewLoading(false);
+    }
+  };
+
   const saveStream = () => {
     try {
       z.object({
         dataSourceId: z.string().min(1),
+        topicId: z.string().min(1),
         name: z.string().min(2),
-        method: z.enum(["GET", "POST"]),
-        path: z.string().min(1),
       }).parse(form);
 
       const cleanKV = (rows: KV[]) =>
         rows.filter((r) => r.key.trim().length > 0);
 
-      const stream = {
+      let stream: any = {
         data_source: form.dataSourceId,
+        topic: form.topicId,
         name: form.name,
-        method: form.method,
-        path: form.path,
-        query_params: cleanKV(queryParams),
-        headers: cleanKV(headers),
-        body_template: form.method === "POST" ? bodyTemplate : undefined,
-        pagination,
+        schedule_enabled: form.schedule_enabled,
       };
+
+      // Add scheduling config
+      if (form.schedule_enabled) {
+        if (form.use_cron) {
+          stream.schedule_cron = form.schedule_cron;
+        } else {
+          stream.schedule_interval_minutes = form.schedule_interval_minutes;
+        }
+      }
+
+      // Add source-specific fields based on data source type
+      if (selectedSource?.type === "api") {
+        stream = {
+          ...stream,
+          method: form.method,
+          path: form.path,
+          query_params: cleanKV(queryParams),
+          headers: cleanKV(headers),
+          body_template: form.method === "POST" ? bodyTemplate : undefined,
+          pagination,
+        };
+      } else if (selectedSource?.type === "database") {
+        stream = {
+          ...stream,
+          table_name: form.table_name,
+          ingestion_strategy: form.ingestion_strategy,
+          incremental_key:
+            form.ingestion_strategy === "incremental"
+              ? form.incremental_key
+              : undefined,
+        };
+      } else if (selectedSource?.type === "s3") {
+        stream = {
+          ...stream,
+          s3_path_pattern: form.s3_path_pattern,
+          s3_file_format: form.s3_file_format,
+        };
+      } else if (selectedSource?.type === "sftp") {
+        stream = {
+          ...stream,
+          sftp_path_pattern: form.sftp_path_pattern,
+          sftp_file_format: form.sftp_file_format,
+        };
+      }
 
       // save stream first
       upsertStream(stream);
 
-      // then save preview + inferred schema (if valid)
-      if (parsedPreview.ok && inferred) {
-        // we need the created stream id; in this prototype we re-find by name+path+source (good enough)
+      // then save preview + inferred schema (if valid) for API sources
+      if (selectedSource?.type === "api" && parsedPreview.ok && inferred) {
         const created = useAppStore
           .getState()
           .streams.slice()
@@ -269,204 +418,492 @@ export function StreamDrawer({
       <Stack>
         {dataSources.length === 0 ? (
           <Badge color="yellow" variant="light">
-            Create an API Source first.
+            Create a Data Source first.
           </Badge>
         ) : (
-          <Tabs defaultValue="request">
+          <Tabs defaultValue="config">
             <Tabs.List>
-              <Tabs.Tab value="request">Request</Tabs.Tab>
-              <Tabs.Tab value="preview">Preview & Schema</Tabs.Tab>
+              <Tabs.Tab value="config">Configuration</Tabs.Tab>
+              <Tabs.Tab value="schedule">Destination & Schedule</Tabs.Tab>
+              {selectedSource?.type === "api" && (
+                <Tabs.Tab value="preview">Preview & Schema</Tabs.Tab>
+              )}
             </Tabs.List>
 
-            <Tabs.Panel value="request" pt="md">
+            <Tabs.Panel value="config" pt="md">
               <Stack>
-                <SimpleGrid cols={2}>
-                  <Select
-                    label="API Source"
-                    data={apiOptions}
-                    value={form.dataSourceId}
-                    onChange={(v) =>
-                      setForm({ ...form, dataSourceId: (v as any) ?? "" })
-                    }
-                  />
-                  <Select
-                    label="Method"
-                    data={[
-                      { value: "GET", label: "GET" },
-                      { value: "POST", label: "POST" },
-                    ]}
-                    value={form.method}
-                    onChange={(v) =>
-                      setForm({ ...form, method: (v as any) ?? "GET" })
-                    }
-                  />
-                </SimpleGrid>
+                <Select
+                  label="Data Source"
+                  data={apiOptions}
+                  value={form.dataSourceId}
+                  onChange={(v) =>
+                    setForm({ ...form, dataSourceId: (v as any) ?? "" })
+                  }
+                />
 
                 <TextInput
-                  label="Name"
+                  label="Stream Name"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                />
-                <TextInput
-                  label="Path"
-                  value={form.path}
-                  onChange={(e) => setForm({ ...form, path: e.target.value })}
-                  description="Relative to the API Source base URL"
+                  required
                 />
 
-                <Divider label="Parameters" />
-                {kvRowEditor(queryParams, setQueryParams, "Query parameters")}
-                {kvRowEditor(headers, setHeaders, "Request headers")}
-
-                {form.method === "POST" && (
+                {selectedSource?.type === "api" && (
                   <>
-                    <Divider label="Body" />
-                    <Textarea
-                      label="Body template (optional)"
-                      value={bodyTemplate}
-                      onChange={(e) => setBodyTemplate(e.target.value)}
-                      autosize
-                      minRows={6}
-                      description='Use placeholders like "{{cursor}}" (frontend-only).'
+                    <SimpleGrid cols={2}>
+                      <Select
+                        label="Method"
+                        data={[
+                          { value: "GET", label: "GET" },
+                          { value: "POST", label: "POST" },
+                        ]}
+                        value={form.method}
+                        onChange={(v) =>
+                          setForm({ ...form, method: (v as any) ?? "GET" })
+                        }
+                      />
+                      <TextInput
+                        label="Path"
+                        value={form.path}
+                        onChange={(e) =>
+                          setForm({ ...form, path: e.target.value })
+                        }
+                        description="Relative to the API Source base URL"
+                      />
+                    </SimpleGrid>
+
+                    <Divider label="Parameters" />
+                    {kvRowEditor(
+                      queryParams,
+                      setQueryParams,
+                      "Query parameters",
+                    )}
+                    {kvRowEditor(headers, setHeaders, "Request headers")}
+
+                    {form.method === "POST" && (
+                      <>
+                        <Divider label="Body" />
+                        <Textarea
+                          label="Body template (optional)"
+                          value={bodyTemplate}
+                          onChange={(e) => setBodyTemplate(e.target.value)}
+                          autosize
+                          minRows={6}
+                          description='Use placeholders like "{{cursor}}" (frontend-only).'
+                        />
+                      </>
+                    )}
+
+                    <Divider label="Pagination" />
+                    <Select
+                      label="Pagination type"
+                      value={pagination.type}
+                      onChange={(v) => {
+                        const type = (v as any) ?? "none";
+                        if (type === "none") setPagination({ type: "none" });
+                        if (type === "page")
+                          setPagination({
+                            type: "page",
+                            pageParam: "page",
+                            sizeParam: "limit",
+                            pageStart: 1,
+                            pageSize: 100,
+                          });
+                        if (type === "cursor")
+                          setPagination({
+                            type: "cursor",
+                            cursorParam: "cursor",
+                            cursorPathInResponse: "next_cursor",
+                          });
+                      }}
+                      data={[
+                        { value: "none", label: "None" },
+                        { value: "page", label: "Page/Size params" },
+                        { value: "cursor", label: "Cursor-based" },
+                      ]}
                     />
+
+                    {pagination.type === "page" && (
+                      <SimpleGrid cols={2}>
+                        <TextInput
+                          label="Page param"
+                          value={pagination.pageParam}
+                          onChange={(e) =>
+                            setPagination({
+                              ...pagination,
+                              pageParam: e.target.value,
+                            })
+                          }
+                        />
+                        <TextInput
+                          label="Size param"
+                          value={pagination.sizeParam ?? ""}
+                          onChange={(e) =>
+                            setPagination({
+                              ...pagination,
+                              sizeParam: e.target.value,
+                            })
+                          }
+                        />
+                        <TextInput
+                          label="Start page"
+                          value={String(pagination.pageStart)}
+                          onChange={(e) =>
+                            setPagination({
+                              ...pagination,
+                              pageStart: Number(e.target.value || 1),
+                            })
+                          }
+                        />
+                        <TextInput
+                          label="Page size"
+                          value={String(pagination.pageSize ?? "")}
+                          onChange={(e) =>
+                            setPagination({
+                              ...pagination,
+                              pageSize: Number(e.target.value || 100),
+                            })
+                          }
+                        />
+                      </SimpleGrid>
+                    )}
+
+                    {pagination.type === "cursor" && (
+                      <SimpleGrid cols={2}>
+                        <TextInput
+                          label="Cursor param"
+                          value={pagination.cursorParam}
+                          onChange={(e) =>
+                            setPagination({
+                              ...pagination,
+                              cursorParam: e.target.value,
+                            })
+                          }
+                        />
+                        <TextInput
+                          label="Cursor path in response"
+                          value={pagination.cursorPathInResponse}
+                          onChange={(e) =>
+                            setPagination({
+                              ...pagination,
+                              cursorPathInResponse: e.target.value,
+                            })
+                          }
+                          description='Example: "next_cursor" or "pagination.next"'
+                        />
+                      </SimpleGrid>
+                    )}
                   </>
                 )}
 
-                <Divider label="Pagination" />
-                <Select
-                  label="Pagination type"
-                  value={pagination.type}
-                  onChange={(v) => {
-                    const type = (v as any) ?? "none";
-                    if (type === "none") setPagination({ type: "none" });
-                    if (type === "page")
-                      setPagination({
-                        type: "page",
-                        pageParam: "page",
-                        sizeParam: "limit",
-                        pageStart: 1,
-                        pageSize: 100,
-                      });
-                    if (type === "cursor")
-                      setPagination({
-                        type: "cursor",
-                        cursorParam: "cursor",
-                        cursorPathInResponse: "next_cursor",
-                      });
-                  }}
-                  data={[
-                    { value: "none", label: "None" },
-                    { value: "page", label: "Page/Size params" },
-                    { value: "cursor", label: "Cursor-based" },
-                  ]}
-                />
-
-                {pagination.type === "page" && (
-                  <SimpleGrid cols={2}>
+                {selectedSource?.type === "database" && (
+                  <>
                     <TextInput
-                      label="Page param"
-                      value={pagination.pageParam}
+                      label="Table Name"
+                      value={form.table_name}
                       onChange={(e) =>
-                        setPagination({
-                          ...pagination,
-                          pageParam: e.target.value,
+                        setForm({ ...form, table_name: e.target.value })
+                      }
+                      required
+                      description="Name of the table or view to extract from"
+                    />
+                    <Select
+                      label="Ingestion Strategy"
+                      value={form.ingestion_strategy}
+                      onChange={(v) =>
+                        setForm({
+                          ...form,
+                          ingestion_strategy: (v as any) ?? "full_refresh",
                         })
                       }
+                      data={[
+                        {
+                          value: "full_refresh",
+                          label: "Full Refresh (replace all data)",
+                        },
+                        {
+                          value: "incremental",
+                          label: "Incremental Load (append new/changed)",
+                        },
+                        {
+                          value: "snapshot",
+                          label: "Snapshot (point-in-time copy)",
+                        },
+                      ]}
                     />
-                    <TextInput
-                      label="Size param"
-                      value={pagination.sizeParam ?? ""}
-                      onChange={(e) =>
-                        setPagination({
-                          ...pagination,
-                          sizeParam: e.target.value,
-                        })
-                      }
-                    />
-                    <TextInput
-                      label="Start page"
-                      value={String(pagination.pageStart)}
-                      onChange={(e) =>
-                        setPagination({
-                          ...pagination,
-                          pageStart: Number(e.target.value || 1),
-                        })
-                      }
-                    />
-                    <TextInput
-                      label="Page size"
-                      value={String(pagination.pageSize ?? "")}
-                      onChange={(e) =>
-                        setPagination({
-                          ...pagination,
-                          pageSize: Number(e.target.value || 100),
-                        })
-                      }
-                    />
-                  </SimpleGrid>
+                    {form.ingestion_strategy === "incremental" && (
+                      <TextInput
+                        label="Incremental Key Column"
+                        value={form.incremental_key}
+                        onChange={(e) =>
+                          setForm({ ...form, incremental_key: e.target.value })
+                        }
+                        description="Column name for tracking incremental loads (e.g., updated_at, id)"
+                        required
+                      />
+                    )}
+                  </>
                 )}
 
-                {pagination.type === "cursor" && (
-                  <SimpleGrid cols={2}>
+                {selectedSource?.type === "s3" && (
+                  <>
                     <TextInput
-                      label="Cursor param"
-                      value={pagination.cursorParam}
+                      label="S3 Path Pattern"
+                      value={form.s3_path_pattern}
                       onChange={(e) =>
-                        setPagination({
-                          ...pagination,
-                          cursorParam: e.target.value,
+                        setForm({ ...form, s3_path_pattern: e.target.value })
+                      }
+                      description="Path pattern for S3 objects (e.g., data/*.parquet or data/year={year}/*.csv)"
+                      required
+                    />
+                    <Select
+                      label="File Format"
+                      value={form.s3_file_format}
+                      onChange={(v) =>
+                        setForm({
+                          ...form,
+                          s3_file_format: (v as any) ?? "parquet",
                         })
                       }
+                      data={[
+                        { value: "parquet", label: "Parquet" },
+                        { value: "csv", label: "CSV" },
+                        { value: "json", label: "JSON" },
+                        { value: "avro", label: "Avro" },
+                      ]}
                     />
-                    <TextInput
-                      label="Cursor path in response"
-                      value={pagination.cursorPathInResponse}
-                      onChange={(e) =>
-                        setPagination({
-                          ...pagination,
-                          cursorPathInResponse: e.target.value,
-                        })
-                      }
-                      description='Example: "next_cursor" or "pagination.next"'
-                    />
-                  </SimpleGrid>
+                    <Button
+                      variant="light"
+                      onClick={previewS3Files}
+                      loading={s3PreviewLoading}
+                      disabled={!form.s3_path_pattern || !form.dataSourceId}
+                    >
+                      Preview Files
+                    </Button>
+
+                    {s3Files.length > 0 && (
+                      <Card withBorder>
+                        <Stack gap="xs">
+                          <Group justify="space-between">
+                            <Text fw={500}>
+                              Matching Files ({s3Files.length})
+                            </Text>
+                            <Badge variant="light">
+                              {formatBytes(s3FilesTotalSize)}
+                            </Badge>
+                          </Group>
+                          <Table>
+                            <Table.Thead>
+                              <Table.Tr>
+                                <Table.Th>File</Table.Th>
+                                <Table.Th>Size</Table.Th>
+                                <Table.Th>Last Modified</Table.Th>
+                              </Table.Tr>
+                            </Table.Thead>
+                            <Table.Tbody>
+                              {s3Files
+                                .slice(0, 10)
+                                .map((file: any, idx: number) => (
+                                  <Table.Tr key={idx}>
+                                    <Table.Td>
+                                      <Text
+                                        size="sm"
+                                        style={{ fontFamily: "monospace" }}
+                                      >
+                                        {file.key}
+                                      </Text>
+                                    </Table.Td>
+                                    <Table.Td>
+                                      <Text size="sm">
+                                        {formatBytes(file.size)}
+                                      </Text>
+                                    </Table.Td>
+                                    <Table.Td>
+                                      <Text size="sm">
+                                        {new Date(
+                                          file.last_modified,
+                                        ).toLocaleString()}
+                                      </Text>
+                                    </Table.Td>
+                                  </Table.Tr>
+                                ))}
+                            </Table.Tbody>
+                          </Table>
+                          {s3Files.length > 10 && (
+                            <Text size="xs" c="dimmed">
+                              Showing 10 of {s3Files.length} files
+                            </Text>
+                          )}
+                        </Stack>
+                      </Card>
+                    )}
+
+                    <Text size="sm" c="dimmed">
+                      For S3 sources, data packages will point to the external
+                      S3 location without copying data.
+                    </Text>
+                  </>
                 )}
 
-                <Group justify="flex-end">
-                  <Button variant="light" onClick={onClose}>
-                    Cancel
-                  </Button>
-                  <Button onClick={saveStream}>Save stream</Button>
-                </Group>
+                {selectedSource?.type === "sftp" && (
+                  <>
+                    <TextInput
+                      label="SFTP Path Pattern"
+                      value={form.sftp_path_pattern}
+                      onChange={(e) =>
+                        setForm({ ...form, sftp_path_pattern: e.target.value })
+                      }
+                      description="Path pattern for SFTP files (e.g., /data/*.csv or /exports/daily_*.json)"
+                      required
+                    />
+                    <Select
+                      label="File Format"
+                      value={form.sftp_file_format}
+                      onChange={(v) =>
+                        setForm({
+                          ...form,
+                          sftp_file_format: (v as any) ?? "csv",
+                        })
+                      }
+                      data={[
+                        { value: "csv", label: "CSV" },
+                        { value: "json", label: "JSON" },
+                        { value: "xml", label: "XML" },
+                        { value: "txt", label: "Text" },
+                      ]}
+                    />
+                  </>
+                )}
               </Stack>
             </Tabs.Panel>
 
-            <Tabs.Panel value="preview" pt="md">
-              <Group justify="space-between" mb="sm">
-                <Badge variant="light">
-                  Paste or generate a sample response JSON
-                </Badge>
-                <Button
-                  leftSection={<IconWand size={16} />}
-                  variant="light"
-                  onClick={mockRegenerate}
-                >
-                  Generate mock
-                </Button>
-              </Group>
+            <Tabs.Panel value="schedule" pt="md">
+              <Stack>
+                <Stack gap="xs">
+                  <Group justify="space-between" align="flex-end">
+                    <div style={{ flex: 1 }}>
+                      <Select
+                        label="Topic (Destination)"
+                        description="Topic defines the schema and holds data packages from this stream"
+                        data={topicOptions}
+                        value={form.topicId}
+                        onChange={(v) =>
+                          setForm({ ...form, topicId: (v as any) ?? "" })
+                        }
+                        required
+                      />
+                    </div>
+                  </Group>
+                  <Button
+                    variant="light"
+                    leftSection={<IconPlus size={16} />}
+                    onClick={openTopicDrawer}
+                    fullWidth
+                  >
+                    Create New Topic
+                  </Button>
+                </Stack>
 
-              <JsonPreviewPanel
-                value={previewText}
-                onChange={setPreviewText}
-                parseError={parsedPreview.ok ? undefined : parsedPreview.error}
-                inferredSchemaText={
-                  inferred ? schemaToPretty(inferred) : undefined
-                }
-              />
+                <Divider label="Scheduling" />
+
+                <Switch
+                  label="Enable Scheduled Extraction"
+                  description="Automatically extract data on a schedule"
+                  checked={form.schedule_enabled}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      schedule_enabled: e.currentTarget.checked,
+                    })
+                  }
+                />
+
+                {form.schedule_enabled && (
+                  <>
+                    <Select
+                      label="Schedule Type"
+                      value={form.use_cron ? "cron" : "interval"}
+                      onChange={(v) =>
+                        setForm({ ...form, use_cron: v === "cron" })
+                      }
+                      data={[
+                        { value: "cron", label: "Cron Expression" },
+                        { value: "interval", label: "Interval (minutes)" },
+                      ]}
+                    />
+
+                    {form.use_cron ? (
+                      <TextInput
+                        label="Cron Expression"
+                        value={form.schedule_cron}
+                        onChange={(e) =>
+                          setForm({ ...form, schedule_cron: e.target.value })
+                        }
+                        description="Unix cron format (e.g., '0 0 * * *' for daily at midnight)"
+                      />
+                    ) : (
+                      <NumberInput
+                        label="Interval (minutes)"
+                        value={form.schedule_interval_minutes}
+                        onChange={(v) =>
+                          setForm({
+                            ...form,
+                            schedule_interval_minutes: Number(v) || 60,
+                          })
+                        }
+                        min={1}
+                        description="How often to run the extraction"
+                      />
+                    )}
+                  </>
+                )}
+              </Stack>
             </Tabs.Panel>
+
+            {selectedSource?.type === "api" && (
+              <Tabs.Panel value="preview" pt="md">
+                <Group justify="space-between" mb="sm">
+                  <Badge variant="light">
+                    Paste or generate a sample response JSON
+                  </Badge>
+                  <Button
+                    leftSection={<IconWand size={16} />}
+                    variant="light"
+                    onClick={mockRegenerate}
+                  >
+                    Generate mock
+                  </Button>
+                </Group>
+
+                <JsonPreviewPanel
+                  value={previewText}
+                  onChange={setPreviewText}
+                  parseError={
+                    parsedPreview.ok ? undefined : parsedPreview.error
+                  }
+                  inferredSchemaText={
+                    inferred ? schemaToPretty(inferred) : undefined
+                  }
+                />
+              </Tabs.Panel>
+            )}
+
+            <Divider mt="md" />
+            <Group justify="flex-end" mt="md">
+              <Button variant="light" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button onClick={saveStream}>Save stream</Button>
+            </Group>
           </Tabs>
         )}
       </Stack>
+
+      <TopicDrawer
+        opened={topicDrawerOpen}
+        onClose={closeTopicDrawer}
+        onTopicCreated={handleTopicCreated}
+      />
     </Drawer>
   );
 }

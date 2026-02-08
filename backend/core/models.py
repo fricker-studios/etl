@@ -176,8 +176,15 @@ class DataSource(models.Model):
 
 class Stream(models.Model):
     """Stream definition - Maps data source object (table/file/endpoint) to data model"""
+    INGESTION_STRATEGY_CHOICES = [
+        ('full_refresh', 'Full Refresh'),
+        ('incremental', 'Incremental Load'),
+        ('snapshot', 'Snapshot'),
+    ]
+    
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='streams')
     data_source = models.ForeignKey(DataSource, on_delete=models.CASCADE, related_name='streams', null=True, blank=True)
+    topic = models.ForeignKey('Topic', on_delete=models.SET_NULL, related_name='streams', null=True, blank=True)
     name = models.CharField(max_length=255)
     
     # Source object definition (varies by data source type)
@@ -195,7 +202,30 @@ class Stream(models.Model):
     body_template = models.TextField(blank=True, null=True)
     pagination = models.JSONField(default=dict, blank=True)
     
-    # Schema and preview
+    # Database-specific fields
+    table_name = models.CharField(max_length=255, blank=True, null=True)
+    ingestion_strategy = models.CharField(
+        max_length=20,
+        choices=INGESTION_STRATEGY_CHOICES,
+        blank=True,
+        null=True
+    )
+    incremental_key = models.CharField(max_length=255, blank=True, null=True)  # Column name for incremental loads
+    
+    # S3-specific fields
+    s3_path_pattern = models.CharField(max_length=1000, blank=True, null=True)  # e.g., "data/year={year}/month={month}/*.parquet"
+    s3_file_format = models.CharField(max_length=50, blank=True, null=True)  # e.g., "parquet", "csv", "json"
+    
+    # SFTP-specific fields
+    sftp_path_pattern = models.CharField(max_length=1000, blank=True, null=True)  # e.g., "/data/*.csv"
+    sftp_file_format = models.CharField(max_length=50, blank=True, null=True)  # e.g., "csv", "json", "xml"
+    
+    # Scheduling
+    schedule_enabled = models.BooleanField(default=False)
+    schedule_cron = models.CharField(max_length=100, blank=True, null=True)  # Cron expression
+    schedule_interval_minutes = models.IntegerField(blank=True, null=True)  # Alternative to cron
+    
+    # Schema and preview (for API sources)
     preview_json = models.JSONField(blank=True, null=True)
     inferred_schema = models.JSONField(blank=True, null=True)
     
@@ -207,6 +237,31 @@ class Stream(models.Model):
     
     def __str__(self):
         return self.name
+    
+    def save(self, *args, **kwargs):
+        """Override save to handle scheduling."""
+        super().save(*args, **kwargs)
+        
+        # Update schedule after saving
+        try:
+            from .scheduler import schedule_stream, unschedule_stream
+            if self.schedule_enabled:
+                schedule_stream(self)
+            else:
+                unschedule_stream(self.id)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error updating schedule for stream {self.id}: {e}")
+    
+    def delete(self, *args, **kwargs):
+        """Override delete to remove from scheduler."""
+        try:
+            from .scheduler import unschedule_stream
+            unschedule_stream(self.id)
+        except Exception:
+            pass
+        super().delete(*args, **kwargs)
 
 
 class Topic(models.Model):
