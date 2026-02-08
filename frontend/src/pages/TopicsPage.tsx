@@ -98,7 +98,7 @@ export function TopicsPage() {
     });
   };
 
-  const handleDeleteRevision = async (revisionId: string, revisionNumber: number) => {
+  const handleDeleteRevision = (revisionId: string, revisionNumber: number) => {
     modals.openConfirmModal({
       title: "Delete Topic Revision",
       children: (

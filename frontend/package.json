@@ -15,7 +15,7 @@
     "@mantine/code-highlight": "^8.3.10",
     "@mantine/core": "^8.3.10",
     "@mantine/hooks": "^8.3.10",
-    "@mantine/modals": "^8.3.14",
+    "@mantine/modals": "^8.3.10",
     "@mantine/notifications": "^8.3.10",
     "@sentry/react": "^10.32.1",
     "@sentry/vite-plugin": "^4.6.1",
