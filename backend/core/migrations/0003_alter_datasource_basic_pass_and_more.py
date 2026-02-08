@@ -6,38 +6,38 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0002_remove_stream_api_source_stream_source_object_and_more'),
+        ("core", "0002_remove_stream_api_source_stream_source_object_and_more"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='datasource',
-            name='basic_pass',
+            model_name="datasource",
+            name="basic_pass",
             field=models.CharField(blank=True, max_length=1000, null=True),
         ),
         migrations.AlterField(
-            model_name='datasource',
-            name='bearer_token',
+            model_name="datasource",
+            name="bearer_token",
             field=models.CharField(blank=True, max_length=1000, null=True),
         ),
         migrations.AlterField(
-            model_name='datasource',
-            name='header_value',
+            model_name="datasource",
+            name="header_value",
             field=models.CharField(blank=True, max_length=1000, null=True),
         ),
         migrations.AlterField(
-            model_name='datasource',
-            name='password',
+            model_name="datasource",
+            name="password",
             field=models.CharField(blank=True, max_length=1000, null=True),
         ),
         migrations.AlterField(
-            model_name='datasource',
-            name='s3_secret_key',
+            model_name="datasource",
+            name="s3_secret_key",
             field=models.CharField(blank=True, max_length=1000, null=True),
         ),
         migrations.AlterField(
-            model_name='datasource',
-            name='sftp_password',
+            model_name="datasource",
+            name="sftp_password",
             field=models.CharField(blank=True, max_length=1000, null=True),
         ),
     ]

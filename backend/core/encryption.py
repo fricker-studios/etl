@@ -2,6 +2,7 @@
 Encryption utilities for sensitive fields like passwords and API tokens.
 Uses Fernet symmetric encryption with a key derived from Django's SECRET_KEY.
 """
+
 from cryptography.fernet import Fernet
 from django.conf import settings
 import base64
@@ -19,7 +20,7 @@ def encrypt_value(value: str) -> str:
     """Encrypt a string value."""
     if not value:
         return value
-    
+
     fernet = Fernet(get_encryption_key())
     encrypted = fernet.encrypt(value.encode())
     return encrypted.decode()
@@ -29,7 +30,7 @@ def decrypt_value(encrypted_value: str) -> str:
     """Decrypt an encrypted string value."""
     if not encrypted_value:
         return encrypted_value
-    
+
     try:
         fernet = Fernet(get_encryption_key())
         decrypted = fernet.decrypt(encrypted_value.encode())

@@ -24,7 +24,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
 
-  // Check if demo mode is enabled
+  // Check if demo mode is enabled and auto-login
   useEffect(() => {
     const checkDemoMode = async () => {
       try {
@@ -34,7 +34,20 @@ export function LoginPage() {
 
         if (response.ok) {
           const data = await response.json();
-          setDemoMode(data.demo_mode || false);
+          const isDemoMode = data.demo_mode || false;
+          setDemoMode(isDemoMode);
+          
+          // Auto-login in demo mode
+          if (isDemoMode) {
+            setLoading(true);
+            try {
+              await login("", "");
+              navigate("/");
+            } catch (err: any) {
+              setError(err.message || "Demo login failed.");
+              setLoading(false);
+            }
+          }
         }
       } catch (err) {
         // Not demo mode or error checking
@@ -43,7 +56,7 @@ export function LoginPage() {
     };
 
     checkDemoMode();
-  }, []);
+  }, [login, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

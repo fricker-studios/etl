@@ -21,7 +21,8 @@ import { useState } from "react";
 
 export function StreamsPage() {
   const [open, { open: openIt, close }] = useDisclosure(false);
-  const [detailOpen, { open: openDetail, close: closeDetail }] = useDisclosure(false);
+  const [detailOpen, { open: openDetail, close: closeDetail }] =
+    useDisclosure(false);
   const { streams, dataSources } = useAppStore();
   const [executingStreams, setExecutingStreams] = useState<Set<string>>(
     new Set(),
@@ -39,7 +40,7 @@ export function StreamsPage() {
   const executeStream = async (streamId: string, event: React.MouseEvent) => {
     // Stop propagation to prevent row click
     event.stopPropagation();
-    
+
     setExecutingStreams((prev) => new Set(prev).add(streamId));
 
     try {
@@ -89,7 +90,7 @@ export function StreamsPage() {
           </Table.Thead>
           <Table.Tbody>
             {streams.map((st) => (
-              <Table.Tr 
+              <Table.Tr
                 key={st.id}
                 onClick={() => handleStreamClick(st)}
                 style={{ cursor: "pointer" }}
@@ -139,9 +140,9 @@ export function StreamsPage() {
       </Card>
 
       <StreamDrawer opened={open} onClose={close} />
-      <StreamDetailDrawer 
-        opened={detailOpen} 
-        onClose={closeDetail} 
+      <StreamDetailDrawer
+        opened={detailOpen}
+        onClose={closeDetail}
         stream={selectedStream}
       />
     </Stack>

@@ -32,6 +32,11 @@ async function request<T>(
     throw new Error(error.detail || error.error || "Request failed");
   }
 
+  // Handle 204 No Content responses (e.g., DELETE)
+  if (response.status === 204) {
+    return {} as T;
+  }
+
   return response.json();
 }
 
@@ -109,7 +114,12 @@ export const api = {
 
   // Data Packages
   packages: {
-    list: () => request("/packages/"),
+    list: (params?: { topic_revision?: string }) => {
+      const queryString = params?.topic_revision
+        ? `?topic_revision=${params.topic_revision}`
+        : "";
+      return request(`/packages/${queryString}`);
+    },
     get: (id: string) => request(`/packages/${id}/`),
     create: (data: any) =>
       request("/packages/", {
