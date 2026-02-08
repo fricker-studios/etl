@@ -391,6 +391,16 @@ class DataPackage(models.Model):
     file_path = models.CharField(max_length=1000, blank=True, null=True)
     file_size_bytes = models.BigIntegerField(null=True, blank=True)
 
+    # Reference to external S3 data source for loading data later
+    external_s3_source = models.ForeignKey(
+        DataSource,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="external_packages",
+        help_text="External S3 data source where this package's data is located",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

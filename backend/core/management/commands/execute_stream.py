@@ -100,8 +100,8 @@ class Command(BaseCommand):
                     skipped_count += 1
                     continue
 
-                # Create data package
-                package_name = f"{stream.name}_{file['key'].split('/')[-1]}"
+                # Use the original file name (without path) as the package name
+                package_name = file['key'].split('/')[-1]
 
                 # Get the current revision of the topic
                 current_revision = stream.topic.current_revision
@@ -121,6 +121,7 @@ class Command(BaseCommand):
                     file_path=file["key"],
                     file_size_bytes=file["size"],
                     status="materialized",  # S3 files already exist
+                    external_s3_source=data_source,  # Store reference to external S3 source
                 )
 
                 created_count += 1
