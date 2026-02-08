@@ -15,7 +15,7 @@ import {
 import { IconPlus } from "@tabler/icons-react";
 import { useDisclosure } from "@mantine/hooks";
 import { useAppStore, type Topic, type DataPackage } from "../store/useAppStore";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { TopicDrawer } from "../features/sources/TopicDrawer";
 import { TopicRevisionDrawer } from "../features/sources/TopicRevisionDrawer";
 import { api } from "../utils/api";
@@ -164,7 +164,7 @@ export function TopicsPage() {
                                       <Text size="sm" fw={500} mb="xs">
                                         Schema:
                                       </Text>
-                                      <Table highlightOnHover size="sm">
+                                      <Table highlightOnHover>
                                         <Table.Thead>
                                           <Table.Tr>
                                             <Table.Th>Position</Table.Th>
@@ -219,7 +219,7 @@ export function TopicsPage() {
                                       </Center>
                                     ) : packages.length > 0 ? (
                                       <>
-                                        <Table highlightOnHover size="sm">
+                                        <Table highlightOnHover>
                                           <Table.Thead>
                                             <Table.Tr>
                                               <Table.Th>Name</Table.Th>

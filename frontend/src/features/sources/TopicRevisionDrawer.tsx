@@ -16,7 +16,6 @@ import { useState, useEffect } from "react";
 import { useAppStore, type Topic } from "../../store/useAppStore";
 import { notifications } from "@mantine/notifications";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
-import { z } from "zod";
 
 interface SchemaColumn {
   name: string;
