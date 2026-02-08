@@ -57,7 +57,7 @@ export function SchemaColumnEditor({
   const updateColumn = (
     position: number,
     field: keyof SchemaColumn,
-    value: any,
+    value: string | number | boolean,
   ) => {
     const updated = columns.map((c) =>
       c.position === position ? { ...c, [field]: value } : c,

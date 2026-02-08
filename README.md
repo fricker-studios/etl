@@ -17,8 +17,12 @@ A full-stack ETL/ELT pipeline management tool with Django backend and React fron
 
 - **Backend**: Django + Django REST Framework + PostgreSQL
 - **Frontend**: React + TypeScript + Vite + Mantine UI
+- **Data Layer**: TanStack Query (React Query) for caching and state management
 - **Authentication**: JWT tokens via djangorestframework-simplejwt
 - **API Documentation**: Swagger UI via drf-spectacular
+- **Error Tracking**: Sentry for both frontend and backend
+
+For detailed frontend architecture, see [frontend/ARCHITECTURE.md](frontend/ARCHITECTURE.md).
 
 ## Quick Start
 
@@ -145,18 +149,30 @@ VITE_API_URL=http://localhost:8000/api
 ```
 etl/
 ├── backend/
-│   ├── authentication/     # Authentication app
-│   ├── core/              # Core models and APIs
-│   ├── config/            # Django settings
+│   ├── authentication/         # JWT authentication
+│   ├── core/                  # Core models, views, serializers
+│   │   ├── models.py          # Django models
+│   │   ├── views.py           # DRF ViewSets
+│   │   ├── serializers.py     # API serializers
+│   │   ├── urls.py            # API routes
+│   │   ├── encryption.py      # Field encryption utilities
+│   │   ├── s3_utils.py        # S3 integration
+│   │   └── scheduler.py       # Background task scheduler
+│   ├── config/                # Django settings
 │   ├── manage.py
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
-│   │   ├── app/          # App layout and routing
-│   │   ├── features/     # Feature components
-│   │   ├── pages/        # Page components
-│   │   ├── store/        # Zustand stores
-│   │   └── utils/        # Utilities and API client
+│   │   ├── app/              # App shell and routing
+│   │   ├── components/
+│   │   │   └── common/       # Reusable UI components
+│   │   ├── features/         # Feature-specific components
+│   │   ├── hooks/            # React Query custom hooks
+│   │   ├── lib/              # Configuration (QueryClient)
+│   │   ├── pages/            # Page components
+│   │   ├── store/            # Zustand stores (auth)
+│   │   └── utils/            # Utilities and API client
+│   ├── ARCHITECTURE.md       # Frontend architecture docs
 │   └── package.json
 └── docker-compose.yml
 ```
