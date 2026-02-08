@@ -11,17 +11,23 @@ import {
   Pagination,
   Loader,
   Center,
+  ActionIcon,
+  Tooltip,
 } from "@mantine/core";
-import { IconPlus } from "@tabler/icons-react";
+import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useDisclosure } from "@mantine/hooks";
 import { useAppStore, type Topic, type DataPackage } from "../store/useAppStore";
 import { useState } from "react";
 import { TopicDrawer } from "../features/sources/TopicDrawer";
 import { TopicRevisionDrawer } from "../features/sources/TopicRevisionDrawer";
 import { api } from "../utils/api";
+import { modals } from "@mantine/modals";
+import { notifications } from "@mantine/notifications";
 
 export function TopicsPage() {
   const topics = useAppStore((s) => s.topics);
+  const removeTopic = useAppStore((s) => s.removeTopic);
+  const fetchAll = useAppStore((s) => s.fetchAll);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [drawerOpen, { open: openDrawer, close: closeDrawer }] =
     useDisclosure(false);
@@ -63,6 +69,62 @@ export function TopicsPage() {
   const getTotalPagesForRevision = (revisionId: string) => {
     const packages = revisionPackages[revisionId] || [];
     return Math.ceil(packages.length / packagesPerPage);
+  };
+
+  const handleDeleteTopic = (topic: Topic) => {
+    modals.openConfirmModal({
+      title: "Delete Topic",
+      children: (
+        <Text size="sm">
+          Are you sure you want to delete <strong>{topic.name}</strong>? This will delete all revisions and associated data packages. This action cannot be undone.
+        </Text>
+      ),
+      labels: { confirm: "Delete", cancel: "Cancel" },
+      confirmProps: { color: "red" },
+      onConfirm: async () => {
+        try {
+          await removeTopic(String(topic.id));
+          notifications.show({
+            message: "Topic deleted successfully",
+            color: "teal",
+          });
+        } catch (error: any) {
+          notifications.show({
+            message: error?.message || "Failed to delete topic",
+            color: "red",
+          });
+        }
+      },
+    });
+  };
+
+  const handleDeleteRevision = async (revisionId: string, revisionNumber: number) => {
+    modals.openConfirmModal({
+      title: "Delete Topic Revision",
+      children: (
+        <Text size="sm">
+          Are you sure you want to delete <strong>Revision {revisionNumber}</strong>? This will delete all data packages associated with this revision. This action cannot be undone.
+        </Text>
+      ),
+      labels: { confirm: "Delete", cancel: "Cancel" },
+      confirmProps: { color: "red" },
+      onConfirm: async () => {
+        try {
+          await api.topicRevisions.delete(revisionId);
+          notifications.show({
+            message: "Revision deleted successfully",
+            color: "teal",
+          });
+          // Refresh the topics to update the UI
+          await fetchAll();
+        } catch (error: any) {
+          notifications.show({
+            message: error?.message || "Failed to delete revision",
+            color: "red",
+          });
+        }
+      },
+    });
   };
 
   return (
@@ -109,6 +171,19 @@ export function TopicsPage() {
                         {topic.total_packages || 0} package
                         {topic.total_packages !== 1 ? "s" : ""}
                       </Badge>
+                      <Tooltip label="Delete topic">
+                        <ActionIcon
+                          color="red"
+                          variant="light"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteTopic(topic);
+                          }}
+                        >
+                          <IconTrash size={16} />
+                        </ActionIcon>
+                      </Tooltip>
                     </Group>
                   </Group>
                 </Accordion.Control>
@@ -146,9 +221,24 @@ export function TopicsPage() {
                                   <Text fw={500}>
                                     Revision {revision.revision_number}
                                   </Text>
-                                  <Badge variant="light">
-                                    {revision.package_count || 0} packages
-                                  </Badge>
+                                  <Group>
+                                    <Badge variant="light">
+                                      {revision.package_count || 0} packages
+                                    </Badge>
+                                    <Tooltip label="Delete revision">
+                                      <ActionIcon
+                                        color="red"
+                                        variant="light"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteRevision(revisionId, revision.revision_number);
+                                        }}
+                                      >
+                                        <IconTrash size={14} />
+                                      </ActionIcon>
+                                    </Tooltip>
+                                  </Group>
                                 </Group>
                               </Accordion.Control>
                               <Accordion.Panel>
