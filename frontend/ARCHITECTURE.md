@@ -205,7 +205,7 @@ export function useCreateDataSource() {
 
 1. **Selective Data Fetching** - Each page only fetches the data it needs
 2. **Query Caching** - Avoid redundant API calls with 5-minute cache
-3. **Automatic Refetch** - Data refreshes when window regains focus (disabled by default)
+3. **Automatic Refetch on Window Focus** - Disabled by default (see lib/queryClient.ts)
 4. **Cache Invalidation** - Mutations invalidate related queries automatically
 5. **Loading States** - Proper loading indicators prevent layout shift
 
