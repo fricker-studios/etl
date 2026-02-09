@@ -261,6 +261,15 @@ export function StreamDrawer({
 
   const inferred = useMemo(() => {
     if (!parsedPreview.ok) return null;
+    
+    // If preview data has our special structure, use the records for schema inference
+    const jsonData = parsedPreview.json as any;
+    if (jsonData && typeof jsonData === "object" && "records" in jsonData && "_preview_info" in jsonData) {
+      // Use the extracted records for schema inference
+      return inferSchemaFromJson(jsonData.records);
+    }
+    
+    // Otherwise infer from the full JSON
     return inferSchemaFromJson(parsedPreview.json);
   }, [parsedPreview]);
 
@@ -328,65 +337,149 @@ export function StreamDrawer({
       // First, get decrypted credentials from backend
       const decryptedSource: any = await api.dataSources.decrypt(form.dataSourceId);
 
-      // Build the full URL
-      const baseUrl = decryptedSource.base_url || selectedSource.base_url || "";
-      const path = form.path.startsWith("/") ? form.path : `/${form.path}`;
-      let url = `${baseUrl}${path}`;
-
-      // Add query params
-      const params = new URLSearchParams();
-      queryParams.forEach((p) => {
-        if (p.key && p.value) {
-          params.append(p.key, p.value);
+      // Helper function to extract value from nested path
+      const extractByPath = (obj: any, path: string): any => {
+        if (!path || !obj) return obj;
+        const keys = path.split(".");
+        let result = obj;
+        for (const key of keys) {
+          if (result && typeof result === "object" && key in result) {
+            result = result[key];
+          } else {
+            return undefined;
+          }
         }
-      });
-      if (params.toString()) {
-        url += `?${params.toString()}`;
-      }
-
-      // Build headers
-      const requestHeaders: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      
-      // Add auth headers using DECRYPTED values
-      if (decryptedSource.auth_type === "bearer" && decryptedSource.bearer_token) {
-        requestHeaders["Authorization"] = `Bearer ${decryptedSource.bearer_token}`;
-      } else if (decryptedSource.auth_type === "basic" && decryptedSource.basic_user && decryptedSource.basic_pass) {
-        const credentials = btoa(`${decryptedSource.basic_user}:${decryptedSource.basic_pass}`);
-        requestHeaders["Authorization"] = `Basic ${credentials}`;
-      } else if (decryptedSource.auth_type === "header" && decryptedSource.header_name && decryptedSource.header_value) {
-        requestHeaders[decryptedSource.header_name] = decryptedSource.header_value;
-      }
-
-      // Add custom headers
-      headers.forEach((h) => {
-        if (h.key && h.value) {
-          requestHeaders[h.key] = h.value;
-        }
-      });
-
-      // Make the request
-      const options: RequestInit = {
-        method: form.method,
-        headers: requestHeaders,
+        return result;
       };
 
-      if (form.method === "POST" && bodyTemplate) {
-        options.body = bodyTemplate;
-      }
+      // Helper function to make API call
+      const makeApiCall = async (pageParam?: any): Promise<any> => {
+        const baseUrl = decryptedSource.base_url || selectedSource.base_url || "";
+        const path = form.path.startsWith("/") ? form.path : `/${form.path}`;
+        let url = `${baseUrl}${path}`;
 
-      const response = await fetch(url, options);
+        // Add query params
+        const params = new URLSearchParams();
+        queryParams.forEach((p) => {
+          if (p.key && p.value) {
+            params.append(p.key, p.value);
+          }
+        });
+
+        // Add pagination params
+        if (pageParam !== undefined) {
+          if (pagination.type === "page" && pagination.pageParam) {
+            params.set(pagination.pageParam, String(pageParam));
+          } else if (pagination.type === "cursor" && pagination.cursorParam) {
+            params.set(pagination.cursorParam, String(pageParam));
+          } else if (pagination.type === "cursor_url" && pagination.cursorParam) {
+            // For cursor_url, pageParam IS the full URL
+            if (typeof pageParam === "string" && pageParam.startsWith("http")) {
+              url = pageParam;
+            } else {
+              params.set(pagination.cursorParam, String(pageParam));
+            }
+          }
+        }
+
+        if (params.toString() && !url.includes("?")) {
+          url += `?${params.toString()}`;
+        }
+
+        // Build headers
+        const requestHeaders: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        
+        // Add auth headers using DECRYPTED values
+        if (decryptedSource.auth_type === "bearer" && decryptedSource.bearer_token) {
+          requestHeaders["Authorization"] = `Bearer ${decryptedSource.bearer_token}`;
+        } else if (decryptedSource.auth_type === "basic" && decryptedSource.basic_user && decryptedSource.basic_pass) {
+          const credentials = btoa(`${decryptedSource.basic_user}:${decryptedSource.basic_pass}`);
+          requestHeaders["Authorization"] = `Basic ${credentials}`;
+        } else if (decryptedSource.auth_type === "header" && decryptedSource.header_name && decryptedSource.header_value) {
+          requestHeaders[decryptedSource.header_name] = decryptedSource.header_value;
+        }
+
+        // Add custom headers
+        headers.forEach((h) => {
+          if (h.key && h.value) {
+            requestHeaders[h.key] = h.value;
+          }
+        });
+
+        // Make the request
+        const options: RequestInit = {
+          method: form.method,
+          headers: requestHeaders,
+        };
+
+        if (form.method === "POST" && bodyTemplate) {
+          options.body = bodyTemplate;
+        }
+
+        const response = await fetch(url, options);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        return response.json();
+      };
+
+      // Make initial API call
+      let currentPage = pagination.type === "page" ? pagination.pageStart : undefined;
+      const firstPageData = await makeApiCall(currentPage);
       
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      // Extract records using records selector
+      const records = recordsSelector 
+        ? extractByPath(firstPageData, recordsSelector)
+        : firstPageData;
+
+      // Extract pagination info
+      let paginationInfo: any = {
+        currentPage: currentPage || 1,
+        hasMore: false,
+        nextCursor: undefined,
+        nextUrl: undefined,
+      };
+
+      if (pagination.type === "page") {
+        // For page-based pagination, assume there's more if we got a full page
+        if (Array.isArray(records) && pagination.pageSize) {
+          paginationInfo.hasMore = records.length >= pagination.pageSize;
+          paginationInfo.nextPage = (currentPage || pagination.pageStart) + 1;
+        }
+      } else if (pagination.type === "cursor" && pagination.cursorPathInResponse) {
+        const nextCursor = extractByPath(firstPageData, pagination.cursorPathInResponse);
+        if (nextCursor) {
+          paginationInfo.hasMore = true;
+          paginationInfo.nextCursor = nextCursor;
+        }
+      } else if (pagination.type === "cursor_url" && pagination.cursorUrlPathInResponse) {
+        const nextUrl = extractByPath(firstPageData, pagination.cursorUrlPathInResponse);
+        if (nextUrl) {
+          paginationInfo.hasMore = true;
+          paginationInfo.nextUrl = nextUrl;
+        }
       }
 
-      const data = await response.json();
-      setPreviewText(JSON.stringify(data, null, 2));
+      // Build preview data with pagination info
+      const previewData = {
+        _preview_info: {
+          records_selector: recordsSelector || "(none - using full response)",
+          pagination_type: pagination.type,
+          pagination_info: paginationInfo,
+          total_records_shown: Array.isArray(records) ? records.length : 1,
+        },
+        records: records,
+        raw_response: firstPageData,
+      };
+
+      setPreviewText(JSON.stringify(previewData, null, 2));
 
       notifications.show({
-        message: "API call successful! Preview data loaded.",
+        message: `API call successful! ${Array.isArray(records) ? records.length : 1} record(s) loaded${paginationInfo.hasMore ? " (more pages available)" : ""}.`,
         color: "teal",
       });
     } catch (error: any) {
