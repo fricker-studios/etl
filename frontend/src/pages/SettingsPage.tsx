@@ -1,9 +1,11 @@
-import { Group, Title, Text, Button, Stack, Tabs, Card } from "@mantine/core";
+import { Button, Stack, Tabs, Card, Text, Group } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import { IconPlus } from "@tabler/icons-react";
 import { useAppStore } from "../store/useAppStore";
 import { notifications } from "@mantine/notifications";
 import { ConnectionCards } from "../features/connections/ConnectionCards";
 import { ConnectionWizard } from "../features/connections/ConnectionWizard";
+import { PageHeader } from "../components/common/PageHeader";
 
 export function SettingsPage() {
   const [open, { open: openIt, close }] = useDisclosure(false);
@@ -11,12 +13,10 @@ export function SettingsPage() {
 
   return (
     <Stack>
-      <Group justify="space-between" align="flex-end">
-        <div>
-          <Title order={2}>Settings</Title>
-          <Text c="dimmed">Application configuration and storage backends</Text>
-        </div>
-      </Group>
+      <PageHeader
+        title="Settings"
+        description="Application configuration and storage backends"
+      />
 
       <Tabs defaultValue="storage">
         <Tabs.List>
@@ -30,7 +30,9 @@ export function SettingsPage() {
               <Text>
                 Configure S3 and ClickHouse backends for application storage
               </Text>
-              <Button onClick={openIt}>Add Storage Backend</Button>
+              <Button onClick={openIt} leftSection={<IconPlus size={16} />}>
+                Add Storage Backend
+              </Button>
             </Group>
             <ConnectionCards />
           </Stack>

@@ -3,6 +3,8 @@ import ReactDOM from "react-dom/client";
 import { MantineProvider } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
 import { ModalsProvider } from "@mantine/modals";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import {
   createRoutesFromChildren,
   matchRoutes,
@@ -13,6 +15,8 @@ import {
 import { router } from "./app/router";
 import { theme } from "./theme";
 import { useAuthStore } from "./store/useAuthStore";
+import { queryClient } from "./lib/queryClient";
+import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import * as Sentry from "@sentry/react";
 
 // Initialize Sentry for error tracking and performance monitoring
@@ -58,11 +62,16 @@ function App() {
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <MantineProvider theme={theme} defaultColorScheme="dark">
-      <ModalsProvider>
-        <Notifications position="top-right" />
-        <App />
-      </ModalsProvider>
-    </MantineProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <MantineProvider theme={theme} defaultColorScheme="dark">
+          <ModalsProvider>
+            <Notifications position="top-right" />
+            <App />
+            <ReactQueryDevtools initialIsOpen={false} />
+          </ModalsProvider>
+        </MantineProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   </React.StrictMode>,
 );

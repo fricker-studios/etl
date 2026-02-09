@@ -270,6 +270,9 @@ class Stream(models.Model):
     # Schema and preview (for API sources)
     preview_json = models.JSONField(blank=True, null=True)
     inferred_schema = models.JSONField(blank=True, null=True)
+    records_selector = models.CharField(
+        max_length=255, blank=True, null=True
+    )  # JSON path to extract records array (e.g., "data", "results")
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

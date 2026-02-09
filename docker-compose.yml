@@ -25,6 +25,10 @@ services:
     command: python manage.py runserver 0.0.0.0:8000
     ports:
       - "8000:8000"
+    volumes:
+      - ./backend/authentication:/app/authentication
+      - ./backend/config:/app/config
+      - ./backend/core:/app/core
     environment:
       - DEBUG=True
       - SECRET_KEY=django-insecure-dev-key-change-in-production

@@ -1,8 +1,9 @@
-import { Card, Group, Title, Text, Stack, Badge, Table } from "@mantine/core";
-import { useAppStore } from "../store/useAppStore";
+import { Card, Stack, Badge, Table, Text } from "@mantine/core";
+import { PageHeader } from "../components/common/PageHeader";
+import { useRuns } from "../hooks/useRuns";
 
 export function RunsPage() {
-  const runs = useAppStore((s) => s.runs);
+  const { data: runs = [], isLoading } = useRuns();
 
   const formatDuration = (seconds?: number) => {
     if (!seconds) return "—";
@@ -19,12 +20,10 @@ export function RunsPage() {
 
   return (
     <Stack>
-      <Group justify="space-between" align="flex-end">
-        <div>
-          <Title order={2}>Runs</Title>
-          <Text c="dimmed">Execution history for streams and pipelines</Text>
-        </div>
-      </Group>
+      <PageHeader
+        title="Runs"
+        description="Execution history for streams and pipelines"
+      />
 
       <Card withBorder>
         <Table highlightOnHover>
@@ -38,31 +37,13 @@ export function RunsPage() {
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {runs.map((r) => (
-              <Table.Tr key={r.id}>
-                <Table.Td>{r.name}</Table.Td>
-                <Table.Td>
-                  <Badge
-                    variant="light"
-                    color={
-                      r.status === "success"
-                        ? "teal"
-                        : r.status === "failed"
-                          ? "red"
-                          : r.status === "running"
-                            ? "blue"
-                            : "gray"
-                    }
-                  >
-                    {r.status}
-                  </Badge>
+            {isLoading ? (
+              <Table.Tr>
+                <Table.Td colSpan={5}>
+                  <Text c="dimmed">Loading...</Text>
                 </Table.Td>
-                <Table.Td>{formatDate(r.started_at)}</Table.Td>
-                <Table.Td>{formatDuration(r.duration_seconds)}</Table.Td>
-                <Table.Td>{r.rows_processed?.toLocaleString() || "—"}</Table.Td>
               </Table.Tr>
-            ))}
-            {runs.length === 0 && (
+            ) : runs.length === 0 ? (
               <Table.Tr>
                 <Table.Td colSpan={5}>
                   <Text c="dimmed">
@@ -71,6 +52,31 @@ export function RunsPage() {
                   </Text>
                 </Table.Td>
               </Table.Tr>
+            ) : (
+              runs.map((r) => (
+                <Table.Tr key={r.id}>
+                  <Table.Td>{r.name}</Table.Td>
+                  <Table.Td>
+                    <Badge
+                      variant="light"
+                      color={
+                        r.status === "success"
+                          ? "teal"
+                          : r.status === "failed"
+                            ? "red"
+                            : r.status === "running"
+                              ? "blue"
+                              : "gray"
+                      }
+                    >
+                      {r.status}
+                    </Badge>
+                  </Table.Td>
+                  <Table.Td>{formatDate(r.started_at)}</Table.Td>
+                  <Table.Td>{formatDuration(r.duration_seconds)}</Table.Td>
+                  <Table.Td>{r.rows_processed?.toLocaleString() || "—"}</Table.Td>
+                </Table.Tr>
+              ))
             )}
           </Table.Tbody>
         </Table>

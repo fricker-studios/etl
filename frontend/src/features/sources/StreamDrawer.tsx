@@ -27,6 +27,8 @@ import { JsonPreviewPanel } from "./JsonPreviewPanel";
 import { TopicDrawer } from "./TopicDrawer";
 import { api } from "../../utils/api";
 import { z } from "zod";
+import { useDataSources } from "../../hooks/useDataSources";
+import { useTopics } from "../../hooks/useTopics";
 
 type KV = { key: string; value: string };
 
@@ -106,14 +108,16 @@ export function StreamDrawer({
   opened: boolean;
   onClose: () => void;
 }) {
-  const { dataSources, topics, upsertStream, setStreamPreview } = useAppStore();
+  const { upsertStream, setStreamPreview } = useAppStore();
+  const { data: dataSources = [] } = useDataSources();
+  const { data: topics = [] } = useTopics();
 
   const [topicDrawerOpen, { open: openTopicDrawer, close: closeTopicDrawer }] =
     useDisclosure(false);
 
   const apiOptions = dataSources.map((s) => ({
     value: String(s.id),
-    label: s.name,
+    label: `${s.name} (${s.type.toUpperCase()})`,
   }));
   const defaultApi = apiOptions[0]?.value ?? "";
 
@@ -171,6 +175,7 @@ export function StreamDrawer({
         pageSize?: number;
       }
     | { type: "cursor"; cursorParam: string; cursorPathInResponse: string }
+    | { type: "cursor_url"; cursorParam: string; cursorUrlPathInResponse: string }
   >({
     type: "page",
     pageParam: "page",
@@ -179,35 +184,16 @@ export function StreamDrawer({
     pageSize: 100,
   });
 
-  const [previewText, setPreviewText] = useState<string>(
-    JSON.stringify(
-      {
-        data: [
-          {
-            id: "a1",
-            name: "Widget",
-            price: 12.5,
-            tags: ["new"],
-            created_at: "2025-12-01T12:00:00Z",
-          },
-          {
-            id: "a2",
-            name: "Gadget",
-            price: 7.0,
-            tags: ["sale"],
-            created_at: "2025-12-02T12:00:00Z",
-          },
-        ],
-        next_cursor: "abc123",
-      },
-      null,
-      2,
-    ),
-  );
+  const [recordsSelector, setRecordsSelector] = useState<string>("data");
+
+  const [previewText, setPreviewText] = useState<string>("");
 
   // S3 file preview state
   const [s3Files, setS3Files] = useState<any[]>([]);
   const [s3PreviewLoading, setS3PreviewLoading] = useState(false);
+  const [testApiLoading, setTestApiLoading] = useState(false);
+  const [topicSchemaForCreation, setTopicSchemaForCreation] = useState<any[] | null>(null);
+  const [topicNameForCreation, setTopicNameForCreation] = useState<string>("");
 
   const s3FilesTotalSize = useMemo(() => {
     return s3Files.reduce((sum, file) => sum + (file.size || 0), 0);
@@ -230,6 +216,39 @@ export function StreamDrawer({
   const handleTopicCreated = (topicId: string) => {
     // Update form with newly created topic
     setForm({ ...form, topicId });
+    // Clear the schema for creation
+    setTopicSchemaForCreation(null);
+    setTopicNameForCreation("");
+  };
+
+  const createTopicFromStream = () => {
+    if (!inferred || inferred.kind !== "object") {
+      notifications.show({
+        message: "Please test the API or provide valid preview JSON with object data",
+        color: "orange",
+      });
+      return;
+    }
+
+    // Convert inferred schema to SchemaColumn format
+    const schemaColumns = Object.entries(inferred.fields).map(([name, type], idx) => {
+      let dataType = "string";
+      if (type.kind === "number") dataType = "float";
+      else if (type.kind === "boolean") dataType = "boolean";
+      else if (type.kind === "array") dataType = "array";
+      else if (type.kind === "object") dataType = "json";
+
+      return {
+        name,
+        position: idx,
+        data_type: dataType,
+        nullable: true,
+      };
+    });
+
+    setTopicSchemaForCreation(schemaColumns);
+    setTopicNameForCreation(form.name ? `${form.name} Topic` : "");
+    openTopicDrawer();
   };
 
   const parsedPreview = useMemo(() => {
@@ -242,6 +261,15 @@ export function StreamDrawer({
 
   const inferred = useMemo(() => {
     if (!parsedPreview.ok) return null;
+    
+    // If preview data has our special structure, use the records for schema inference
+    const jsonData = parsedPreview.json as any;
+    if (jsonData && typeof jsonData === "object" && "records" in jsonData && "_preview_info" in jsonData) {
+      // Use the extracted records for schema inference
+      return inferSchemaFromJson(jsonData.records);
+    }
+    
+    // Otherwise infer from the full JSON
     return inferSchemaFromJson(parsedPreview.json);
   }, [parsedPreview]);
 
@@ -286,6 +314,184 @@ export function StreamDrawer({
     }
   };
 
+  const testApiCall = async () => {
+    if (!selectedSource || selectedSource.type !== "api") {
+      notifications.show({
+        message: "Please select an API data source",
+        color: "orange",
+      });
+      return;
+    }
+
+    if (!form.path) {
+      notifications.show({
+        message: "Please enter an API path",
+        color: "orange",
+      });
+      return;
+    }
+
+    setTestApiLoading(true);
+
+    try {
+      // First, get decrypted credentials from backend
+      const decryptedSource: any = await api.dataSources.decrypt(form.dataSourceId);
+
+      // Helper function to extract value from nested path
+      const extractByPath = (obj: any, path: string): any => {
+        if (!path || !obj) return obj;
+        const keys = path.split(".");
+        let result = obj;
+        for (const key of keys) {
+          if (result && typeof result === "object" && key in result) {
+            result = result[key];
+          } else {
+            return undefined;
+          }
+        }
+        return result;
+      };
+
+      // Helper function to make API call
+      const makeApiCall = async (pageParam?: any): Promise<any> => {
+        const baseUrl = decryptedSource.base_url || selectedSource.base_url || "";
+        const path = form.path.startsWith("/") ? form.path : `/${form.path}`;
+        let url = `${baseUrl}${path}`;
+
+        // Add query params
+        const params = new URLSearchParams();
+        queryParams.forEach((p) => {
+          if (p.key && p.value) {
+            params.append(p.key, p.value);
+          }
+        });
+
+        // Add pagination params
+        if (pageParam !== undefined) {
+          if (pagination.type === "page" && pagination.pageParam) {
+            params.set(pagination.pageParam, String(pageParam));
+          } else if (pagination.type === "cursor" && pagination.cursorParam) {
+            params.set(pagination.cursorParam, String(pageParam));
+          } else if (pagination.type === "cursor_url" && pagination.cursorParam) {
+            // For cursor_url, pageParam IS the full URL
+            if (typeof pageParam === "string" && pageParam.startsWith("http")) {
+              url = pageParam;
+            } else {
+              params.set(pagination.cursorParam, String(pageParam));
+            }
+          }
+        }
+
+        if (params.toString() && !url.includes("?")) {
+          url += `?${params.toString()}`;
+        }
+
+        // Build headers
+        const requestHeaders: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        
+        // Add auth headers using DECRYPTED values
+        if (decryptedSource.auth_type === "bearer" && decryptedSource.bearer_token) {
+          requestHeaders["Authorization"] = `Bearer ${decryptedSource.bearer_token}`;
+        } else if (decryptedSource.auth_type === "basic" && decryptedSource.basic_user && decryptedSource.basic_pass) {
+          const credentials = btoa(`${decryptedSource.basic_user}:${decryptedSource.basic_pass}`);
+          requestHeaders["Authorization"] = `Basic ${credentials}`;
+        } else if (decryptedSource.auth_type === "header" && decryptedSource.header_name && decryptedSource.header_value) {
+          requestHeaders[decryptedSource.header_name] = decryptedSource.header_value;
+        }
+
+        // Add custom headers
+        headers.forEach((h) => {
+          if (h.key && h.value) {
+            requestHeaders[h.key] = h.value;
+          }
+        });
+
+        // Make the request
+        const options: RequestInit = {
+          method: form.method,
+          headers: requestHeaders,
+        };
+
+        if (form.method === "POST" && bodyTemplate) {
+          options.body = bodyTemplate;
+        }
+
+        const response = await fetch(url, options);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        return response.json();
+      };
+
+      // Make initial API call
+      let currentPage = pagination.type === "page" ? pagination.pageStart : undefined;
+      const firstPageData = await makeApiCall(currentPage);
+      
+      // Extract records using records selector
+      const records = recordsSelector 
+        ? extractByPath(firstPageData, recordsSelector)
+        : firstPageData;
+
+      // Extract pagination info
+      let paginationInfo: any = {
+        currentPage: currentPage || 1,
+        hasMore: false,
+        nextCursor: undefined,
+        nextUrl: undefined,
+      };
+
+      if (pagination.type === "page") {
+        // For page-based pagination, assume there's more if we got a full page
+        if (Array.isArray(records) && pagination.pageSize) {
+          paginationInfo.hasMore = records.length >= pagination.pageSize;
+          paginationInfo.nextPage = (currentPage || pagination.pageStart) + 1;
+        }
+      } else if (pagination.type === "cursor" && pagination.cursorPathInResponse) {
+        const nextCursor = extractByPath(firstPageData, pagination.cursorPathInResponse);
+        if (nextCursor) {
+          paginationInfo.hasMore = true;
+          paginationInfo.nextCursor = nextCursor;
+        }
+      } else if (pagination.type === "cursor_url" && pagination.cursorUrlPathInResponse) {
+        const nextUrl = extractByPath(firstPageData, pagination.cursorUrlPathInResponse);
+        if (nextUrl) {
+          paginationInfo.hasMore = true;
+          paginationInfo.nextUrl = nextUrl;
+        }
+      }
+
+      // Build preview data with pagination info
+      const previewData = {
+        _preview_info: {
+          records_selector: recordsSelector || "(none - using full response)",
+          pagination_type: pagination.type,
+          pagination_info: paginationInfo,
+          total_records_shown: Array.isArray(records) ? records.length : 1,
+        },
+        records: records,
+        raw_response: firstPageData,
+      };
+
+      setPreviewText(JSON.stringify(previewData, null, 2));
+
+      notifications.show({
+        message: `API call successful! ${Array.isArray(records) ? records.length : 1} record(s) loaded${paginationInfo.hasMore ? " (more pages available)" : ""}.`,
+        color: "teal",
+      });
+    } catch (error: any) {
+      notifications.show({
+        message: error.message || "Failed to call API",
+        color: "red",
+      });
+    } finally {
+      setTestApiLoading(false);
+    }
+  };
+
   const saveStream = () => {
     try {
       z.object({
@@ -323,6 +529,7 @@ export function StreamDrawer({
           headers: cleanKV(headers),
           body_template: form.method === "POST" ? bodyTemplate : undefined,
           pagination,
+          records_selector: recordsSelector || undefined,
         };
       } else if (selectedSource?.type === "database") {
         stream = {
@@ -375,36 +582,6 @@ export function StreamDrawer({
         color: "red",
       });
     }
-  };
-
-  const mockRegenerate = () => {
-    setPreviewText(
-      JSON.stringify(
-        {
-          items: [
-            {
-              id: 1,
-              email: "a@example.com",
-              active: true,
-              meta: { plan: "pro", seats: 3 },
-            },
-            {
-              id: 2,
-              email: "b@example.com",
-              active: false,
-              meta: { plan: "free", seats: 1 },
-            },
-          ],
-          pagination: { next: "cursor_002" },
-        },
-        null,
-        2,
-      ),
-    );
-    notifications.show({
-      message: "Mock preview JSON generated",
-      color: "blue",
-    });
   };
 
   return (
@@ -515,11 +692,18 @@ export function StreamDrawer({
                             cursorParam: "cursor",
                             cursorPathInResponse: "next_cursor",
                           });
+                        if (type === "cursor_url")
+                          setPagination({
+                            type: "cursor_url",
+                            cursorParam: "cursor",
+                            cursorUrlPathInResponse: "next_url",
+                          });
                       }}
                       data={[
                         { value: "none", label: "None" },
                         { value: "page", label: "Page/Size params" },
-                        { value: "cursor", label: "Cursor-based" },
+                        { value: "cursor", label: "Cursor-based (value)" },
+                        { value: "cursor_url", label: "Cursor-based (URL)" },
                       ]}
                     />
 
@@ -593,6 +777,42 @@ export function StreamDrawer({
                         />
                       </SimpleGrid>
                     )}
+
+                    {pagination.type === "cursor_url" && (
+                      <SimpleGrid cols={2}>
+                        <TextInput
+                          label="Cursor param"
+                          value={pagination.cursorParam}
+                          onChange={(e) =>
+                            setPagination({
+                              ...pagination,
+                              cursorParam: e.target.value,
+                            })
+                          }
+                          description="Query param name (e.g., 'cursor' or 'page_token')"
+                        />
+                        <TextInput
+                          label="Next URL path in response"
+                          value={pagination.cursorUrlPathInResponse}
+                          onChange={(e) =>
+                            setPagination({
+                              ...pagination,
+                              cursorUrlPathInResponse: e.target.value,
+                            })
+                          }
+                          description='JSON path to next URL (e.g., "next_url" or "links.next")'
+                        />
+                      </SimpleGrid>
+                    )}
+
+                    <Divider label="Response Data" />
+                    <TextInput
+                      label="Records Selector"
+                      value={recordsSelector}
+                      onChange={(e) => setRecordsSelector(e.target.value)}
+                      description='JSON path to extract records array (e.g., "data", "results", "items")'
+                      placeholder="data"
+                    />
                   </>
                 )}
 
@@ -864,14 +1084,16 @@ export function StreamDrawer({
               <Tabs.Panel value="preview" pt="md">
                 <Group justify="space-between" mb="sm">
                   <Badge variant="light">
-                    Paste or generate a sample response JSON
+                    Test your API or paste sample JSON
                   </Badge>
                   <Button
                     leftSection={<IconWand size={16} />}
                     variant="light"
-                    onClick={mockRegenerate}
+                    color="blue"
+                    onClick={testApiCall}
+                    loading={testApiLoading}
                   >
-                    Generate mock
+                    Test API
                   </Button>
                 </Group>
 
@@ -885,6 +1107,24 @@ export function StreamDrawer({
                     inferred ? schemaToPretty(inferred) : undefined
                   }
                 />
+
+                {inferred && inferred.kind === "object" && Object.keys(inferred.fields).length > 0 && (
+                  <Card withBorder mt="md" p="sm">
+                    <Group justify="space-between">
+                      <Text size="sm" fw={500}>
+                        Schema inferred from preview data ({Object.keys(inferred.fields).length} fields)
+                      </Text>
+                      <Button
+                        size="sm"
+                        variant="light"
+                        color="green"
+                        onClick={createTopicFromStream}
+                      >
+                        Create Topic from Schema
+                      </Button>
+                    </Group>
+                  </Card>
+                )}
               </Tabs.Panel>
             )}
 
@@ -903,6 +1143,8 @@ export function StreamDrawer({
         opened={topicDrawerOpen}
         onClose={closeTopicDrawer}
         onTopicCreated={handleTopicCreated}
+        initialSchema={topicSchemaForCreation || undefined}
+        initialName={topicNameForCreation || undefined}
       />
     </Drawer>
   );

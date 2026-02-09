@@ -81,6 +81,10 @@ export const api = {
       request(`/data-sources/${id}/`, {
         method: "DELETE",
       }),
+    decrypt: (id: string) =>
+      request(`/data-sources/${id}/decrypt/`, {
+        method: "GET",
+      }),
   },
 
   // Streams
