@@ -83,7 +83,7 @@ export const api = {
       }),
     decrypt: (id: string) =>
       request(`/data-sources/${id}/decrypt/`, {
-        method: "POST",
+        method: "GET",
       }),
   },
 

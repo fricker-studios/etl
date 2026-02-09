@@ -186,31 +186,7 @@ export function StreamDrawer({
 
   const [recordsSelector, setRecordsSelector] = useState<string>("data");
 
-  const [previewText, setPreviewText] = useState<string>(
-    JSON.stringify(
-      {
-        data: [
-          {
-            id: "a1",
-            name: "Widget",
-            price: 12.5,
-            tags: ["new"],
-            created_at: "2025-12-01T12:00:00Z",
-          },
-          {
-            id: "a2",
-            name: "Gadget",
-            price: 7.0,
-            tags: ["sale"],
-            created_at: "2025-12-02T12:00:00Z",
-          },
-        ],
-        next_cursor: "abc123",
-      },
-      null,
-      2,
-    ),
-  );
+  const [previewText, setPreviewText] = useState<string>("");
 
   // S3 file preview state
   const [s3Files, setS3Files] = useState<any[]>([]);
