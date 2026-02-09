@@ -1,16 +1,17 @@
 import { Card, SimpleGrid, Textarea, Text, Badge, Stack } from "@mantine/core";
-import { CodeHighlight } from "@mantine/code-highlight";
 
 export function JsonPreviewPanel({
   value,
   onChange,
   parseError,
   inferredSchemaText,
+  onSchemaChange,
 }: {
   value: string;
   onChange: (v: string) => void;
   parseError?: string;
   inferredSchemaText?: string;
+  onSchemaChange?: (v: string) => void;
 }) {
   return (
     <SimpleGrid cols={{ base: 1, lg: 2 }}>
@@ -22,7 +23,7 @@ export function JsonPreviewPanel({
             onChange={(e) => onChange(e.target.value)}
             autosize
             minRows={18}
-            description="Frontend-only. In a real system, you’d test the request here."
+            description="Test your API or paste sample JSON response"
           />
           {parseError && <Text c="red">Parse error: {parseError}</Text>}
         </Stack>
@@ -30,9 +31,21 @@ export function JsonPreviewPanel({
 
       <Card withBorder>
         <Stack>
-          <Badge variant="light">Inferred schema</Badge>
+          <Badge variant="light">Inferred schema (editable)</Badge>
           {inferredSchemaText ? (
-            <CodeHighlight code={inferredSchemaText} language="text" />
+            <Textarea
+              value={inferredSchemaText}
+              onChange={(e) => onSchemaChange?.(e.target.value)}
+              autosize
+              minRows={18}
+              description="Edit the inferred schema if needed"
+              styles={{
+                input: {
+                  fontFamily: "monospace",
+                  fontSize: "0.875rem",
+                },
+              }}
+            />
           ) : (
             <Text c="dimmed">Provide valid JSON to infer schema.</Text>
           )}

@@ -349,8 +349,11 @@ export function StreamDrawer({
     setTestApiLoading(true);
 
     try {
+      // First, get decrypted credentials from backend
+      const decryptedSource: any = await api.dataSources.decrypt(form.dataSourceId);
+
       // Build the full URL
-      const baseUrl = selectedSource.base_url || "";
+      const baseUrl = decryptedSource.base_url || selectedSource.base_url || "";
       const path = form.path.startsWith("/") ? form.path : `/${form.path}`;
       let url = `${baseUrl}${path}`;
 
@@ -370,14 +373,14 @@ export function StreamDrawer({
         "Content-Type": "application/json",
       };
       
-      // Add auth headers
-      if (selectedSource.auth_type === "bearer" && selectedSource.bearer_token) {
-        requestHeaders["Authorization"] = `Bearer ${selectedSource.bearer_token}`;
-      } else if (selectedSource.auth_type === "basic" && selectedSource.basic_user && selectedSource.basic_pass) {
-        const credentials = btoa(`${selectedSource.basic_user}:${selectedSource.basic_pass}`);
+      // Add auth headers using DECRYPTED values
+      if (decryptedSource.auth_type === "bearer" && decryptedSource.bearer_token) {
+        requestHeaders["Authorization"] = `Bearer ${decryptedSource.bearer_token}`;
+      } else if (decryptedSource.auth_type === "basic" && decryptedSource.basic_user && decryptedSource.basic_pass) {
+        const credentials = btoa(`${decryptedSource.basic_user}:${decryptedSource.basic_pass}`);
         requestHeaders["Authorization"] = `Basic ${credentials}`;
-      } else if (selectedSource.auth_type === "header" && selectedSource.header_name && selectedSource.header_value) {
-        requestHeaders[selectedSource.header_name] = selectedSource.header_value;
+      } else if (decryptedSource.auth_type === "header" && decryptedSource.header_name && decryptedSource.header_value) {
+        requestHeaders[decryptedSource.header_name] = decryptedSource.header_value;
       }
 
       // Add custom headers
@@ -510,36 +513,6 @@ export function StreamDrawer({
         color: "red",
       });
     }
-  };
-
-  const mockRegenerate = () => {
-    setPreviewText(
-      JSON.stringify(
-        {
-          items: [
-            {
-              id: 1,
-              email: "a@example.com",
-              active: true,
-              meta: { plan: "pro", seats: 3 },
-            },
-            {
-              id: 2,
-              email: "b@example.com",
-              active: false,
-              meta: { plan: "free", seats: 1 },
-            },
-          ],
-          pagination: { next: "cursor_002" },
-        },
-        null,
-        2,
-      ),
-    );
-    notifications.show({
-      message: "Mock preview JSON generated",
-      color: "blue",
-    });
   };
 
   return (
@@ -1042,26 +1015,17 @@ export function StreamDrawer({
               <Tabs.Panel value="preview" pt="md">
                 <Group justify="space-between" mb="sm">
                   <Badge variant="light">
-                    Test your API or paste/generate sample JSON
+                    Test your API or paste sample JSON
                   </Badge>
-                  <Group>
-                    <Button
-                      leftSection={<IconWand size={16} />}
-                      variant="light"
-                      color="blue"
-                      onClick={testApiCall}
-                      loading={testApiLoading}
-                    >
-                      Test API
-                    </Button>
-                    <Button
-                      leftSection={<IconWand size={16} />}
-                      variant="light"
-                      onClick={mockRegenerate}
-                    >
-                      Generate mock
-                    </Button>
-                  </Group>
+                  <Button
+                    leftSection={<IconWand size={16} />}
+                    variant="light"
+                    color="blue"
+                    onClick={testApiCall}
+                    loading={testApiLoading}
+                  >
+                    Test API
+                  </Button>
                 </Group>
 
                 <JsonPreviewPanel
