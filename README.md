@@ -12,11 +12,16 @@ A full-stack ETL/ELT pipeline management tool with Django backend and React fron
 - **Data Packages**: Create and materialize data packages from streams
 - **Data Models**: Support for both Dimensional and Data Vault modeling
 - **Backend Storage**: Configure S3 and ClickHouse storage backends
+- **Task Queue**: Celery-based asynchronous task execution for stream processing
+- **Scheduled Execution**: Celery Beat integration for scheduled stream runs
+- **Run Tracking**: Automatic tracking of stream execution history and status
 
 ## Architecture
 
 - **Backend**: Django + Django REST Framework + PostgreSQL
 - **Frontend**: React + TypeScript + Vite + Mantine UI
+- **Task Queue**: Celery + Redis for asynchronous task execution
+- **Scheduler**: Celery Beat for scheduled stream execution
 - **Data Layer**: TanStack Query (React Query) for caching and state management
 - **Authentication**: JWT tokens via djangorestframework-simplejwt
 - **API Documentation**: Swagger UI via drf-spectacular
@@ -45,12 +50,22 @@ cd etl
 docker-compose up -d
 ```
 
-3. Create a superuser:
+3. Run database migrations:
+```bash
+docker-compose exec api python manage.py migrate
+```
+
+4. Set up periodic tasks for scheduled streams:
+```bash
+docker-compose exec api python manage.py setup_periodic_tasks
+```
+
+5. Create a superuser:
 ```bash
 docker-compose exec api python manage.py createsuperuser
 ```
 
-4. Access the application:
+6. Access the application:
    - Frontend: http://localhost:5173
    - Backend API: http://localhost:8000/api
    - Admin Panel: http://localhost:8000/admin
@@ -126,6 +141,8 @@ DB_HOST=localhost  # or 'db' for Docker
 DB_PORT=5432
 ALLOWED_HOSTS=*
 CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
+CELERY_BROKER_URL=redis://localhost:6379/0  # or 'redis://redis:6379/0' for Docker
+CELERY_RESULT_BACKEND=redis://localhost:6379/0  # or 'redis://redis:6379/0' for Docker
 ```
 
 ### Frontend (.env)
@@ -191,8 +208,20 @@ python manage.py makemigrations
 # Create superuser
 python manage.py createsuperuser
 
+# Set up periodic tasks for scheduled streams
+python manage.py setup_periodic_tasks
+
+# Execute a stream manually
+python manage.py execute_stream <stream_id>
+
 # Run tests
 python manage.py test
+
+# Start Celery worker (for local development)
+celery -A config worker -l info
+
+# Start Celery Beat scheduler (for local development)
+celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
 ```
 
 ### Frontend
