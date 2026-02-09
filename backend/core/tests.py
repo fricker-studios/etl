@@ -202,3 +202,149 @@ class ExecuteStreamCommandTests(TestCase):
         # All packages should have the external S3 source reference
         for package in packages:
             self.assertEqual(package.external_s3_source, self.data_source)
+
+
+class RunTrackingTests(TestCase):
+    """Tests for Run instance tracking during stream execution."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="testuser", password="testpass")
+        self.data_source = DataSource.objects.create(
+            user=self.user,
+            name="Test S3 Source",
+            type="s3",
+            s3_endpoint="https://s3.amazonaws.com",
+            s3_region="us-east-1",
+            s3_bucket="test-bucket",
+            s3_access_key="test-key",
+            s3_secret_key="test-secret",
+        )
+        self.topic = Topic.objects.create(
+            user=self.user,
+            name="Test Topic",
+            description="Test topic for packages",
+        )
+        self.topic_revision = TopicRevision.objects.create(
+            topic=self.topic, revision_number=1, schema=[]
+        )
+        self.stream = Stream.objects.create(
+            user=self.user,
+            name="Test Stream",
+            data_source=self.data_source,
+            topic=self.topic,
+            s3_path_pattern="data/*.parquet",
+            s3_file_format="parquet",
+        )
+
+    @patch("core.management.commands.execute_stream.S3FileDiscovery")
+    def test_execute_stream_creates_run_instance(self, mock_s3_discovery):
+        """Test that execute_stream management command creates a Run instance."""
+        from core.models import Run
+        
+        # Mock S3 file discovery
+        mock_discovery = Mock()
+        mock_discovery.list_files.return_value = [
+            {"key": "data/file1.parquet", "size": 1024, "last_modified": "2024-01-01T00:00:00"},
+        ]
+        mock_s3_discovery.return_value = mock_discovery
+
+        # Execute the command
+        out = StringIO()
+        call_command("execute_stream", self.stream.id, stdout=out)
+
+        # Check that a Run instance was created
+        run = Run.objects.filter(stream=self.stream).first()
+        self.assertIsNotNone(run)
+        self.assertEqual(run.status, 'success')
+        self.assertIsNotNone(run.started_at)
+        self.assertIsNotNone(run.completed_at)
+        self.assertIsNotNone(run.duration_seconds)
+        self.assertEqual(run.rows_processed, 1)  # 1 package created
+
+    @patch("core.management.commands.execute_stream.S3FileDiscovery")
+    def test_execute_stream_with_existing_run_id(self, mock_s3_discovery):
+        """Test that execute_stream can use an existing Run instance."""
+        from core.models import Run
+        from django.utils import timezone
+        
+        # Create a Run instance
+        run = Run.objects.create(
+            user=self.user,
+            stream=self.stream,
+            name="Test Run",
+            status='queued',
+        )
+        
+        # Mock S3 file discovery
+        mock_discovery = Mock()
+        mock_discovery.list_files.return_value = [
+            {"key": "data/file1.parquet", "size": 1024, "last_modified": "2024-01-01T00:00:00"},
+        ]
+        mock_s3_discovery.return_value = mock_discovery
+
+        # Execute the command with existing run_id
+        out = StringIO()
+        call_command("execute_stream", self.stream.id, run_id=run.id, stdout=out)
+
+        # Check that the Run instance was updated
+        run.refresh_from_db()
+        self.assertEqual(run.status, 'success')
+        self.assertIsNotNone(run.started_at)
+        self.assertIsNotNone(run.completed_at)
+        self.assertEqual(run.rows_processed, 1)
+
+    @patch("core.management.commands.execute_stream.S3FileDiscovery")
+    def test_execute_stream_failure_updates_run(self, mock_s3_discovery):
+        """Test that Run instance is updated on failure."""
+        from core.models import Run
+        
+        # Mock S3 file discovery to raise an error
+        mock_discovery = Mock()
+        mock_discovery.list_files.side_effect = ValueError("S3 connection failed")
+        mock_s3_discovery.return_value = mock_discovery
+
+        # Execute the command (should fail)
+        out = StringIO()
+        with self.assertRaises(Exception):
+            call_command("execute_stream", self.stream.id, stdout=out)
+
+        # Check that a Run instance was created and marked as failed
+        run = Run.objects.filter(stream=self.stream).first()
+        self.assertIsNotNone(run)
+        self.assertEqual(run.status, 'failed')
+        self.assertIsNotNone(run.error_message)
+        self.assertIn("S3 connection failed", run.error_message)
+
+    @patch("core.management.commands.execute_stream.S3FileDiscovery")
+    def test_no_duplicate_packages_on_rerun(self, mock_s3_discovery):
+        """Test that re-running a stream doesn't create duplicate DataPackages."""
+        from core.models import DataPackage
+        
+        # Mock S3 file discovery
+        mock_discovery = Mock()
+        mock_discovery.list_files.return_value = [
+            {"key": "data/file1.parquet", "size": 1024, "last_modified": "2024-01-01T00:00:00"},
+            {"key": "data/file2.parquet", "size": 2048, "last_modified": "2024-01-01T00:00:00"},
+        ]
+        mock_s3_discovery.return_value = mock_discovery
+
+        # First execution
+        out = StringIO()
+        call_command("execute_stream", self.stream.id, stdout=out)
+        
+        # Check packages created
+        packages = DataPackage.objects.filter(stream=self.stream)
+        self.assertEqual(packages.count(), 2)
+        
+        # Second execution (should skip existing packages)
+        out = StringIO()
+        call_command("execute_stream", self.stream.id, stdout=out)
+        
+        # Check that no duplicate packages were created
+        packages = DataPackage.objects.filter(stream=self.stream)
+        self.assertEqual(packages.count(), 2)  # Still 2, not 4
+        
+        # Check the output mentions skipped packages
+        output = out.getvalue()
+        self.assertIn("skipped 2 existing", output)
+
