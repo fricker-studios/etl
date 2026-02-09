@@ -72,7 +72,8 @@ export type Pagination =
       pageStart: number;
       pageSize?: number;
     }
-  | { type: "cursor"; cursorParam: string; cursorPathInResponse: string };
+  | { type: "cursor"; cursorParam: string; cursorPathInResponse: string }
+  | { type: "cursor_url"; cursorParam: string; cursorUrlPathInResponse: string };
 
 export type Stream = {
   id: string;
@@ -110,6 +111,7 @@ export type Stream = {
   // Preview and schema (for API sources)
   preview_json?: unknown;
   inferred_schema?: unknown;
+  records_selector?: string; // JSON path to extract records, e.g., "data" or "results"
 };
 
 export type TopicRevision = {

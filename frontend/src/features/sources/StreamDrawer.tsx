@@ -175,6 +175,7 @@ export function StreamDrawer({
         pageSize?: number;
       }
     | { type: "cursor"; cursorParam: string; cursorPathInResponse: string }
+    | { type: "cursor_url"; cursorParam: string; cursorUrlPathInResponse: string }
   >({
     type: "page",
     pageParam: "page",
@@ -182,6 +183,8 @@ export function StreamDrawer({
     pageStart: 1,
     pageSize: 100,
   });
+
+  const [recordsSelector, setRecordsSelector] = useState<string>("data");
 
   const [previewText, setPreviewText] = useState<string>(
     JSON.stringify(
@@ -212,6 +215,7 @@ export function StreamDrawer({
   // S3 file preview state
   const [s3Files, setS3Files] = useState<any[]>([]);
   const [s3PreviewLoading, setS3PreviewLoading] = useState(false);
+  const [testApiLoading, setTestApiLoading] = useState(false);
 
   const s3FilesTotalSize = useMemo(() => {
     return s3Files.reduce((sum, file) => sum + (file.size || 0), 0);
@@ -290,6 +294,97 @@ export function StreamDrawer({
     }
   };
 
+  const testApiCall = async () => {
+    if (!selectedSource || selectedSource.type !== "api") {
+      notifications.show({
+        message: "Please select an API data source",
+        color: "orange",
+      });
+      return;
+    }
+
+    if (!form.path) {
+      notifications.show({
+        message: "Please enter an API path",
+        color: "orange",
+      });
+      return;
+    }
+
+    setTestApiLoading(true);
+
+    try {
+      // Build the full URL
+      const baseUrl = selectedSource.base_url || "";
+      const path = form.path.startsWith("/") ? form.path : `/${form.path}`;
+      let url = `${baseUrl}${path}`;
+
+      // Add query params
+      const params = new URLSearchParams();
+      queryParams.forEach((p) => {
+        if (p.key && p.value) {
+          params.append(p.key, p.value);
+        }
+      });
+      if (params.toString()) {
+        url += `?${params.toString()}`;
+      }
+
+      // Build headers
+      const requestHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      
+      // Add auth headers
+      if (selectedSource.auth_type === "bearer" && selectedSource.bearer_token) {
+        requestHeaders["Authorization"] = `Bearer ${selectedSource.bearer_token}`;
+      } else if (selectedSource.auth_type === "basic" && selectedSource.basic_user && selectedSource.basic_pass) {
+        const credentials = btoa(`${selectedSource.basic_user}:${selectedSource.basic_pass}`);
+        requestHeaders["Authorization"] = `Basic ${credentials}`;
+      } else if (selectedSource.auth_type === "header" && selectedSource.header_name && selectedSource.header_value) {
+        requestHeaders[selectedSource.header_name] = selectedSource.header_value;
+      }
+
+      // Add custom headers
+      headers.forEach((h) => {
+        if (h.key && h.value) {
+          requestHeaders[h.key] = h.value;
+        }
+      });
+
+      // Make the request
+      const options: RequestInit = {
+        method: form.method,
+        headers: requestHeaders,
+      };
+
+      if (form.method === "POST" && bodyTemplate) {
+        options.body = bodyTemplate;
+      }
+
+      const response = await fetch(url, options);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      setPreviewText(JSON.stringify(data, null, 2));
+
+      notifications.show({
+        message: "API call successful! Preview data loaded.",
+        color: "teal",
+      });
+    } catch (error: any) {
+      notifications.show({
+        message: error.message || "Failed to call API",
+        color: "red",
+      });
+    } finally {
+      setTestApiLoading(false);
+    }
+  };
+
   const saveStream = () => {
     try {
       z.object({
@@ -327,6 +422,7 @@ export function StreamDrawer({
           headers: cleanKV(headers),
           body_template: form.method === "POST" ? bodyTemplate : undefined,
           pagination,
+          records_selector: recordsSelector || undefined,
         };
       } else if (selectedSource?.type === "database") {
         stream = {
@@ -519,11 +615,18 @@ export function StreamDrawer({
                             cursorParam: "cursor",
                             cursorPathInResponse: "next_cursor",
                           });
+                        if (type === "cursor_url")
+                          setPagination({
+                            type: "cursor_url",
+                            cursorParam: "cursor",
+                            cursorUrlPathInResponse: "next_url",
+                          });
                       }}
                       data={[
                         { value: "none", label: "None" },
                         { value: "page", label: "Page/Size params" },
-                        { value: "cursor", label: "Cursor-based" },
+                        { value: "cursor", label: "Cursor-based (value)" },
+                        { value: "cursor_url", label: "Cursor-based (URL)" },
                       ]}
                     />
 
@@ -597,6 +700,42 @@ export function StreamDrawer({
                         />
                       </SimpleGrid>
                     )}
+
+                    {pagination.type === "cursor_url" && (
+                      <SimpleGrid cols={2}>
+                        <TextInput
+                          label="Cursor param"
+                          value={pagination.cursorParam}
+                          onChange={(e) =>
+                            setPagination({
+                              ...pagination,
+                              cursorParam: e.target.value,
+                            })
+                          }
+                          description="Query param name (e.g., 'cursor' or 'page_token')"
+                        />
+                        <TextInput
+                          label="Next URL path in response"
+                          value={pagination.cursorUrlPathInResponse}
+                          onChange={(e) =>
+                            setPagination({
+                              ...pagination,
+                              cursorUrlPathInResponse: e.target.value,
+                            })
+                          }
+                          description='JSON path to next URL (e.g., "next_url" or "links.next")'
+                        />
+                      </SimpleGrid>
+                    )}
+
+                    <Divider label="Response Data" />
+                    <TextInput
+                      label="Records Selector"
+                      value={recordsSelector}
+                      onChange={(e) => setRecordsSelector(e.target.value)}
+                      description='JSON path to extract records array (e.g., "data", "results", "items")'
+                      placeholder="data"
+                    />
                   </>
                 )}
 
@@ -868,15 +1007,26 @@ export function StreamDrawer({
               <Tabs.Panel value="preview" pt="md">
                 <Group justify="space-between" mb="sm">
                   <Badge variant="light">
-                    Paste or generate a sample response JSON
+                    Test your API or paste/generate sample JSON
                   </Badge>
-                  <Button
-                    leftSection={<IconWand size={16} />}
-                    variant="light"
-                    onClick={mockRegenerate}
-                  >
-                    Generate mock
-                  </Button>
+                  <Group>
+                    <Button
+                      leftSection={<IconWand size={16} />}
+                      variant="light"
+                      color="blue"
+                      onClick={testApiCall}
+                      loading={testApiLoading}
+                    >
+                      Test API
+                    </Button>
+                    <Button
+                      leftSection={<IconWand size={16} />}
+                      variant="light"
+                      onClick={mockRegenerate}
+                    >
+                      Generate mock
+                    </Button>
+                  </Group>
                 </Group>
 
                 <JsonPreviewPanel
