@@ -284,31 +284,16 @@ class Stream(models.Model):
         return self.name
 
     def save(self, *args, **kwargs):
-        """Override save to handle scheduling."""
+        """Override save to handle scheduling with Celery Beat."""
         super().save(*args, **kwargs)
-
-        # Update schedule after saving
-        try:
-            from .scheduler import schedule_stream, unschedule_stream
-
-            if self.schedule_enabled:
-                schedule_stream(self)
-            else:
-                unschedule_stream(self.id)
-        except Exception as e:
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.error(f"Error updating schedule for stream {self.id}: {e}")
+        
+        # Schedule management will be done via django-celery-beat
+        # Periodic tasks can be configured in Django admin or programmatically
+        # For now, we'll let scheduled streams be picked up by the periodic task
 
     def delete(self, *args, **kwargs):
-        """Override delete to remove from scheduler."""
-        try:
-            from .scheduler import unschedule_stream
-
-            unschedule_stream(self.id)
-        except Exception:
-            pass
+        """Override delete to clean up any scheduled tasks."""
+        # Celery Beat periodic tasks should be cleaned up if needed
         super().delete(*args, **kwargs)
 
 

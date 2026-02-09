@@ -3,8 +3,9 @@ Django management command to execute a stream and create data packages.
 """
 
 from django.core.management.base import BaseCommand, CommandError
-from core.models import Stream, DataPackage, DataSource
+from core.models import Stream, DataPackage, DataSource, Run
 from core.s3_utils import S3FileDiscovery
+from django.utils import timezone
 import logging
 
 logger = logging.getLogger(__name__)
@@ -20,10 +21,16 @@ class Command(BaseCommand):
             action="store_true",
             help="Show what would be done without creating data packages",
         )
+        parser.add_argument(
+            "--run-id",
+            type=int,
+            help="ID of the Run instance to track this execution",
+        )
 
     def handle(self, *args, **options):
         stream_id = options["stream_id"]
         dry_run = options.get("dry_run", False)
+        run_id = options.get("run_id")
 
         try:
             stream = Stream.objects.select_related("data_source", "topic").get(
@@ -43,9 +50,53 @@ class Command(BaseCommand):
         if not stream.topic:
             raise CommandError(f"Stream {stream.name} does not have a topic assigned")
 
+        # Get or create Run instance if not dry run
+        run = None
+        if not dry_run:
+            if run_id:
+                try:
+                    run = Run.objects.get(id=run_id)
+                    run.status = 'running'
+                    run.started_at = timezone.now()
+                    run.save()
+                except Run.DoesNotExist:
+                    self.stdout.write(self.style.WARNING(f"Run with id {run_id} not found, creating new one"))
+                    run = None
+            
+            if not run:
+                run = Run.objects.create(
+                    user=stream.user,
+                    stream=stream,
+                    name=f"{stream.name} - {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                    status='running',
+                    started_at=timezone.now()
+                )
+            
+            self.stdout.write(f"  Run ID: {run.id}")
+
         # Execute based on source type
-        if stream.data_source.type == "s3":
-            self._execute_s3_stream(stream, dry_run)
+        try:
+            if stream.data_source.type == "s3":
+                packages_created = self._execute_s3_stream(stream, dry_run)
+            
+            # Update run with success
+            if run:
+                run.status = 'success'
+                run.completed_at = timezone.now()
+                run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+                run.rows_processed = packages_created
+                run.save()
+                self.stdout.write(self.style.SUCCESS(f"  Run completed successfully"))
+        
+        except Exception as e:
+            # Update run with failure
+            if run:
+                run.status = 'failed'
+                run.error_message = str(e)
+                run.completed_at = timezone.now()
+                run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+                run.save()
+            raise
 
     def _execute_s3_stream(self, stream: Stream, dry_run: bool):
         """Execute an S3 stream - discover files and create data packages."""
@@ -84,14 +135,14 @@ class Command(BaseCommand):
                     self.stdout.write(f'    - {file["key"]} ({file["size"]} bytes)')
                 if len(files) > 10:
                     self.stdout.write(f"    ... and {len(files) - 10} more")
-                return
+                return 0
 
             # Create data packages for each file
             created_count = 0
             skipped_count = 0
 
             for file in files:
-                # Check if package already exists for this file
+                # Check if package already exists for this file (prevent duplicates)
                 existing = DataPackage.objects.filter(
                     stream=stream, file_path=file["key"]
                 ).first()
@@ -132,6 +183,8 @@ class Command(BaseCommand):
                     f"  Created {created_count} data package(s), skipped {skipped_count} existing"
                 )
             )
+            
+            return created_count
 
         except ValueError as e:
             raise CommandError(f"Error accessing S3: {e}")

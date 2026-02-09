@@ -148,8 +148,10 @@ class StreamViewSet(viewsets.ModelViewSet):
     def execute(self, request, pk=None):
         """
         Execute a stream immediately (discover files and create data packages).
+        Uses Celery for asynchronous execution.
         """
-        import subprocess
+        from core.tasks import execute_stream_task
+        from django.utils import timezone
 
         stream = self.get_object()
 
@@ -167,45 +169,30 @@ class StreamViewSet(viewsets.ModelViewSet):
             )
 
         try:
-            # Execute the management command
-            result = subprocess.run(
-                ["python", "manage.py", "execute_stream", str(stream.id)],
-                capture_output=True,
-                text=True,
-                check=True,
+            # Create a Run instance to track this execution
+            run = Run.objects.create(
+                user=request.user,
+                stream=stream,
+                name=f"{stream.name} - {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                status='queued',
             )
 
-            # Parse output for results
-            output_lines = result.stdout.split("\n")
-            created_count = 0
-            for line in output_lines:
-                if "Created" in line and "data package" in line:
-                    # Extract number from "Created X data package(s)"
-                    import re
-
-                    match = re.search(r"Created (\d+)", line)
-                    if match:
-                        created_count = int(match.group(1))
+            # Dispatch Celery task
+            task = execute_stream_task.delay(stream.id, run.id)
 
             return Response(
                 {
-                    "status": "success",
-                    "message": f"Stream executed successfully",
-                    "packages_created": created_count,
-                    "output": result.stdout,
+                    "status": "queued",
+                    "message": f"Stream execution queued",
+                    "run_id": run.id,
+                    "task_id": task.id,
                 }
             )
 
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Error executing stream {stream.id}: {e.stderr}")
-            return Response(
-                {"error": "Stream execution failed", "details": e.stderr},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
         except Exception as e:
-            logger.error(f"Unexpected error executing stream: {e}")
+            logger.error(f"Error queueing stream execution {stream.id}: {e}")
             return Response(
-                {"error": "Internal server error"},
+                {"error": "Failed to queue stream execution"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
