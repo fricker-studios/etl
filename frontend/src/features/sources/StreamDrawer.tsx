@@ -216,6 +216,8 @@ export function StreamDrawer({
   const [s3Files, setS3Files] = useState<any[]>([]);
   const [s3PreviewLoading, setS3PreviewLoading] = useState(false);
   const [testApiLoading, setTestApiLoading] = useState(false);
+  const [topicSchemaForCreation, setTopicSchemaForCreation] = useState<any[] | null>(null);
+  const [topicNameForCreation, setTopicNameForCreation] = useState<string>("");
 
   const s3FilesTotalSize = useMemo(() => {
     return s3Files.reduce((sum, file) => sum + (file.size || 0), 0);
@@ -238,6 +240,39 @@ export function StreamDrawer({
   const handleTopicCreated = (topicId: string) => {
     // Update form with newly created topic
     setForm({ ...form, topicId });
+    // Clear the schema for creation
+    setTopicSchemaForCreation(null);
+    setTopicNameForCreation("");
+  };
+
+  const createTopicFromStream = () => {
+    if (!inferred || inferred.kind !== "object") {
+      notifications.show({
+        message: "Please test the API or provide valid preview JSON with object data",
+        color: "orange",
+      });
+      return;
+    }
+
+    // Convert inferred schema to SchemaColumn format
+    const schemaColumns = Object.entries(inferred.fields).map(([name, type], idx) => {
+      let dataType = "string";
+      if (type.kind === "number") dataType = "float";
+      else if (type.kind === "boolean") dataType = "boolean";
+      else if (type.kind === "array") dataType = "array";
+      else if (type.kind === "object") dataType = "json";
+
+      return {
+        name,
+        position: idx,
+        data_type: dataType,
+        nullable: true,
+      };
+    });
+
+    setTopicSchemaForCreation(schemaColumns);
+    setTopicNameForCreation(form.name ? `${form.name} Topic` : "");
+    openTopicDrawer();
   };
 
   const parsedPreview = useMemo(() => {
@@ -1039,6 +1074,24 @@ export function StreamDrawer({
                     inferred ? schemaToPretty(inferred) : undefined
                   }
                 />
+
+                {inferred && inferred.kind === "object" && Object.keys(inferred.fields).length > 0 && (
+                  <Card withBorder mt="md" p="sm">
+                    <Group justify="space-between">
+                      <Text size="sm" fw={500}>
+                        Schema inferred from preview data ({Object.keys(inferred.fields).length} fields)
+                      </Text>
+                      <Button
+                        size="sm"
+                        variant="light"
+                        color="green"
+                        onClick={createTopicFromStream}
+                      >
+                        Create Topic from Schema
+                      </Button>
+                    </Group>
+                  </Card>
+                )}
               </Tabs.Panel>
             )}
 
@@ -1057,6 +1110,8 @@ export function StreamDrawer({
         opened={topicDrawerOpen}
         onClose={closeTopicDrawer}
         onTopicCreated={handleTopicCreated}
+        initialSchema={topicSchemaForCreation || undefined}
+        initialName={topicNameForCreation || undefined}
       />
     </Drawer>
   );

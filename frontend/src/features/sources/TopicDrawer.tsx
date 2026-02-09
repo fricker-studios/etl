@@ -7,10 +7,12 @@ import {
   Group,
   Divider,
   Text,
+  Collapse,
 } from "@mantine/core";
 import { useState } from "react";
 import { notifications } from "@mantine/notifications";
 import { z } from "zod";
+import { IconFileImport, IconFileExport, IconX } from "@tabler/icons-react";
 import {
   SchemaColumnEditor,
   type SchemaColumn,
@@ -21,23 +23,71 @@ interface TopicDrawerProps {
   opened: boolean;
   onClose: () => void;
   onTopicCreated?: (topicId: string) => void;
+  initialSchema?: SchemaColumn[]; // Pre-populated schema from Stream
+  initialName?: string; // Pre-populated name from Stream
 }
 
 export function TopicDrawer({
   opened,
   onClose,
   onTopicCreated,
+  initialSchema,
+  initialName,
 }: TopicDrawerProps) {
   const createTopic = useCreateTopic();
 
   const [form, setForm] = useState({
-    name: "",
+    name: initialName || "",
     description: "",
   });
 
-  const [schemaColumns, setSchemaColumns] = useState<SchemaColumn[]>([
-    { name: "", position: 0, data_type: "string", nullable: true },
-  ]);
+  const [schemaColumns, setSchemaColumns] = useState<SchemaColumn[]>(
+    initialSchema && initialSchema.length > 0
+      ? initialSchema
+      : [{ name: "", position: 0, data_type: "string", nullable: true }]
+  );
+
+  const [schemaJson, setSchemaJson] = useState<string>("");
+  const [showJsonImport, setShowJsonImport] = useState(false);
+
+  const importSchemaFromJson = () => {
+    try {
+      const parsed = JSON.parse(schemaJson);
+      if (!Array.isArray(parsed)) {
+        throw new Error("Schema must be an array");
+      }
+
+      const imported: SchemaColumn[] = parsed.map((col: any, idx: number) => ({
+        name: col.name || "",
+        position: col.position !== undefined ? col.position : idx,
+        data_type: col.data_type || col.type || "string",
+        nullable: col.nullable !== undefined ? col.nullable : true,
+      }));
+
+      setSchemaColumns(imported);
+      setShowJsonImport(false);
+      setSchemaJson("");
+
+      notifications.show({
+        message: `Imported ${imported.length} column(s) from JSON`,
+        color: "teal",
+      });
+    } catch (e: any) {
+      notifications.show({
+        message: e?.message ?? "Invalid JSON format",
+        color: "red",
+      });
+    }
+  };
+
+  const exportSchemaToJson = () => {
+    const json = JSON.stringify(schemaColumns, null, 2);
+    navigator.clipboard.writeText(json);
+    notifications.show({
+      message: "Schema copied to clipboard as JSON",
+      color: "teal",
+    });
+  };
 
   const saveTopic = async () => {
     try {
@@ -116,6 +166,53 @@ export function TopicDrawer({
           Define the schema for this topic. This will create the initial
           revision (v1).
         </Text>
+
+        <Group>
+          <Button
+            variant="light"
+            size="xs"
+            leftSection={<IconFileImport size={14} />}
+            onClick={() => setShowJsonImport(!showJsonImport)}
+          >
+            {showJsonImport ? "Hide" : "Import JSON"}
+          </Button>
+          <Button
+            variant="light"
+            size="xs"
+            leftSection={<IconFileExport size={14} />}
+            onClick={exportSchemaToJson}
+          >
+            Copy as JSON
+          </Button>
+        </Group>
+
+        <Collapse in={showJsonImport}>
+          <Stack gap="xs">
+            <Textarea
+              label="Schema JSON"
+              placeholder='[{"name": "id", "data_type": "string", "nullable": false}, ...]'
+              value={schemaJson}
+              onChange={(e) => setSchemaJson(e.target.value)}
+              minRows={4}
+            />
+            <Group>
+              <Button size="xs" onClick={importSchemaFromJson}>
+                Import
+              </Button>
+              <Button
+                size="xs"
+                variant="light"
+                onClick={() => {
+                  setShowJsonImport(false);
+                  setSchemaJson("");
+                }}
+                leftSection={<IconX size={14} />}
+              >
+                Cancel
+              </Button>
+            </Group>
+          </Stack>
+        </Collapse>
 
         <SchemaColumnEditor
           columns={schemaColumns}
