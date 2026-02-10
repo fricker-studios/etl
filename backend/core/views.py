@@ -119,17 +119,23 @@ class StorageBackendViewSet(viewsets.ModelViewSet):
         delimiter = request.query_params.get("delimiter", "/")
         
         try:
-            from .s3_utils import S3FileDiscovery
+            from botocore.config import Config
             
-            s3_discovery = S3FileDiscovery(
-                endpoint_url=storage_backend.endpoint,
-                region=storage_backend.region or "us-east-1",
-                access_key=storage_backend.access_key_id,
-                secret_key=storage_backend.secret_access_key,
+            # Create config for path-style addressing if needed
+            config = None
+            if storage_backend.path_style:
+                config = Config(s3={'addressing_style': 'path'})
+            
+            # Create S3 client directly with path_style support
+            import boto3
+            s3_client = boto3.client(
+                "s3",
+                endpoint_url=storage_backend.endpoint if storage_backend.endpoint else None,
+                region_name=storage_backend.region or "us-east-1",
+                aws_access_key_id=storage_backend.access_key_id,
+                aws_secret_access_key=storage_backend.secret_access_key,
+                config=config
             )
-            
-            # Use boto3 client to list objects with delimiter for folder structure
-            s3_client = s3_discovery.s3_client
             
             response = s3_client.list_objects_v2(
                 Bucket=storage_backend.bucket,
@@ -492,8 +498,14 @@ class DataPackageViewSet(viewsets.ModelViewSet):
         try:
             import boto3
             from botocore.exceptions import ClientError
+            from botocore.config import Config
             
             storage = package.destination
+            
+            # Create config for path-style addressing if needed
+            config = None
+            if storage.path_style:
+                config = Config(s3={'addressing_style': 'path'})
             
             # Create S3 client
             s3_client = boto3.client(
@@ -502,6 +514,7 @@ class DataPackageViewSet(viewsets.ModelViewSet):
                 region_name=storage.region or "us-east-1",
                 aws_access_key_id=storage.access_key_id,
                 aws_secret_access_key=storage.secret_access_key,
+                config=config
             )
             
             # Generate presigned URL (valid for 1 hour)
