@@ -21,7 +21,7 @@ import {
 import { IconPlus, IconTrash, IconArrowLeft, IconSearch, IconDownload, IconSortAscending, IconSortDescending } from "@tabler/icons-react";
 import { useDisclosure } from "@mantine/hooks";
 import type { DataPackage } from "../store/useAppStore";
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { TopicRevisionDrawer } from "../features/sources/TopicRevisionDrawer";
 import { modals } from "@mantine/modals";
