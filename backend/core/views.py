@@ -468,6 +468,71 @@ class DataPackageViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+    @action(detail=True, methods=["get"])
+    def download(self, request, pk=None):
+        """Generate a presigned URL for downloading a data package from S3
+        
+        This endpoint generates a temporary presigned URL that allows downloading
+        the package file from S3 without exposing credentials.
+        """
+        package = self.get_object()
+        
+        if not package.file_path:
+            return Response(
+                {"error": "No file associated with this package"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        if not package.destination or package.destination.kind != "s3":
+            return Response(
+                {"error": "Package is not stored in an S3 backend"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            import boto3
+            from botocore.exceptions import ClientError
+            
+            storage = package.destination
+            
+            # Create S3 client
+            s3_client = boto3.client(
+                "s3",
+                endpoint_url=storage.endpoint if storage.endpoint else None,
+                region_name=storage.region or "us-east-1",
+                aws_access_key_id=storage.access_key_id,
+                aws_secret_access_key=storage.secret_access_key,
+            )
+            
+            # Generate presigned URL (valid for 1 hour)
+            presigned_url = s3_client.generate_presigned_url(
+                'get_object',
+                Params={
+                    'Bucket': storage.bucket,
+                    'Key': package.file_path,
+                },
+                ExpiresIn=3600  # 1 hour
+            )
+            
+            return Response({
+                "download_url": presigned_url,
+                "file_name": package.file_path.split("/")[-1],
+                "expires_in": 3600
+            })
+            
+        except ClientError as e:
+            logger.error(f"Error generating presigned URL: {e}")
+            return Response(
+                {"error": f"Failed to generate download URL: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        except Exception as e:
+            logger.error(f"Unexpected error generating download URL: {e}")
+            return Response(
+                {"error": f"Failed to generate download URL: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 
 class ModelViewSet(viewsets.ModelViewSet):
     serializer_class = ModelSerializer

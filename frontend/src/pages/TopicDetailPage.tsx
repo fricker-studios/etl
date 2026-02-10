@@ -142,23 +142,33 @@ export function TopicDetailPage() {
 
   const handleDownloadPackage = async (pkg: DataPackage) => {
     try {
-      // If there's a file_path, construct download URL
-      if (pkg.file_path) {
-        const downloadUrl = `${api.baseUrl}/packages/${pkg.id}/download/`;
-        window.open(downloadUrl, '_blank');
+      if (!pkg.file_path) {
+        notifications.show({
+          message: "No file available for download",
+          color: "orange",
+        });
+        return;
+      }
+
+      // Fetch the presigned download URL from the API
+      const response = await api.packages.download(pkg.id);
+      
+      if (response.download_url) {
+        // Open the presigned URL in a new tab
+        window.open(response.download_url, '_blank');
         notifications.show({
           message: "Download started",
           color: "teal",
         });
       } else {
         notifications.show({
-          message: "No file available for download",
-          color: "orange",
+          message: "Failed to get download URL",
+          color: "red",
         });
       }
     } catch (error) {
       notifications.show({
-        message: "Failed to download package",
+        message: (error as Error)?.message || "Failed to download package",
         color: "red",
       });
     }

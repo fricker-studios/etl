@@ -141,6 +141,7 @@ export const api = {
       request(`/packages/${id}/`, {
         method: "DELETE",
       }),
+    download: (id: string) => request(`/packages/${id}/download/`),
   },
 
   // Models
