@@ -305,14 +305,11 @@ class APIClient:
                         break
                     
                     if pagination_type == "cursor_url":
-                        # For cursor pagination, extract the cursor value or full URL
+                        # For cursor pagination, store the value (either cursor or full URL)
+                        cursor_value = next_value
                         if use_full_url:
-                            # Use the full URL for the next request
-                            cursor_value = next_value
                             logger.info(f"Next URL: {cursor_value}")
                         else:
-                            # Extract just the cursor value
-                            cursor_value = next_value
                             logger.info(f"Next cursor: {cursor_value}")
                     else:
                         # For URL pagination, use the full next URL
