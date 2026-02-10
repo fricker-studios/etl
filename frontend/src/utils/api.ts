@@ -10,6 +10,8 @@ async function request<T>(
 ): Promise<T> {
   const { requiresAuth = true, ...fetchOptions } = options;
 
+  console.log(`[API] Request: ${fetchOptions.method || "GET"} ${endpoint}`);
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(fetchOptions.headers as Record<string, string>),
@@ -22,22 +24,31 @@ async function request<T>(
     }
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const url = `${API_BASE_URL}${endpoint}`;
+  console.log(`[API] Full URL: ${url}`);
+
+  const response = await fetch(url, {
     ...fetchOptions,
     headers,
   });
 
+  console.log(`[API] Response status: ${response.status} for ${endpoint}`);
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
+    console.error(`[API] Error response for ${endpoint}:`, error);
     throw new Error(error.detail || error.error || "Request failed");
   }
 
   // Handle 204 No Content responses (e.g., DELETE)
   if (response.status === 204) {
+    console.log(`[API] 204 No Content response for ${endpoint}`);
     return {} as T;
   }
 
-  return response.json();
+  const data = await response.json();
+  console.log(`[API] Response data for ${endpoint}:`, data);
+  return data;
 }
 
 export const api = {

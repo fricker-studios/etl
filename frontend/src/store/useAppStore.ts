@@ -243,8 +243,10 @@ export const useAppStore = create<AppState>((set) => ({
   loading: false,
 
   fetchAll: async () => {
+    console.log("[useAppStore] fetchAll: Starting data fetch...");
     set({ loading: true });
     try {
+      console.log("[useAppStore] fetchAll: Calling API endpoints...");
       const [
         storageBackends,
         dataSources,
@@ -262,6 +264,16 @@ export const useAppStore = create<AppState>((set) => ({
         api.models.list() as Promise<Model[]>,
         api.runs.list() as Promise<Run[]>,
       ]);
+      console.log("[useAppStore] fetchAll: API responses received:", {
+        storageBackends: storageBackends.length,
+        dataSources: dataSources.length,
+        streams: streams.length,
+        topics: topics.length,
+        packages: packages.length,
+        models: models.length,
+        runs: runs.length,
+      });
+      console.log("[useAppStore] fetchAll: Storage backends data:", storageBackends);
       set({
         storageBackends,
         dataSources,
@@ -271,10 +283,12 @@ export const useAppStore = create<AppState>((set) => ({
         models,
         runs,
       });
+      console.log("[useAppStore] fetchAll: State updated successfully");
     } catch (error) {
-      console.error("Failed to fetch data:", error);
+      console.error("[useAppStore] fetchAll: Failed to fetch data:", error);
     } finally {
       set({ loading: false });
+      console.log("[useAppStore] fetchAll: Loading complete");
     }
   },
 
