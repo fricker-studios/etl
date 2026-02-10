@@ -14,11 +14,14 @@ import {
   Button,
   Breadcrumbs,
   Anchor,
+  TextInput,
+  Select,
+  Modal,
 } from "@mantine/core";
-import { IconPlus, IconTrash, IconArrowLeft } from "@tabler/icons-react";
+import { IconPlus, IconTrash, IconArrowLeft, IconSearch, IconDownload, IconSortAscending, IconSortDescending } from "@tabler/icons-react";
 import { useDisclosure } from "@mantine/hooks";
 import type { DataPackage } from "../store/useAppStore";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { TopicRevisionDrawer } from "../features/sources/TopicRevisionDrawer";
 import { modals } from "@mantine/modals";
@@ -41,6 +44,12 @@ export function TopicDetailPage() {
   const [revisionPackages, setRevisionPackages] = useState<Record<string, DataPackage[]>>({});
   const [revisionPackagesPage, setRevisionPackagesPage] = useState<Record<string, number>>({});
   const [loadingPackages, setLoadingPackages] = useState<Record<string, boolean>>({});
+  const [packageSearchQuery, setPackageSearchQuery] = useState<Record<string, string>>({});
+  const [packageStatusFilter, setPackageStatusFilter] = useState<Record<string, string>>({});
+  const [packageSortField, setPackageSortField] = useState<Record<string, string>>({});
+  const [packageSortOrder, setPackageSortOrder] = useState<Record<string, "asc" | "desc">>({});
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [packageToDelete, setPackageToDelete] = useState<DataPackage | null>(null);
 
   const packagesPerPage = 10;
 
@@ -62,16 +71,149 @@ export function TopicDetailPage() {
     }
   };
 
+  const getFilteredAndSortedPackages = (revisionId: string) => {
+    let packages = revisionPackages[revisionId] || [];
+    
+    // Apply search filter
+    const searchQuery = packageSearchQuery[revisionId]?.toLowerCase() || "";
+    if (searchQuery) {
+      packages = packages.filter(pkg => 
+        pkg.name.toLowerCase().includes(searchQuery)
+      );
+    }
+    
+    // Apply status filter
+    const statusFilter = packageStatusFilter[revisionId];
+    if (statusFilter && statusFilter !== "all") {
+      packages = packages.filter(pkg => pkg.status === statusFilter);
+    }
+    
+    // Apply sorting
+    const sortField = packageSortField[revisionId] || "created_at";
+    const sortOrder = packageSortOrder[revisionId] || "desc";
+    
+    packages = [...packages].sort((a, b) => {
+      let aVal: string | number = "";
+      let bVal: string | number = "";
+      
+      switch (sortField) {
+        case "name":
+          aVal = a.name;
+          bVal = b.name;
+          break;
+        case "status":
+          aVal = a.status;
+          bVal = b.status;
+          break;
+        case "file_size_bytes":
+          aVal = a.file_size_bytes || 0;
+          bVal = b.file_size_bytes || 0;
+          break;
+        case "created_at":
+        default:
+          aVal = new Date(a.created_at).getTime();
+          bVal = new Date(b.created_at).getTime();
+          break;
+      }
+      
+      if (typeof aVal === "string" && typeof bVal === "string") {
+        return sortOrder === "asc" 
+          ? aVal.localeCompare(bVal)
+          : bVal.localeCompare(aVal);
+      }
+      
+      return sortOrder === "asc" ? Number(aVal) - Number(bVal) : Number(bVal) - Number(aVal);
+    });
+    
+    return packages;
+  };
+
   const getPackagesForRevision = (revisionId: string, page: number) => {
-    const packages = revisionPackages[revisionId] || [];
+    const packages = getFilteredAndSortedPackages(revisionId);
     const start = (page - 1) * packagesPerPage;
     const end = start + packagesPerPage;
     return packages.slice(start, end);
   };
 
   const getTotalPagesForRevision = (revisionId: string) => {
-    const packages = revisionPackages[revisionId] || [];
+    const packages = getFilteredAndSortedPackages(revisionId);
     return Math.ceil(packages.length / packagesPerPage);
+  };
+
+  const handleDownloadPackage = async (pkg: DataPackage) => {
+    try {
+      // If there's a file_path, construct download URL
+      if (pkg.file_path) {
+        const downloadUrl = `${api.baseUrl}/packages/${pkg.id}/download/`;
+        window.open(downloadUrl, '_blank');
+        notifications.show({
+          message: "Download started",
+          color: "teal",
+        });
+      } else {
+        notifications.show({
+          message: "No file available for download",
+          color: "orange",
+        });
+      }
+    } catch (error) {
+      notifications.show({
+        message: "Failed to download package",
+        color: "red",
+      });
+    }
+  };
+
+  const handleDeletePackage = (pkg: DataPackage) => {
+    setPackageToDelete(pkg);
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDeletePackage = async () => {
+    if (!packageToDelete) return;
+    
+    try {
+      await api.packages.delete(String(packageToDelete.id));
+      notifications.show({
+        message: "Package deleted successfully",
+        color: "teal",
+      });
+      
+      // Refresh packages for the revision
+      const revisionId = String(packageToDelete.topic_revision);
+      await loadPackagesForRevision(revisionId);
+      
+      // Refresh topic to update package counts
+      queryClient.invalidateQueries({ queryKey: ["topics", id] });
+      
+      setDeleteModalOpen(false);
+      setPackageToDelete(null);
+    } catch (error) {
+      notifications.show({
+        message: (error as Error)?.message || "Failed to delete package",
+        color: "red",
+      });
+    }
+  };
+
+  const handleSortChange = (revisionId: string, field: string) => {
+    const currentField = packageSortField[revisionId] || "created_at";
+    const currentOrder = packageSortOrder[revisionId] || "desc";
+    
+    if (currentField === field) {
+      // Toggle sort order
+      setPackageSortOrder((prev) => ({
+        ...prev,
+        [revisionId]: currentOrder === "asc" ? "desc" : "asc",
+      }));
+    } else {
+      // New field, default to ascending
+      setPackageSortField((prev) => ({ ...prev, [revisionId]: field }));
+      setPackageSortOrder((prev) => ({ ...prev, [revisionId]: "asc" }));
+    }
+    
+    // Reset to first page when sorting changes
+    setRevisionPackagesPage((prev) => ({ ...prev, [revisionId]: 1 }));
   };
 
   const handleDeleteTopic = () => {
@@ -305,15 +447,88 @@ export function TopicDetailPage() {
                             <Center p="xl">
                               <Loader size="sm" />
                             </Center>
-                          ) : packages.length > 0 ? (
+                          ) : revisionPackages[revisionId] && revisionPackages[revisionId].length > 0 ? (
                             <>
+                              {/* Search, Filter, and Sort Controls */}
+                              <Group mb="md" align="flex-end">
+                                <TextInput
+                                  placeholder="Search packages..."
+                                  leftSection={<IconSearch size={16} />}
+                                  value={packageSearchQuery[revisionId] || ""}
+                                  onChange={(e) => {
+                                    setPackageSearchQuery((prev) => ({
+                                      ...prev,
+                                      [revisionId]: e.target.value,
+                                    }));
+                                    setRevisionPackagesPage((prev) => ({ ...prev, [revisionId]: 1 }));
+                                  }}
+                                  style={{ flex: 1, minWidth: "200px" }}
+                                />
+                                <Select
+                                  placeholder="Filter by status"
+                                  value={packageStatusFilter[revisionId] || "all"}
+                                  onChange={(value) => {
+                                    setPackageStatusFilter((prev) => ({
+                                      ...prev,
+                                      [revisionId]: value || "all",
+                                    }));
+                                    setRevisionPackagesPage((prev) => ({ ...prev, [revisionId]: 1 }));
+                                  }}
+                                  data={[
+                                    { value: "all", label: "All Statuses" },
+                                    { value: "draft", label: "Draft" },
+                                    { value: "queued", label: "Queued" },
+                                    { value: "materialized", label: "Materialized" },
+                                    { value: "failed", label: "Failed" },
+                                  ]}
+                                  style={{ width: "180px" }}
+                                />
+                              </Group>
+
                               <Table highlightOnHover>
                                 <Table.Thead>
                                   <Table.Tr>
-                                    <Table.Th>Name</Table.Th>
-                                    <Table.Th>Status</Table.Th>
-                                    <Table.Th>File Size</Table.Th>
-                                    <Table.Th>Created</Table.Th>
+                                    <Table.Th>
+                                      <Group gap="xs" style={{ cursor: "pointer" }} onClick={() => handleSortChange(revisionId, "name")}>
+                                        <Text size="sm">Name</Text>
+                                        {packageSortField[revisionId] === "name" && (
+                                          packageSortOrder[revisionId] === "asc" ? 
+                                            <IconSortAscending size={14} /> : 
+                                            <IconSortDescending size={14} />
+                                        )}
+                                      </Group>
+                                    </Table.Th>
+                                    <Table.Th>
+                                      <Group gap="xs" style={{ cursor: "pointer" }} onClick={() => handleSortChange(revisionId, "status")}>
+                                        <Text size="sm">Status</Text>
+                                        {packageSortField[revisionId] === "status" && (
+                                          packageSortOrder[revisionId] === "asc" ? 
+                                            <IconSortAscending size={14} /> : 
+                                            <IconSortDescending size={14} />
+                                        )}
+                                      </Group>
+                                    </Table.Th>
+                                    <Table.Th>
+                                      <Group gap="xs" style={{ cursor: "pointer" }} onClick={() => handleSortChange(revisionId, "file_size_bytes")}>
+                                        <Text size="sm">File Size</Text>
+                                        {packageSortField[revisionId] === "file_size_bytes" && (
+                                          packageSortOrder[revisionId] === "asc" ? 
+                                            <IconSortAscending size={14} /> : 
+                                            <IconSortDescending size={14} />
+                                        )}
+                                      </Group>
+                                    </Table.Th>
+                                    <Table.Th>
+                                      <Group gap="xs" style={{ cursor: "pointer" }} onClick={() => handleSortChange(revisionId, "created_at")}>
+                                        <Text size="sm">Created</Text>
+                                        {packageSortField[revisionId] === "created_at" && (
+                                          packageSortOrder[revisionId] === "asc" ? 
+                                            <IconSortAscending size={14} /> : 
+                                            <IconSortDescending size={14} />
+                                        )}
+                                      </Group>
+                                    </Table.Th>
+                                    <Table.Th>Actions</Table.Th>
                                   </Table.Tr>
                                 </Table.Thead>
                                 <Table.Tbody>
@@ -347,6 +562,31 @@ export function TopicDetailPage() {
                                         <Text size="sm" c="dimmed">
                                           {new Date(pkg.created_at).toLocaleDateString()}
                                         </Text>
+                                      </Table.Td>
+                                      <Table.Td>
+                                        <Group gap="xs">
+                                          <Tooltip label="Download package">
+                                            <ActionIcon
+                                              color="blue"
+                                              variant="light"
+                                              size="sm"
+                                              onClick={() => handleDownloadPackage(pkg)}
+                                              disabled={!pkg.file_path}
+                                            >
+                                              <IconDownload size={14} />
+                                            </ActionIcon>
+                                          </Tooltip>
+                                          <Tooltip label="Delete package">
+                                            <ActionIcon
+                                              color="red"
+                                              variant="light"
+                                              size="sm"
+                                              onClick={() => handleDeletePackage(pkg)}
+                                            >
+                                              <IconTrash size={14} />
+                                            </ActionIcon>
+                                          </Tooltip>
+                                        </Group>
                                       </Table.Td>
                                     </Table.Tr>
                                   ))}
@@ -398,6 +638,41 @@ export function TopicDetailPage() {
         onClose={closeRevisionDrawer}
         topic={topic}
       />
+
+      {/* Delete Package Confirmation Modal */}
+      <Modal
+        opened={deleteModalOpen}
+        onClose={() => {
+          setDeleteModalOpen(false);
+          setPackageToDelete(null);
+        }}
+        title="Delete Package"
+        centered
+      >
+        <Stack>
+          <Text size="sm">
+            Are you sure you want to delete package <strong>{packageToDelete?.name}</strong>? 
+            This action cannot be undone.
+          </Text>
+          <Group justify="flex-end" mt="md">
+            <Button
+              variant="default"
+              onClick={() => {
+                setDeleteModalOpen(false);
+                setPackageToDelete(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              onClick={confirmDeletePackage}
+            >
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }
