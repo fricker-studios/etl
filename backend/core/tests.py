@@ -535,6 +535,54 @@ class APIStreamExecutionTests(TestCase):
         # Should have fetched 150 records across 2 pages
         self.assertEqual(len(records), 150)
 
+    @patch("core.api_utils.requests.Session.request")
+    def test_execute_api_stream_with_cursor_pagination(self, mock_request):
+        """Test API stream execution with cursor-based pagination."""
+        from core.api_utils import APIClient
+        
+        # Mock responses with cursor pagination
+        def make_cursor_response(page_num, has_next):
+            response = Mock(status_code=200)
+            data = {
+                "results": [{"id": i} for i in range((page_num-1)*100 + 1, page_num*100 + 1)],
+            }
+            if has_next:
+                data["next_url"] = f"cursor-{page_num+1}"
+            response.json = lambda d=data: d
+            response.raise_for_status = Mock()
+            return response
+        
+        # Mock 3 pages of responses
+        responses = [
+            make_cursor_response(1, True),
+            make_cursor_response(2, True),
+            make_cursor_response(3, False),
+        ]
+        
+        mock_request.side_effect = responses
+        
+        # Create API client and fetch data
+        client = APIClient(
+            base_url="https://api.example.com",
+            auth_type="bearer",
+            bearer_token="test-token",
+        )
+        
+        records = client.fetch_paginated_data(
+            method="GET",
+            path="/api/data",
+            pagination={
+                "type": "cursor_url",
+                "cursorParam": "cursor",
+                "cursorUrlPathInResponse": "next_url",
+                "page_size": 100
+            },
+            records_selector="results",
+        )
+        
+        # Should have fetched 300 records across 3 pages
+        self.assertEqual(len(records), 300)
+
     def test_execute_api_stream_without_storage_backend(self):
         """Test that API stream execution fails without S3 storage backend."""
         from core.tasks import execute_stream_task

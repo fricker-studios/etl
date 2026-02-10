@@ -195,7 +195,9 @@ class APIClient:
         page_param = pagination.get("page_param", "page")
         page_size_param = pagination.get("page_size_param", "limit")
         page_size = pagination.get("page_size", 100)
-        next_url_path = pagination.get("next_url_path")  # For URL-based pagination
+        next_url_path = pagination.get("next_url_path") or pagination.get("cursorUrlPathInResponse")  # For URL-based pagination
+        cursor_param = pagination.get("cursorParam", "cursor")  # For cursor-based pagination
+        cursor_value = None  # Track cursor value for cursor-based pagination
 
         logger.info(f"Starting paginated fetch: {method} {path}")
         logger.info(f"Pagination type: {pagination_type}, max_pages: {max_pages}")
@@ -219,6 +221,15 @@ class APIClient:
                     current_query_params.append(
                         {"key": page_size_param, "value": str(page_size)}
                     )
+                elif pagination_type == "cursor_url":
+                    # For cursor-based pagination, add page size and cursor (if we have one)
+                    current_query_params.append(
+                        {"key": page_size_param, "value": str(page_size)}
+                    )
+                    if cursor_value:
+                        current_query_params.append(
+                            {"key": cursor_param, "value": cursor_value}
+                        )
 
                 # Build URL and headers
                 url = self._build_url(path, current_query_params)
@@ -269,23 +280,28 @@ class APIClient:
                 )
 
                 # Check if there are more pages
-                if pagination_type == "url" and next_url_path:
-                    # Extract next URL from response
-                    next_url = data
+                if pagination_type in ["url", "cursor_url"] and next_url_path:
+                    # Extract next URL or cursor from response
+                    next_value = data
                     for part in next_url_path.split("."):
-                        if isinstance(next_url, dict):
-                            next_url = next_url.get(part)
+                        if isinstance(next_value, dict):
+                            next_value = next_value.get(part)
                         else:
-                            next_url = None
+                            next_value = None
                             break
 
-                    if not next_url:
-                        logger.info("No next URL found, stopping pagination")
+                    if not next_value:
+                        logger.info("No next URL/cursor found, stopping pagination")
                         break
-
-                    # Use next URL for next request
-                    path = next_url
-                    current_query_params = []  # Next URL already contains params
+                    
+                    if pagination_type == "cursor_url":
+                        # For cursor pagination, extract the cursor value
+                        cursor_value = next_value
+                        logger.info(f"Next cursor: {cursor_value}")
+                    else:
+                        # For URL pagination, use the full next URL
+                        path = next_value
+                        current_query_params = []  # Next URL already contains params
                 elif pagination_type in ["page_number", "offset"]:
                     # Check if we got fewer records than page size (last page)
                     if len(records) < page_size:
@@ -297,8 +313,13 @@ class APIClient:
                     # No pagination, stop after first page
                     logger.info("No pagination configured, stopping after first page")
                     break
+                elif pagination_type == "cursor_url":
+                    # For cursor pagination, continue to next page with the cursor
+                    # The cursor was already set in the previous if block
+                    pass
                 else:
                     # Unknown pagination type or no more pages
+                    logger.warning(f"Unknown pagination type: {pagination_type}, stopping")
                     break
 
                 page_num += 1
