@@ -267,7 +267,7 @@ export function TopicDetailPage() {
                                 </Table.Tr>
                               </Table.Thead>
                               <Table.Tbody>
-                                {revision.schema.sort((a, b) => a.position - b.position).map((col) => (
+                                {[...revision.schema].sort((a, b) => a.position - b.position).map((col) => (
                                   <Table.Tr key={col.position}>
                                     <Table.Td>{col.position}</Table.Td>
                                     <Table.Td>
