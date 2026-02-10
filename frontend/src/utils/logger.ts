@@ -11,10 +11,7 @@ export interface ErrorContext {
  * Centralized error logging utility
  * Logs errors to console and Sentry with appropriate context
  */
-export function logError(
-  error: Error | unknown,
-  context?: ErrorContext,
-): void {
+export function logError(error: Error | unknown, context?: ErrorContext): void {
   const errorMessage = error instanceof Error ? error.message : String(error);
   const errorStack = error instanceof Error ? error.stack : undefined;
 

@@ -7,13 +7,20 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0007_remove_stream_data_package_name_pattern_and_more'),
+        ("core", "0007_remove_stream_data_package_name_pattern_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='datapackage',
-            name='external_s3_source',
-            field=models.ForeignKey(blank=True, help_text="External S3 data source where this package's data is located", null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='external_packages', to='core.datasource'),
+            model_name="datapackage",
+            name="external_s3_source",
+            field=models.ForeignKey(
+                blank=True,
+                help_text="External S3 data source where this package's data is located",
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="external_packages",
+                to="core.datasource",
+            ),
         ),
     ]

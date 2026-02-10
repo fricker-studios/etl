@@ -13,11 +13,6 @@ import { notifications } from "@mantine/notifications";
 export function ConnectionCards() {
   const { storageBackends, removeStorageBackend } = useAppStore();
 
-  console.log("[ConnectionCards] Rendering with storage backends:", {
-    count: storageBackends.length,
-    backends: storageBackends,
-  });
-
   if (storageBackends.length === 0) {
     return (
       <Card withBorder>

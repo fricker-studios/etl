@@ -3,7 +3,14 @@ from django.contrib.auth.models import User
 from unittest.mock import Mock, patch, MagicMock
 from io import StringIO
 from django.core.management import call_command
-from .models import DataSource, Stream, DataPackage, Topic, TopicRevision, StorageBackend
+from .models import (
+    DataSource,
+    Stream,
+    DataPackage,
+    Topic,
+    TopicRevision,
+    StorageBackend,
+)
 
 
 class DataPackageModelTests(TestCase):
@@ -174,7 +181,10 @@ class ExecuteStreamCommandTests(TestCase):
         # Check that only the filename is used, not the full path
         package = DataPackage.objects.get(stream=self.stream)
         self.assertEqual(package.name, "complex-file-name.parquet")
-        self.assertEqual(package.file_path, "data/year=2024/month=01/day=15/complex-file-name.parquet")
+        self.assertEqual(
+            package.file_path,
+            "data/year=2024/month=01/day=15/complex-file-name.parquet",
+        )
 
     @patch("core.management.commands.execute_stream.S3FileDiscovery")
     def test_execute_stream_multiple_files(self, mock_s3_discovery):
@@ -182,9 +192,21 @@ class ExecuteStreamCommandTests(TestCase):
         # Mock S3 file discovery
         mock_discovery = Mock()
         mock_discovery.list_files.return_value = [
-            {"key": "data/file1.parquet", "size": 1024, "last_modified": "2024-01-01T00:00:00"},
-            {"key": "data/file2.parquet", "size": 2048, "last_modified": "2024-01-01T00:00:00"},
-            {"key": "data/file3.parquet", "size": 3072, "last_modified": "2024-01-01T00:00:00"},
+            {
+                "key": "data/file1.parquet",
+                "size": 1024,
+                "last_modified": "2024-01-01T00:00:00",
+            },
+            {
+                "key": "data/file2.parquet",
+                "size": 2048,
+                "last_modified": "2024-01-01T00:00:00",
+            },
+            {
+                "key": "data/file3.parquet",
+                "size": 3072,
+                "last_modified": "2024-01-01T00:00:00",
+            },
         ]
         mock_s3_discovery.return_value = mock_discovery
 
@@ -240,11 +262,15 @@ class RunTrackingTests(TestCase):
     def test_execute_stream_creates_run_instance(self, mock_s3_discovery):
         """Test that execute_stream management command creates a Run instance."""
         from core.models import Run
-        
+
         # Mock S3 file discovery
         mock_discovery = Mock()
         mock_discovery.list_files.return_value = [
-            {"key": "data/file1.parquet", "size": 1024, "last_modified": "2024-01-01T00:00:00"},
+            {
+                "key": "data/file1.parquet",
+                "size": 1024,
+                "last_modified": "2024-01-01T00:00:00",
+            },
         ]
         mock_s3_discovery.return_value = mock_discovery
 
@@ -255,7 +281,7 @@ class RunTrackingTests(TestCase):
         # Check that a Run instance was created
         run = Run.objects.filter(stream=self.stream).first()
         self.assertIsNotNone(run)
-        self.assertEqual(run.status, 'success')
+        self.assertEqual(run.status, "success")
         self.assertIsNotNone(run.started_at)
         self.assertIsNotNone(run.completed_at)
         self.assertIsNotNone(run.duration_seconds)
@@ -266,19 +292,23 @@ class RunTrackingTests(TestCase):
         """Test that execute_stream can use an existing Run instance."""
         from core.models import Run
         from django.utils import timezone
-        
+
         # Create a Run instance
         run = Run.objects.create(
             user=self.user,
             stream=self.stream,
             name="Test Run",
-            status='queued',
+            status="queued",
         )
-        
+
         # Mock S3 file discovery
         mock_discovery = Mock()
         mock_discovery.list_files.return_value = [
-            {"key": "data/file1.parquet", "size": 1024, "last_modified": "2024-01-01T00:00:00"},
+            {
+                "key": "data/file1.parquet",
+                "size": 1024,
+                "last_modified": "2024-01-01T00:00:00",
+            },
         ]
         mock_s3_discovery.return_value = mock_discovery
 
@@ -288,7 +318,7 @@ class RunTrackingTests(TestCase):
 
         # Check that the Run instance was updated
         run.refresh_from_db()
-        self.assertEqual(run.status, 'success')
+        self.assertEqual(run.status, "success")
         self.assertIsNotNone(run.started_at)
         self.assertIsNotNone(run.completed_at)
         self.assertEqual(run.rows_processed, 1)
@@ -297,7 +327,7 @@ class RunTrackingTests(TestCase):
     def test_execute_stream_failure_updates_run(self, mock_s3_discovery):
         """Test that Run instance is updated on failure."""
         from core.models import Run
-        
+
         # Mock S3 file discovery to raise an error
         mock_discovery = Mock()
         mock_discovery.list_files.side_effect = ValueError("S3 connection failed")
@@ -311,7 +341,7 @@ class RunTrackingTests(TestCase):
         # Check that a Run instance was created and marked as failed
         run = Run.objects.filter(stream=self.stream).first()
         self.assertIsNotNone(run)
-        self.assertEqual(run.status, 'failed')
+        self.assertEqual(run.status, "failed")
         self.assertIsNotNone(run.error_message)
         self.assertIn("S3 connection failed", run.error_message)
 
@@ -319,31 +349,39 @@ class RunTrackingTests(TestCase):
     def test_no_duplicate_packages_on_rerun(self, mock_s3_discovery):
         """Test that re-running a stream doesn't create duplicate DataPackages."""
         from core.models import DataPackage
-        
+
         # Mock S3 file discovery
         mock_discovery = Mock()
         mock_discovery.list_files.return_value = [
-            {"key": "data/file1.parquet", "size": 1024, "last_modified": "2024-01-01T00:00:00"},
-            {"key": "data/file2.parquet", "size": 2048, "last_modified": "2024-01-01T00:00:00"},
+            {
+                "key": "data/file1.parquet",
+                "size": 1024,
+                "last_modified": "2024-01-01T00:00:00",
+            },
+            {
+                "key": "data/file2.parquet",
+                "size": 2048,
+                "last_modified": "2024-01-01T00:00:00",
+            },
         ]
         mock_s3_discovery.return_value = mock_discovery
 
         # First execution
         out = StringIO()
         call_command("execute_stream", self.stream.id, stdout=out)
-        
+
         # Check packages created
         packages = DataPackage.objects.filter(stream=self.stream)
         self.assertEqual(packages.count(), 2)
-        
+
         # Second execution (should skip existing packages)
         out = StringIO()
         call_command("execute_stream", self.stream.id, stdout=out)
-        
+
         # Check that no duplicate packages were created
         packages = DataPackage.objects.filter(stream=self.stream)
         self.assertEqual(packages.count(), 2)  # Still 2, not 4
-        
+
         # Check the output mentions skipped packages
         output = out.getvalue()
         self.assertIn("skipped 2 existing", output)
@@ -354,7 +392,7 @@ class APIStreamExecutionTests(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(username="testuser", password="testpass")
-        
+
         # Create API data source
         self.api_data_source = DataSource.objects.create(
             user=self.user,
@@ -364,7 +402,7 @@ class APIStreamExecutionTests(TestCase):
             auth_type="bearer",
             bearer_token="test-token-123",
         )
-        
+
         # Create S3 storage backend
         self.storage_backend = StorageBackend.objects.create(
             user=self.user,
@@ -376,7 +414,7 @@ class APIStreamExecutionTests(TestCase):
             access_key_id="test-key",
             secret_access_key="test-secret",
         )
-        
+
         # Create topic and revision
         self.topic = Topic.objects.create(
             user=self.user,
@@ -386,7 +424,7 @@ class APIStreamExecutionTests(TestCase):
         self.topic_revision = TopicRevision.objects.create(
             topic=self.topic, revision_number=1, schema=[]
         )
-        
+
         # Create API stream
         self.api_stream = Stream.objects.create(
             user=self.user,
@@ -407,7 +445,7 @@ class APIStreamExecutionTests(TestCase):
         """Test successful API stream execution."""
         from core.tasks import execute_stream_task
         from core.models import Run, DataPackage
-        
+
         # Mock API response
         mock_response = Mock()
         mock_response.status_code = 200
@@ -420,80 +458,80 @@ class APIStreamExecutionTests(TestCase):
         }
         mock_response.raise_for_status = Mock()
         mock_request.return_value = mock_response
-        
+
         # Mock S3 client
         mock_s3 = Mock()
         mock_boto_client.return_value = mock_s3
-        
+
         # Create Run instance
         run = Run.objects.create(
             user=self.user,
             stream=self.api_stream,
             name="Test Run",
-            status='queued',
+            status="queued",
         )
-        
+
         # Execute the task
         result = execute_stream_task(self.api_stream.id, run.id)
-        
+
         # Verify results
-        self.assertEqual(result['status'], 'success')
-        self.assertEqual(result['packages_created'], 1)
-        self.assertEqual(result['records_fetched'], 3)
-        
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["packages_created"], 1)
+        self.assertEqual(result["records_fetched"], 3)
+
         # Verify Run was updated
         run.refresh_from_db()
-        self.assertEqual(run.status, 'success')
+        self.assertEqual(run.status, "success")
         self.assertEqual(run.rows_processed, 3)
         self.assertIsNotNone(run.completed_at)
-        
+
         # Verify DataPackage was created
         package = DataPackage.objects.filter(stream=self.api_stream).first()
         self.assertIsNotNone(package)
-        self.assertEqual(package.status, 'materialized')
+        self.assertEqual(package.status, "materialized")
         self.assertEqual(package.destination, self.storage_backend)
         self.assertEqual(package.row_count_estimate, 3)
-        
+
         # Verify S3 upload was called
         mock_s3.put_object.assert_called_once()
         call_args = mock_s3.put_object.call_args
-        self.assertEqual(call_args[1]['Bucket'], 'test-storage-bucket')
-        self.assertIn('api_data/', call_args[1]['Key'])
+        self.assertEqual(call_args[1]["Bucket"], "test-storage-bucket")
+        self.assertIn("api_data/", call_args[1]["Key"])
 
     @patch("core.api_utils.requests.Session.request")
     def test_execute_api_stream_with_pagination(self, mock_request):
         """Test API stream execution with multiple pages."""
         from core.api_utils import APIClient
-        
+
         # Create factory function to properly capture values
         def make_response(start, end):
             response = Mock(status_code=200)
             response.json = lambda: {"data": [{"id": i} for i in range(start, end)]}
             response.raise_for_status = Mock()
             return response
-        
+
         # Mock two pages of responses
         responses = [
             make_response(1, 101),
             make_response(101, 151),
         ]
-        
+
         mock_request.side_effect = responses
-        
+
         # Create API client and fetch data
         client = APIClient(
             base_url="https://api.example.com",
             auth_type="bearer",
             bearer_token="test-token",
         )
-        
+
         records = client.fetch_paginated_data(
             method="GET",
             path="/api/data",
             pagination={"type": "page_number", "page_size": 100},
             records_selector="data",
         )
-        
+
         # Should have fetched 150 records across 2 pages
         self.assertEqual(len(records), 150)
 
@@ -501,35 +539,35 @@ class APIStreamExecutionTests(TestCase):
         """Test that API stream execution fails without S3 storage backend."""
         from core.tasks import execute_stream_task
         from core.models import Run
-        
+
         # Delete the storage backend
         self.storage_backend.delete()
-        
+
         # Create Run instance
         run = Run.objects.create(
             user=self.user,
             stream=self.api_stream,
             name="Test Run",
-            status='queued',
+            status="queued",
         )
-        
+
         # Execute should fail
         with self.assertRaises(ValueError) as context:
             execute_stream_task(self.api_stream.id, run.id)
-        
+
         self.assertIn("No S3 storage backend configured", str(context.exception))
-        
+
         # Verify Run was marked as failed
         run.refresh_from_db()
-        self.assertEqual(run.status, 'failed')
+        self.assertEqual(run.status, "failed")
         self.assertIn("No S3 storage backend", run.error_message)
 
     def test_api_client_extract_records_with_selector(self):
         """Test extracting records using records selector."""
         from core.api_utils import APIClient
-        
+
         client = APIClient(base_url="https://api.example.com")
-        
+
         # Test with nested selector
         data = {
             "response": {
@@ -539,17 +577,17 @@ class APIStreamExecutionTests(TestCase):
                 ]
             }
         }
-        
+
         records = client.extract_records(data, "response.items")
         self.assertEqual(len(records), 2)
-        self.assertEqual(records[0]['id'], 1)
+        self.assertEqual(records[0]["id"], 1)
 
     def test_api_client_extract_records_without_selector(self):
         """Test extracting records without selector (auto-detect)."""
         from core.api_utils import APIClient
-        
+
         client = APIClient(base_url="https://api.example.com")
-        
+
         # Test auto-detection of 'data' key
         data = {
             "data": [
@@ -557,7 +595,6 @@ class APIStreamExecutionTests(TestCase):
                 {"id": 2, "name": "Item 2"},
             ]
         }
-        
+
         records = client.extract_records(data)
         self.assertEqual(len(records), 2)
-

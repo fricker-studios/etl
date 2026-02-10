@@ -215,7 +215,9 @@ class StreamViewSet(viewsets.ModelViewSet):
         # Check supported data source types
         if stream.data_source.type not in ["s3", "api"]:
             return Response(
-                {"error": f"Data source type '{stream.data_source.type}' is not supported for execution. Supported types: s3, api"},
+                {
+                    "error": f"Data source type '{stream.data_source.type}' is not supported for execution. Supported types: s3, api"
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -232,17 +234,19 @@ class StreamViewSet(viewsets.ModelViewSet):
                     {"error": "API stream must have method and path configured"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            
+
             # Check if S3 storage backend is configured
             from core.models import StorageBackend
+
             storage_backend = StorageBackend.objects.filter(
-                user=request.user,
-                kind='s3'
+                user=request.user, kind="s3"
             ).first()
-            
+
             if not storage_backend:
                 return Response(
-                    {"error": "No S3 storage backend configured. Please configure an S3 storage backend in Settings before executing API streams."},
+                    {
+                        "error": "No S3 storage backend configured. Please configure an S3 storage backend in Settings before executing API streams."
+                    },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -252,7 +256,7 @@ class StreamViewSet(viewsets.ModelViewSet):
                 user=request.user,
                 stream=stream,
                 name=f"{stream.name} - {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                status='queued',
+                status="queued",
             )
 
             # Dispatch Celery task
@@ -363,12 +367,12 @@ class DataPackageViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = DataPackage.objects.filter(user=self.request.user)
-        
+
         # Filter by topic_revision if provided
-        topic_revision = self.request.query_params.get('topic_revision', None)
+        topic_revision = self.request.query_params.get("topic_revision", None)
         if topic_revision:
             queryset = queryset.filter(topic_revision=topic_revision)
-        
+
         return queryset
 
     def perform_create(self, serializer):

@@ -175,7 +175,11 @@ export function StreamDrawer({
         pageSize?: number;
       }
     | { type: "cursor"; cursorParam: string; cursorPathInResponse: string }
-    | { type: "cursor_url"; cursorParam: string; cursorUrlPathInResponse: string }
+    | {
+        type: "cursor_url";
+        cursorParam: string;
+        cursorUrlPathInResponse: string;
+      }
   >({
     type: "page",
     pageParam: "page",
@@ -192,7 +196,9 @@ export function StreamDrawer({
   const [s3Files, setS3Files] = useState<any[]>([]);
   const [s3PreviewLoading, setS3PreviewLoading] = useState(false);
   const [testApiLoading, setTestApiLoading] = useState(false);
-  const [topicSchemaForCreation, setTopicSchemaForCreation] = useState<any[] | null>(null);
+  const [topicSchemaForCreation, setTopicSchemaForCreation] = useState<
+    any[] | null
+  >(null);
   const [topicNameForCreation, setTopicNameForCreation] = useState<string>("");
 
   const s3FilesTotalSize = useMemo(() => {
@@ -224,27 +230,30 @@ export function StreamDrawer({
   const createTopicFromStream = () => {
     if (!inferred || inferred.kind !== "object") {
       notifications.show({
-        message: "Please test the API or provide valid preview JSON with object data",
+        message:
+          "Please test the API or provide valid preview JSON with object data",
         color: "orange",
       });
       return;
     }
 
     // Convert inferred schema to SchemaColumn format
-    const schemaColumns = Object.entries(inferred.fields).map(([name, type], idx) => {
-      let dataType = "string";
-      if (type.kind === "number") dataType = "float";
-      else if (type.kind === "boolean") dataType = "boolean";
-      else if (type.kind === "array") dataType = "array";
-      else if (type.kind === "object") dataType = "json";
+    const schemaColumns = Object.entries(inferred.fields).map(
+      ([name, type], idx) => {
+        let dataType = "string";
+        if (type.kind === "number") dataType = "float";
+        else if (type.kind === "boolean") dataType = "boolean";
+        else if (type.kind === "array") dataType = "array";
+        else if (type.kind === "object") dataType = "json";
 
-      return {
-        name,
-        position: idx,
-        data_type: dataType,
-        nullable: true,
-      };
-    });
+        return {
+          name,
+          position: idx,
+          data_type: dataType,
+          nullable: true,
+        };
+      },
+    );
 
     setTopicSchemaForCreation(schemaColumns);
     setTopicNameForCreation(form.name ? `${form.name} Topic` : "");
@@ -261,14 +270,19 @@ export function StreamDrawer({
 
   const inferred = useMemo(() => {
     if (!parsedPreview.ok) return null;
-    
+
     // If preview data has our special structure, use the records for schema inference
     const jsonData = parsedPreview.json as any;
-    if (jsonData && typeof jsonData === "object" && "records" in jsonData && "_preview_info" in jsonData) {
+    if (
+      jsonData &&
+      typeof jsonData === "object" &&
+      "records" in jsonData &&
+      "_preview_info" in jsonData
+    ) {
       // Use the extracted records for schema inference
       return inferSchemaFromJson(jsonData.records);
     }
-    
+
     // Otherwise infer from the full JSON
     return inferSchemaFromJson(parsedPreview.json);
   }, [parsedPreview]);
@@ -335,7 +349,9 @@ export function StreamDrawer({
 
     try {
       // First, get decrypted credentials from backend
-      const decryptedSource: any = await api.dataSources.decrypt(form.dataSourceId);
+      const decryptedSource: any = await api.dataSources.decrypt(
+        form.dataSourceId,
+      );
 
       // Helper function to extract value from nested path
       const extractByPath = (obj: any, path: string): any => {
@@ -354,7 +370,8 @@ export function StreamDrawer({
 
       // Helper function to make API call
       const makeApiCall = async (pageParam?: any): Promise<any> => {
-        const baseUrl = decryptedSource.base_url || selectedSource.base_url || "";
+        const baseUrl =
+          decryptedSource.base_url || selectedSource.base_url || "";
         const path = form.path.startsWith("/") ? form.path : `/${form.path}`;
         let url = `${baseUrl}${path}`;
 
@@ -372,7 +389,10 @@ export function StreamDrawer({
             params.set(pagination.pageParam, String(pageParam));
           } else if (pagination.type === "cursor" && pagination.cursorParam) {
             params.set(pagination.cursorParam, String(pageParam));
-          } else if (pagination.type === "cursor_url" && pagination.cursorParam) {
+          } else if (
+            pagination.type === "cursor_url" &&
+            pagination.cursorParam
+          ) {
             // For cursor_url, pageParam IS the full URL
             if (typeof pageParam === "string" && pageParam.startsWith("http")) {
               url = pageParam;
@@ -390,15 +410,30 @@ export function StreamDrawer({
         const requestHeaders: Record<string, string> = {
           "Content-Type": "application/json",
         };
-        
+
         // Add auth headers using DECRYPTED values
-        if (decryptedSource.auth_type === "bearer" && decryptedSource.bearer_token) {
-          requestHeaders["Authorization"] = `Bearer ${decryptedSource.bearer_token}`;
-        } else if (decryptedSource.auth_type === "basic" && decryptedSource.basic_user && decryptedSource.basic_pass) {
-          const credentials = btoa(`${decryptedSource.basic_user}:${decryptedSource.basic_pass}`);
+        if (
+          decryptedSource.auth_type === "bearer" &&
+          decryptedSource.bearer_token
+        ) {
+          requestHeaders["Authorization"] =
+            `Bearer ${decryptedSource.bearer_token}`;
+        } else if (
+          decryptedSource.auth_type === "basic" &&
+          decryptedSource.basic_user &&
+          decryptedSource.basic_pass
+        ) {
+          const credentials = btoa(
+            `${decryptedSource.basic_user}:${decryptedSource.basic_pass}`,
+          );
           requestHeaders["Authorization"] = `Basic ${credentials}`;
-        } else if (decryptedSource.auth_type === "header" && decryptedSource.header_name && decryptedSource.header_value) {
-          requestHeaders[decryptedSource.header_name] = decryptedSource.header_value;
+        } else if (
+          decryptedSource.auth_type === "header" &&
+          decryptedSource.header_name &&
+          decryptedSource.header_value
+        ) {
+          requestHeaders[decryptedSource.header_name] =
+            decryptedSource.header_value;
         }
 
         // Add custom headers
@@ -419,7 +454,7 @@ export function StreamDrawer({
         }
 
         const response = await fetch(url, options);
-        
+
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
@@ -428,11 +463,12 @@ export function StreamDrawer({
       };
 
       // Make initial API call
-      let currentPage = pagination.type === "page" ? pagination.pageStart : undefined;
+      let currentPage =
+        pagination.type === "page" ? pagination.pageStart : undefined;
       const firstPageData = await makeApiCall(currentPage);
-      
+
       // Extract records using records selector
-      const records = recordsSelector 
+      const records = recordsSelector
         ? extractByPath(firstPageData, recordsSelector)
         : firstPageData;
 
@@ -450,14 +486,26 @@ export function StreamDrawer({
           paginationInfo.hasMore = records.length >= pagination.pageSize;
           paginationInfo.nextPage = (currentPage || pagination.pageStart) + 1;
         }
-      } else if (pagination.type === "cursor" && pagination.cursorPathInResponse) {
-        const nextCursor = extractByPath(firstPageData, pagination.cursorPathInResponse);
+      } else if (
+        pagination.type === "cursor" &&
+        pagination.cursorPathInResponse
+      ) {
+        const nextCursor = extractByPath(
+          firstPageData,
+          pagination.cursorPathInResponse,
+        );
         if (nextCursor) {
           paginationInfo.hasMore = true;
           paginationInfo.nextCursor = nextCursor;
         }
-      } else if (pagination.type === "cursor_url" && pagination.cursorUrlPathInResponse) {
-        const nextUrl = extractByPath(firstPageData, pagination.cursorUrlPathInResponse);
+      } else if (
+        pagination.type === "cursor_url" &&
+        pagination.cursorUrlPathInResponse
+      ) {
+        const nextUrl = extractByPath(
+          firstPageData,
+          pagination.cursorUrlPathInResponse,
+        );
         if (nextUrl) {
           paginationInfo.hasMore = true;
           paginationInfo.nextUrl = nextUrl;
@@ -1108,23 +1156,26 @@ export function StreamDrawer({
                   }
                 />
 
-                {inferred && inferred.kind === "object" && Object.keys(inferred.fields).length > 0 && (
-                  <Card withBorder mt="md" p="sm">
-                    <Group justify="space-between">
-                      <Text size="sm" fw={500}>
-                        Schema inferred from preview data ({Object.keys(inferred.fields).length} fields)
-                      </Text>
-                      <Button
-                        size="sm"
-                        variant="light"
-                        color="green"
-                        onClick={createTopicFromStream}
-                      >
-                        Create Topic from Schema
-                      </Button>
-                    </Group>
-                  </Card>
-                )}
+                {inferred &&
+                  inferred.kind === "object" &&
+                  Object.keys(inferred.fields).length > 0 && (
+                    <Card withBorder mt="md" p="sm">
+                      <Group justify="space-between">
+                        <Text size="sm" fw={500}>
+                          Schema inferred from preview data (
+                          {Object.keys(inferred.fields).length} fields)
+                        </Text>
+                        <Button
+                          size="sm"
+                          variant="light"
+                          color="green"
+                          onClick={createTopicFromStream}
+                        >
+                          Create Topic from Schema
+                        </Button>
+                      </Group>
+                    </Card>
+                  )}
               </Tabs.Panel>
             )}
 

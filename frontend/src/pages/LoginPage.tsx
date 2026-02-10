@@ -36,7 +36,7 @@ export function LoginPage() {
           const data = await response.json();
           const isDemoMode = data.demo_mode || false;
           setDemoMode(isDemoMode);
-          
+
           // Auto-login in demo mode
           if (isDemoMode) {
             setLoading(true);

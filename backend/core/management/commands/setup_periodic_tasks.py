@@ -21,31 +21,37 @@ class Command(BaseCommand):
             every=5,
             period=IntervalSchedule.MINUTES,
         )
-        
+
         if created:
-            self.stdout.write(self.style.SUCCESS("  Created interval schedule: 5 minutes"))
+            self.stdout.write(
+                self.style.SUCCESS("  Created interval schedule: 5 minutes")
+            )
         else:
             self.stdout.write("  Using existing interval schedule: 5 minutes")
 
         # Create or update the periodic task
         task, created = PeriodicTask.objects.get_or_create(
-            name='Execute Scheduled Streams',
+            name="Execute Scheduled Streams",
             defaults={
-                'interval': schedule,
-                'task': 'core.execute_scheduled_streams',
-                'enabled': True,
-            }
+                "interval": schedule,
+                "task": "core.execute_scheduled_streams",
+                "enabled": True,
+            },
         )
-        
+
         if not created:
             # Update existing task
             task.interval = schedule
-            task.task = 'core.execute_scheduled_streams'
+            task.task = "core.execute_scheduled_streams"
             task.enabled = True
             task.save()
-            self.stdout.write(self.style.SUCCESS("  Updated periodic task: Execute Scheduled Streams"))
+            self.stdout.write(
+                self.style.SUCCESS("  Updated periodic task: Execute Scheduled Streams")
+            )
         else:
-            self.stdout.write(self.style.SUCCESS("  Created periodic task: Execute Scheduled Streams"))
+            self.stdout.write(
+                self.style.SUCCESS("  Created periodic task: Execute Scheduled Streams")
+            )
 
         self.stdout.write(self.style.SUCCESS("\nPeriodic tasks set up successfully!"))
         self.stdout.write("Scheduled streams will be checked every 5 minutes.")

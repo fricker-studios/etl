@@ -10,12 +10,6 @@ import { PageHeader } from "../components/common/PageHeader";
 export function SettingsPage() {
   const [open, { open: openIt, close }] = useDisclosure(false);
   const resetAll = useAppStore((s) => s.resetAll);
-  const storageBackends = useAppStore((s) => s.storageBackends);
-
-  console.log("[SettingsPage] Rendering with storage backends:", {
-    count: storageBackends.length,
-    backends: storageBackends,
-  });
 
   return (
     <Stack>

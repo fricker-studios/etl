@@ -77,7 +77,11 @@ export function KeyValueEditor({
         </Table.Tbody>
       </Table>
       <Group>
-        <Button leftSection={<IconPlus size={16} />} onClick={addPair} size="sm">
+        <Button
+          leftSection={<IconPlus size={16} />}
+          onClick={addPair}
+          size="sm"
+        >
           Add Row
         </Button>
       </Group>

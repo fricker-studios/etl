@@ -1,6 +1,7 @@
 """
 Test settings for running tests without Docker.
 """
+
 from .settings import *
 
 # Override database to use SQLite for testing

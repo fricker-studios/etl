@@ -27,7 +27,9 @@ class StorageBackend(models.Model):
     region = models.CharField(max_length=100, blank=True, null=True)
     bucket = models.CharField(max_length=255, blank=True, null=True)
     access_key_id = models.CharField(max_length=255, blank=True, null=True)
-    secret_access_key = models.CharField(max_length=1000, blank=True, null=True)  # Encrypted
+    secret_access_key = models.CharField(
+        max_length=1000, blank=True, null=True
+    )  # Encrypted
     path_style = models.BooleanField(default=False)
     tls_verify = models.BooleanField(default=True)
 
@@ -55,11 +57,11 @@ class StorageBackend(models.Model):
         # Encrypt S3 credentials
         if self.secret_access_key and not self._is_encrypted(self.secret_access_key):
             self.secret_access_key = encrypt_value(self.secret_access_key)
-        
+
         # Encrypt ClickHouse credentials
         if self.password and not self._is_encrypted(self.password):
             self.password = encrypt_value(self.password)
-        
+
         super().save(*args, **kwargs)
 
     def _is_encrypted(self, value):
@@ -310,7 +312,7 @@ class Stream(models.Model):
     def save(self, *args, **kwargs):
         """Override save to handle scheduling with Celery Beat."""
         super().save(*args, **kwargs)
-        
+
         # Schedule management will be done via django-celery-beat
         # Periodic tasks can be configured in Django admin or programmatically
         # For now, we'll let scheduled streams be picked up by the periodic task

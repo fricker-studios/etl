@@ -41,22 +41,11 @@ export function AppShellLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
-  const { fetchAll, loading, storageBackends } = useAppStore();
+  const { fetchAll } = useAppStore();
 
   useEffect(() => {
-    console.log("[AppShellLayout] Component mounted, fetching all data...");
-    fetchAll().then(() => {
-      console.log("[AppShellLayout] Data fetch completed");
-    });
+    fetchAll();
   }, [fetchAll]);
-
-  useEffect(() => {
-    console.log("[AppShellLayout] Storage backends changed:", {
-      count: storageBackends.length,
-      backends: storageBackends,
-      loading,
-    });
-  }, [storageBackends, loading]);
 
   const handleLogout = () => {
     logout();

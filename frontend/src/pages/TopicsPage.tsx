@@ -33,12 +33,21 @@ export function TopicsPage() {
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [drawerOpen, { open: openDrawer, close: closeDrawer }] =
     useDisclosure(false);
-  const [revisionDrawerOpen, { open: openRevisionDrawer, close: closeRevisionDrawer }] =
-    useDisclosure(false);
-  const [selectedTopicForRevision, setSelectedTopicForRevision] = useState<Topic | null>(null);
-  const [revisionPackages, setRevisionPackages] = useState<Record<string, DataPackage[]>>({});
-  const [revisionPackagesPage, setRevisionPackagesPage] = useState<Record<string, number>>({});
-  const [loadingPackages, setLoadingPackages] = useState<Record<string, boolean>>({});
+  const [
+    revisionDrawerOpen,
+    { open: openRevisionDrawer, close: closeRevisionDrawer },
+  ] = useDisclosure(false);
+  const [selectedTopicForRevision, setSelectedTopicForRevision] =
+    useState<Topic | null>(null);
+  const [revisionPackages, setRevisionPackages] = useState<
+    Record<string, DataPackage[]>
+  >({});
+  const [revisionPackagesPage, setRevisionPackagesPage] = useState<
+    Record<string, number>
+  >({});
+  const [loadingPackages, setLoadingPackages] = useState<
+    Record<string, boolean>
+  >({});
 
   const packagesPerPage = 10;
 
@@ -47,7 +56,10 @@ export function TopicsPage() {
     openRevisionDrawer();
   };
 
-  const loadPackagesForRevision = async (revisionId: string, page: number = 1) => {
+  const loadPackagesForRevision = async (
+    revisionId: string,
+    page: number = 1,
+  ) => {
     setLoadingPackages((prev) => ({ ...prev, [revisionId]: true }));
     try {
       const response = await api.packages.list({ topic_revision: revisionId });
@@ -78,7 +90,9 @@ export function TopicsPage() {
       title: "Delete Topic",
       children: (
         <Text size="sm">
-          Are you sure you want to delete <strong>{topic.name}</strong>? This will delete all revisions and associated data packages. This action cannot be undone.
+          Are you sure you want to delete <strong>{topic.name}</strong>? This
+          will delete all revisions and associated data packages. This action
+          cannot be undone.
         </Text>
       ),
       labels: { confirm: "Delete", cancel: "Cancel" },
@@ -94,7 +108,9 @@ export function TopicsPage() {
       title: "Delete Topic Revision",
       children: (
         <Text size="sm">
-          Are you sure you want to delete <strong>Revision {revisionNumber}</strong>? This will delete all data packages associated with this revision. This action cannot be undone.
+          Are you sure you want to delete{" "}
+          <strong>Revision {revisionNumber}</strong>? This will delete all data
+          packages associated with this revision. This action cannot be undone.
         </Text>
       ),
       labels: { confirm: "Delete", cancel: "Cancel" },
@@ -195,13 +211,21 @@ export function TopicsPage() {
                       <Accordion variant="contained">
                         {topic.revisions.map((revision) => {
                           const revisionId = String(revision.id);
-                          const currentPage = revisionPackagesPage[revisionId] || 1;
-                          const packages = getPackagesForRevision(revisionId, currentPage);
-                          const totalPages = getTotalPagesForRevision(revisionId);
+                          const currentPage =
+                            revisionPackagesPage[revisionId] || 1;
+                          const packages = getPackagesForRevision(
+                            revisionId,
+                            currentPage,
+                          );
+                          const totalPages =
+                            getTotalPagesForRevision(revisionId);
                           const isLoading = loadingPackages[revisionId];
 
                           return (
-                            <Accordion.Item key={revision.id} value={revisionId}>
+                            <Accordion.Item
+                              key={revision.id}
+                              value={revisionId}
+                            >
                               <Accordion.Control
                                 onClick={() => {
                                   if (!revisionPackages[revisionId]) {
@@ -224,7 +248,10 @@ export function TopicsPage() {
                                         size="sm"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          handleDeleteRevision(revisionId, revision.revision_number);
+                                          handleDeleteRevision(
+                                            revisionId,
+                                            revision.revision_number,
+                                          );
                                         }}
                                       >
                                         <IconTrash size={14} />
@@ -241,54 +268,65 @@ export function TopicsPage() {
                                     </Text>
                                   )}
 
-                                  {revision.schema && revision.schema.length > 0 && (
-                                    <div>
-                                      <Text size="sm" fw={500} mb="xs">
-                                        Schema:
-                                      </Text>
-                                      <Table highlightOnHover>
-                                        <Table.Thead>
-                                          <Table.Tr>
-                                            <Table.Th>Position</Table.Th>
-                                            <Table.Th>Column Name</Table.Th>
-                                            <Table.Th>Data Type</Table.Th>
-                                            <Table.Th>Nullable</Table.Th>
-                                          </Table.Tr>
-                                        </Table.Thead>
-                                        <Table.Tbody>
-                                          {revision.schema
-                                            .sort(
-                                              (a: any, b: any) =>
-                                                a.position - b.position
-                                            )
-                                            .map((col: any) => (
-                                              <Table.Tr key={col.position}>
-                                                <Table.Td>{col.position}</Table.Td>
-                                                <Table.Td>
-                                                  <Text fw={500}>{col.name}</Text>
-                                                </Table.Td>
-                                                <Table.Td>
-                                                  <Badge size="sm" variant="light">
-                                                    {col.data_type}
-                                                  </Badge>
-                                                </Table.Td>
-                                                <Table.Td>
-                                                  {col.nullable ? (
-                                                    <Text c="dimmed" size="sm">
-                                                      Yes
+                                  {revision.schema &&
+                                    revision.schema.length > 0 && (
+                                      <div>
+                                        <Text size="sm" fw={500} mb="xs">
+                                          Schema:
+                                        </Text>
+                                        <Table highlightOnHover>
+                                          <Table.Thead>
+                                            <Table.Tr>
+                                              <Table.Th>Position</Table.Th>
+                                              <Table.Th>Column Name</Table.Th>
+                                              <Table.Th>Data Type</Table.Th>
+                                              <Table.Th>Nullable</Table.Th>
+                                            </Table.Tr>
+                                          </Table.Thead>
+                                          <Table.Tbody>
+                                            {revision.schema
+                                              .sort(
+                                                (a: any, b: any) =>
+                                                  a.position - b.position,
+                                              )
+                                              .map((col: any) => (
+                                                <Table.Tr key={col.position}>
+                                                  <Table.Td>
+                                                    {col.position}
+                                                  </Table.Td>
+                                                  <Table.Td>
+                                                    <Text fw={500}>
+                                                      {col.name}
                                                     </Text>
-                                                  ) : (
-                                                    <Text fw={500} size="sm">
-                                                      No
-                                                    </Text>
-                                                  )}
-                                                </Table.Td>
-                                              </Table.Tr>
-                                            ))}
-                                        </Table.Tbody>
-                                      </Table>
-                                    </div>
-                                  )}
+                                                  </Table.Td>
+                                                  <Table.Td>
+                                                    <Badge
+                                                      size="sm"
+                                                      variant="light"
+                                                    >
+                                                      {col.data_type}
+                                                    </Badge>
+                                                  </Table.Td>
+                                                  <Table.Td>
+                                                    {col.nullable ? (
+                                                      <Text
+                                                        c="dimmed"
+                                                        size="sm"
+                                                      >
+                                                        Yes
+                                                      </Text>
+                                                    ) : (
+                                                      <Text fw={500} size="sm">
+                                                        No
+                                                      </Text>
+                                                    )}
+                                                  </Table.Td>
+                                                </Table.Tr>
+                                              ))}
+                                          </Table.Tbody>
+                                        </Table>
+                                      </div>
+                                    )}
 
                                   {/* Packages for this revision */}
                                   <div>
@@ -314,17 +352,21 @@ export function TopicsPage() {
                                             {packages.map((pkg) => (
                                               <Table.Tr key={pkg.id}>
                                                 <Table.Td>
-                                                  <Text size="sm">{pkg.name}</Text>
+                                                  <Text size="sm">
+                                                    {pkg.name}
+                                                  </Text>
                                                 </Table.Td>
                                                 <Table.Td>
                                                   <Badge
                                                     size="sm"
                                                     color={
-                                                      pkg.status === "materialized"
+                                                      pkg.status ===
+                                                      "materialized"
                                                         ? "green"
-                                                        : pkg.status === "failed"
-                                                        ? "red"
-                                                        : "blue"
+                                                        : pkg.status ===
+                                                            "failed"
+                                                          ? "red"
+                                                          : "blue"
                                                     }
                                                   >
                                                     {pkg.status}
@@ -339,7 +381,9 @@ export function TopicsPage() {
                                                 </Table.Td>
                                                 <Table.Td>
                                                   <Text size="sm" c="dimmed">
-                                                    {new Date(pkg.created_at).toLocaleDateString()}
+                                                    {new Date(
+                                                      pkg.created_at,
+                                                    ).toLocaleDateString()}
                                                   </Text>
                                                 </Table.Td>
                                               </Table.Tr>
@@ -352,10 +396,12 @@ export function TopicsPage() {
                                               total={totalPages}
                                               value={currentPage}
                                               onChange={(page) => {
-                                                setRevisionPackagesPage((prev) => ({
-                                                  ...prev,
-                                                  [revisionId]: page,
-                                                }));
+                                                setRevisionPackagesPage(
+                                                  (prev) => ({
+                                                    ...prev,
+                                                    [revisionId]: page,
+                                                  }),
+                                                );
                                               }}
                                               size="sm"
                                             />
@@ -371,7 +417,9 @@ export function TopicsPage() {
 
                                   <Text size="xs" c="dimmed">
                                     Created:{" "}
-                                    {new Date(revision.created_at).toLocaleString()}
+                                    {new Date(
+                                      revision.created_at,
+                                    ).toLocaleString()}
                                   </Text>
                                 </Stack>
                               </Accordion.Panel>

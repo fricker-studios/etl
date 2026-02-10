@@ -56,45 +56,53 @@ class Command(BaseCommand):
             if run_id:
                 try:
                     run = Run.objects.get(id=run_id)
-                    run.status = 'running'
+                    run.status = "running"
                     run.started_at = timezone.now()
                     run.save()
                 except Run.DoesNotExist:
-                    self.stdout.write(self.style.WARNING(f"Run with id {run_id} not found, creating new one"))
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Run with id {run_id} not found, creating new one"
+                        )
+                    )
                     run = None
-            
+
             if not run:
                 run = Run.objects.create(
                     user=stream.user,
                     stream=stream,
                     name=f"{stream.name} - {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                    status='running',
-                    started_at=timezone.now()
+                    status="running",
+                    started_at=timezone.now(),
                 )
-            
+
             self.stdout.write(f"  Run ID: {run.id}")
 
         # Execute based on source type
         try:
             if stream.data_source.type == "s3":
                 packages_created = self._execute_s3_stream(stream, dry_run)
-            
+
             # Update run with success
             if run:
-                run.status = 'success'
+                run.status = "success"
                 run.completed_at = timezone.now()
-                run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+                run.duration_seconds = int(
+                    (run.completed_at - run.started_at).total_seconds()
+                )
                 run.rows_processed = packages_created
                 run.save()
                 self.stdout.write(self.style.SUCCESS(f"  Run completed successfully"))
-        
+
         except Exception as e:
             # Update run with failure
             if run:
-                run.status = 'failed'
+                run.status = "failed"
                 run.error_message = str(e)
                 run.completed_at = timezone.now()
-                run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+                run.duration_seconds = int(
+                    (run.completed_at - run.started_at).total_seconds()
+                )
                 run.save()
             raise
 
@@ -152,7 +160,7 @@ class Command(BaseCommand):
                     continue
 
                 # Use the original file name (without path) as the package name
-                package_name = file['key'].split('/')[-1]
+                package_name = file["key"].split("/")[-1]
 
                 # Get the current revision of the topic
                 current_revision = stream.topic.current_revision
@@ -183,7 +191,7 @@ class Command(BaseCommand):
                     f"  Created {created_count} data package(s), skipped {skipped_count} existing"
                 )
             )
-            
+
             return created_count
 
         except ValueError as e:

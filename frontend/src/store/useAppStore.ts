@@ -73,7 +73,11 @@ export type Pagination =
       pageSize?: number;
     }
   | { type: "cursor"; cursorParam: string; cursorPathInResponse: string }
-  | { type: "cursor_url"; cursorParam: string; cursorUrlPathInResponse: string };
+  | {
+      type: "cursor_url";
+      cursorParam: string;
+      cursorUrlPathInResponse: string;
+    };
 
 export type Stream = {
   id: string;
@@ -243,10 +247,8 @@ export const useAppStore = create<AppState>((set) => ({
   loading: false,
 
   fetchAll: async () => {
-    console.log("[useAppStore] fetchAll: Starting data fetch...");
     set({ loading: true });
     try {
-      console.log("[useAppStore] fetchAll: Calling API endpoints...");
       const [
         storageBackends,
         dataSources,
@@ -264,16 +266,6 @@ export const useAppStore = create<AppState>((set) => ({
         api.models.list() as Promise<Model[]>,
         api.runs.list() as Promise<Run[]>,
       ]);
-      console.log("[useAppStore] fetchAll: API responses received:", {
-        storageBackends: storageBackends.length,
-        dataSources: dataSources.length,
-        streams: streams.length,
-        topics: topics.length,
-        packages: packages.length,
-        models: models.length,
-        runs: runs.length,
-      });
-      console.log("[useAppStore] fetchAll: Storage backends data:", storageBackends);
       set({
         storageBackends,
         dataSources,
@@ -283,12 +275,10 @@ export const useAppStore = create<AppState>((set) => ({
         models,
         runs,
       });
-      console.log("[useAppStore] fetchAll: State updated successfully");
     } catch (error) {
-      console.error("[useAppStore] fetchAll: Failed to fetch data:", error);
+      console.error("Failed to fetch data:", error);
     } finally {
       set({ loading: false });
-      console.log("[useAppStore] fetchAll: Loading complete");
     }
   },
 
@@ -392,7 +382,7 @@ export const useAppStore = create<AppState>((set) => ({
 
       set((st) => ({
         topics: st.topics.map((t) =>
-          t.id === revision.topic ? updatedTopic : t
+          t.id === revision.topic ? updatedTopic : t,
         ),
       }));
     } catch (error) {

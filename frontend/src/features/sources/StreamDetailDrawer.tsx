@@ -38,8 +38,13 @@ export function StreamDetailDrawer({
   );
   const topic = topics.find((t) => String(t.id) === String(stream?.topic));
 
-  const renderField = (label: string, value?: string | number | boolean, alwaysShow = true) => {
-    if (!alwaysShow && (value === undefined || value === null || value === "")) return null;
+  const renderField = (
+    label: string,
+    value?: string | number | boolean,
+    alwaysShow = true,
+  ) => {
+    if (!alwaysShow && (value === undefined || value === null || value === ""))
+      return null;
 
     return (
       <Table.Tr>
@@ -53,7 +58,12 @@ export function StreamDetailDrawer({
     );
   };
 
-  const renderBadgeField = (label: string, value?: string, color?: string, alwaysShow = true) => {
+  const renderBadgeField = (
+    label: string,
+    value?: string,
+    color?: string,
+    alwaysShow = true,
+  ) => {
     if (!alwaysShow && !value) return null;
 
     return (
@@ -65,7 +75,9 @@ export function StreamDetailDrawer({
               {value}
             </Badge>
           ) : (
-            <Text size="sm" c="dimmed">—</Text>
+            <Text size="sm" c="dimmed">
+              —
+            </Text>
           )}
         </Table.Td>
       </Table.Tr>
@@ -137,14 +149,19 @@ export function StreamDetailDrawer({
         </Card>
 
         {/* Source-Specific Configuration */}
-        {(dataSource?.type === "api" || stream.method || stream.path) ? (
+        {dataSource?.type === "api" || stream.method || stream.path ? (
           <Card withBorder>
             <Text fw={500} mb="sm">
               API Configuration
             </Text>
             <Table>
               <Table.Tbody>
-                {renderBadgeField("Method", stream.method?.toUpperCase(), undefined, false)}
+                {renderBadgeField(
+                  "Method",
+                  stream.method?.toUpperCase(),
+                  undefined,
+                  false,
+                )}
                 {renderField("Path", stream.path, false)}
                 {stream.query_params && stream.query_params.length > 0 ? (
                   <Table.Tr>
@@ -197,7 +214,7 @@ export function StreamDetailDrawer({
           </Card>
         ) : null}
 
-        {(dataSource?.type === "database" || stream.table_name) ? (
+        {dataSource?.type === "database" || stream.table_name ? (
           <Card withBorder>
             <Text fw={500} mb="sm">
               Database Configuration
@@ -209,17 +226,21 @@ export function StreamDetailDrawer({
                   "Ingestion Strategy",
                   stream.ingestion_strategy?.replace("_", " ").toUpperCase(),
                   undefined,
-                  false
+                  false,
                 )}
                 {stream.ingestion_strategy === "incremental"
-                  ? renderField("Incremental Key", stream.incremental_key, false)
+                  ? renderField(
+                      "Incremental Key",
+                      stream.incremental_key,
+                      false,
+                    )
                   : null}
               </Table.Tbody>
             </Table>
           </Card>
         ) : null}
 
-        {(dataSource?.type === "s3" || stream.s3_path_pattern) ? (
+        {dataSource?.type === "s3" || stream.s3_path_pattern ? (
           <Card withBorder>
             <Text fw={500} mb="sm">
               S3 Configuration
@@ -236,7 +257,7 @@ export function StreamDetailDrawer({
           </Card>
         ) : null}
 
-        {(dataSource?.type === "sftp" || stream.sftp_path_pattern) ? (
+        {dataSource?.type === "sftp" || stream.sftp_path_pattern ? (
           <Card withBorder>
             <Text fw={500} mb="sm">
               SFTP Configuration

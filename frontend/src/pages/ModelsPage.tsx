@@ -1,10 +1,4 @@
-import {
-  Stack,
-  Card,
-  Table,
-  Badge,
-  Text,
-} from "@mantine/core";
+import { Stack, Card, Table, Badge, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { IconPlus } from "@tabler/icons-react";
 import { ModelWizard } from "../features/models/ModelWizard";
