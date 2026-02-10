@@ -42,7 +42,62 @@ class StorageBackendViewSet(viewsets.ModelViewSet):
         return StorageBackend.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        logger.info(f"Creating storage backend with data: {serializer.validated_data}")
+        instance = serializer.save(user=self.request.user)
+        logger.info(
+            f"Created storage backend: {instance.name} (ID: {instance.id}), "
+            f"access_key_id: {'SET' if instance.access_key_id else 'NULL'}, "
+            f"secret_access_key: {'SET' if instance.secret_access_key else 'NULL'}"
+        )
+
+    @action(detail=True, methods=["get"], throttle_classes=[DecryptRateThrottle])
+    def decrypt(self, request, pk=None):
+        """Get decrypted sensitive fields for a storage backend
+
+        This endpoint returns sensitive credentials in plaintext.
+        Rate limited to 10 requests per minute per user.
+        All requests are logged for audit purposes.
+        """
+        storage_backend = self.get_object()
+
+        # Audit log
+        logger.warning(
+            f"User {request.user.username} (ID: {request.user.id}) "
+            f"requested decrypted credentials for storage backend '{storage_backend.name}' (ID: {storage_backend.id})"
+        )
+
+        decrypted_data = {
+            "id": storage_backend.id,
+            "name": storage_backend.name,
+            "kind": storage_backend.kind,
+        }
+
+        # Add decrypted S3 credentials
+        if storage_backend.kind == "s3":
+            decrypted_data["endpoint"] = storage_backend.endpoint
+            decrypted_data["region"] = storage_backend.region
+            decrypted_data["bucket"] = storage_backend.bucket
+            decrypted_data["access_key_id"] = storage_backend.access_key_id
+            decrypted_data["path_style"] = storage_backend.path_style
+            decrypted_data["tls_verify"] = storage_backend.tls_verify
+
+            if storage_backend.secret_access_key:
+                decrypted_data["secret_access_key"] = (
+                    storage_backend.get_decrypted_secret_access_key()
+                )
+
+        # Add decrypted ClickHouse credentials
+        elif storage_backend.kind == "clickhouse":
+            decrypted_data["mode"] = storage_backend.mode
+            decrypted_data["hosts"] = storage_backend.hosts
+            decrypted_data["database"] = storage_backend.database
+            decrypted_data["username"] = storage_backend.username
+            decrypted_data["secure"] = storage_backend.secure
+
+            if storage_backend.password:
+                decrypted_data["password"] = storage_backend.get_decrypted_password()
+
+        return Response(decrypted_data)
 
 
 class DataSourceViewSet(viewsets.ModelViewSet):
@@ -144,19 +199,35 @@ class StreamViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+    def perform_update(self, serializer):
+        """Allow updating streams while maintaining user ownership."""
+        serializer.save(user=self.request.user)
+
     @action(detail=True, methods=["post"])
     def execute(self, request, pk=None):
         """
         Execute a stream immediately (discover files and create data packages).
+        Uses Celery for asynchronous execution.
+        Supports S3 and API streams.
         """
-        import subprocess
+        from core.tasks import execute_stream_task
+        from django.utils import timezone
 
         stream = self.get_object()
 
-        # Only S3 supported for now
-        if not stream.data_source or stream.data_source.type != "s3":
+        # Check that stream has a data source
+        if not stream.data_source:
             return Response(
-                {"error": "Only S3 streams are supported for execution"},
+                {"error": "Stream must have a data source configured"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Check supported data source types
+        if stream.data_source.type not in ["s3", "api"]:
+            return Response(
+                {
+                    "error": f"Data source type '{stream.data_source.type}' is not supported for execution. Supported types: s3, api"
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -166,46 +237,54 @@ class StreamViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Additional validation for API streams
+        if stream.data_source.type == "api":
+            if not stream.method or not stream.path:
+                return Response(
+                    {"error": "API stream must have method and path configured"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Check if S3 storage backend is configured
+            from core.models import StorageBackend
+
+            storage_backend = StorageBackend.objects.filter(
+                user=request.user, kind="s3"
+            ).first()
+
+            if not storage_backend:
+                return Response(
+                    {
+                        "error": "No S3 storage backend configured. Please configure an S3 storage backend in Settings before executing API streams."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         try:
-            # Execute the management command
-            result = subprocess.run(
-                ["python", "manage.py", "execute_stream", str(stream.id)],
-                capture_output=True,
-                text=True,
-                check=True,
+            # Create a Run instance to track this execution
+            run = Run.objects.create(
+                user=request.user,
+                stream=stream,
+                name=f"{stream.name} - {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                status="queued",
             )
 
-            # Parse output for results
-            output_lines = result.stdout.split("\n")
-            created_count = 0
-            for line in output_lines:
-                if "Created" in line and "data package" in line:
-                    # Extract number from "Created X data package(s)"
-                    import re
-
-                    match = re.search(r"Created (\d+)", line)
-                    if match:
-                        created_count = int(match.group(1))
+            # Dispatch Celery task
+            task = execute_stream_task.delay(stream.id, run.id)
 
             return Response(
                 {
-                    "status": "success",
-                    "message": f"Stream executed successfully",
-                    "packages_created": created_count,
-                    "output": result.stdout,
+                    "status": "queued",
+                    "message": f"Stream execution queued",
+                    "run_id": run.id,
+                    "task_id": task.id,
                 }
             )
 
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Error executing stream {stream.id}: {e.stderr}")
-            return Response(
-                {"error": "Stream execution failed", "details": e.stderr},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
         except Exception as e:
-            logger.error(f"Unexpected error executing stream: {e}")
+            logger.error(f"Error queueing stream execution {stream.id}: {e}")
             return Response(
-                {"error": "Internal server error"},
+                {"error": "Failed to queue stream execution"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -298,12 +377,12 @@ class DataPackageViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = DataPackage.objects.filter(user=self.request.user)
-        
+
         # Filter by topic_revision if provided
-        topic_revision = self.request.query_params.get('topic_revision', None)
+        topic_revision = self.request.query_params.get("topic_revision", None)
         if topic_revision:
             queryset = queryset.filter(topic_revision=topic_revision)
-        
+
         return queryset
 
     def perform_create(self, serializer):

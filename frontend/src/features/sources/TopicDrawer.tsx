@@ -44,7 +44,7 @@ export function TopicDrawer({
   const [schemaColumns, setSchemaColumns] = useState<SchemaColumn[]>(
     initialSchema && initialSchema.length > 0
       ? initialSchema
-      : [{ name: "", position: 0, data_type: "string", nullable: true }]
+      : [{ name: "", position: 0, data_type: "string", nullable: true }],
   );
 
   const [schemaJson, setSchemaJson] = useState<string>("");

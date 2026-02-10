@@ -45,8 +45,7 @@ export function useUpdateModel() {
   const queryClient = useQueryClient();
 
   return useMutation<Model, Error, { id: string; data: any }>({
-    mutationFn: ({ id, data }) =>
-      api.models.update(id, data) as Promise<Model>,
+    mutationFn: ({ id, data }) => api.models.update(id, data) as Promise<Model>,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       notifications.show({

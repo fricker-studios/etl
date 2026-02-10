@@ -22,6 +22,7 @@ export function StreamsPage() {
   const [detailOpen, { open: openDetail, close: closeDetail }] =
     useDisclosure(false);
   const [selectedStream, setSelectedStream] = useState<Stream | null>(null);
+  const [editingStream, setEditingStream] = useState<Stream | null>(null);
 
   const { data: streams = [], isLoading } = useStreams();
   const { data: dataSources = [] } = useDataSources();
@@ -33,6 +34,16 @@ export function StreamsPage() {
   const handleStreamClick = (stream: Stream) => {
     setSelectedStream(stream);
     openDetail();
+  };
+
+  const handleEditStream = (stream: Stream) => {
+    setEditingStream(stream);
+    openIt();
+  };
+
+  const handleCloseDrawer = () => {
+    close();
+    setEditingStream(null);
   };
 
   const handleExecuteStream = async (
@@ -127,11 +138,16 @@ export function StreamsPage() {
         </Table>
       </Card>
 
-      <StreamDrawer opened={open} onClose={close} />
+      <StreamDrawer
+        opened={open}
+        onClose={handleCloseDrawer}
+        stream={editingStream}
+      />
       <StreamDetailDrawer
         opened={detailOpen}
         onClose={closeDetail}
         stream={selectedStream}
+        onEdit={handleEditStream}
       />
     </Stack>
   );

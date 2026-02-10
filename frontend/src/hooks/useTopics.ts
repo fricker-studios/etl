@@ -24,11 +24,7 @@ export function useTopic(id: string | null) {
 export function useCreateTopic() {
   const queryClient = useQueryClient();
 
-  return useMutation<
-    string,
-    Error,
-    { topic: any; schema: any[] }
-  >({
+  return useMutation<string, Error, { topic: any; schema: any[] }>({
     mutationFn: async ({ topic, schema }) => {
       const createdTopic = (await api.topics.create(topic)) as Topic;
       const revisionData = {
@@ -61,8 +57,7 @@ export function useUpdateTopic() {
   const queryClient = useQueryClient();
 
   return useMutation<Topic, Error, { id: string; data: any }>({
-    mutationFn: ({ id, data }) =>
-      api.topics.update(id, data) as Promise<Topic>,
+    mutationFn: ({ id, data }) => api.topics.update(id, data) as Promise<Topic>,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: TOPICS_QUERY_KEY });
       notifications.show({

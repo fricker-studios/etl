@@ -44,7 +44,7 @@ export function TopicRevisionDrawer({
   useEffect(() => {
     if (topic && topic.current_revision && topic.current_revision.schema) {
       setSchemaColumns(
-        topic.current_revision.schema.map((col) => ({ ...col }))
+        topic.current_revision.schema.map((col) => ({ ...col })),
       );
     } else {
       setSchemaColumns([
@@ -83,12 +83,12 @@ export function TopicRevisionDrawer({
   const updateColumn = (
     position: number,
     field: keyof SchemaColumn,
-    value: any
+    value: any,
   ) => {
     setSchemaColumns(
       schemaColumns.map((col) =>
-        col.position === position ? { ...col, [field]: value } : col
-      )
+        col.position === position ? { ...col, [field]: value } : col,
+      ),
     );
   };
 
@@ -98,7 +98,7 @@ export function TopicRevisionDrawer({
     try {
       // Validate schema - at least one column with a name
       const validColumns = schemaColumns.filter(
-        (col) => col.name.trim().length > 0
+        (col) => col.name.trim().length > 0,
       );
       if (validColumns.length === 0) {
         throw new Error("At least one schema column is required");
@@ -107,7 +107,7 @@ export function TopicRevisionDrawer({
       // Create new revision
       const maxRevisionNumber = Math.max(
         0,
-        ...(topic.revisions?.map((r) => r.revision_number) || [])
+        ...(topic.revisions?.map((r) => r.revision_number) || []),
       );
       const nextRevisionNumber = maxRevisionNumber + 1;
       const revisionData = {
@@ -225,7 +225,7 @@ export function TopicRevisionDrawer({
                         updateColumn(
                           col.position,
                           "nullable",
-                          e.currentTarget.checked
+                          e.currentTarget.checked,
                         )
                       }
                       size="sm"

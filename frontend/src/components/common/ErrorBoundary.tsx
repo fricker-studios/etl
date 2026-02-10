@@ -50,7 +50,9 @@ export class ErrorBoundary extends Component<Props, State> {
               variant="filled"
             >
               <Stack gap="sm">
-                <div>An unexpected error occurred. Please try refreshing the page.</div>
+                <div>
+                  An unexpected error occurred. Please try refreshing the page.
+                </div>
                 {this.state.error && (
                   <div style={{ fontSize: "0.875rem", opacity: 0.8 }}>
                     {this.state.error.message}

@@ -73,7 +73,12 @@ export type Pagination =
       pageSize?: number;
     }
   | { type: "cursor"; cursorParam: string; cursorPathInResponse: string }
-  | { type: "cursor_url"; cursorParam: string; cursorUrlPathInResponse: string };
+  | {
+      type: "cursor_url";
+      cursorParam: string;
+      cursorUrlPathInResponse: string;
+      useFullUrl?: boolean;
+    };
 
 export type Stream = {
   id: string;
@@ -378,7 +383,7 @@ export const useAppStore = create<AppState>((set) => ({
 
       set((st) => ({
         topics: st.topics.map((t) =>
-          t.id === revision.topic ? updatedTopic : t
+          t.id === revision.topic ? updatedTopic : t,
         ),
       }));
     } catch (error) {

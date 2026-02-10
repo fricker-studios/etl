@@ -11,6 +11,7 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
 import {
   IconPlug,
   IconStack2,
@@ -23,6 +24,7 @@ import {
   IconUser,
 } from "@tabler/icons-react";
 import { useAuthStore } from "../store/useAuthStore";
+import { useAppStore } from "../store/useAppStore";
 
 const items = [
   { label: "Dashboard", path: "/", icon: IconBolt },
@@ -39,6 +41,11 @@ export function AppShellLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+  const { fetchAll } = useAppStore();
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
 
   const handleLogout = () => {
     logout();

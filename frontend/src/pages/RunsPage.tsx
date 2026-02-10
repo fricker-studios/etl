@@ -74,7 +74,9 @@ export function RunsPage() {
                   </Table.Td>
                   <Table.Td>{formatDate(r.started_at)}</Table.Td>
                   <Table.Td>{formatDuration(r.duration_seconds)}</Table.Td>
-                  <Table.Td>{r.rows_processed?.toLocaleString() || "—"}</Table.Td>
+                  <Table.Td>
+                    {r.rows_processed?.toLocaleString() || "—"}
+                  </Table.Td>
                 </Table.Tr>
               ))
             )}
