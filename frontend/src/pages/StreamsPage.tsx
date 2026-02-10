@@ -138,7 +138,11 @@ export function StreamsPage() {
         </Table>
       </Card>
 
-      <StreamDrawer opened={open} onClose={handleCloseDrawer} stream={editingStream} />
+      <StreamDrawer
+        opened={open}
+        onClose={handleCloseDrawer}
+        stream={editingStream}
+      />
       <StreamDetailDrawer
         opened={detailOpen}
         onClose={closeDetail}

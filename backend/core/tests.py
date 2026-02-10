@@ -539,35 +539,38 @@ class APIStreamExecutionTests(TestCase):
     def test_execute_api_stream_with_cursor_pagination(self, mock_request):
         """Test API stream execution with cursor-based pagination."""
         from core.api_utils import APIClient
-        
+
         # Mock responses with cursor pagination
         def make_cursor_response(page_num, has_next):
             response = Mock(status_code=200)
             data = {
-                "results": [{"id": i} for i in range((page_num-1)*100 + 1, page_num*100 + 1)],
+                "results": [
+                    {"id": i}
+                    for i in range((page_num - 1) * 100 + 1, page_num * 100 + 1)
+                ],
             }
             if has_next:
                 data["next_url"] = f"cursor-{page_num+1}"
             response.json = lambda d=data: d
             response.raise_for_status = Mock()
             return response
-        
+
         # Mock 3 pages of responses
         responses = [
             make_cursor_response(1, True),
             make_cursor_response(2, True),
             make_cursor_response(3, False),
         ]
-        
+
         mock_request.side_effect = responses
-        
+
         # Create API client and fetch data
         client = APIClient(
             base_url="https://api.example.com",
             auth_type="bearer",
             bearer_token="test-token",
         )
-        
+
         records = client.fetch_paginated_data(
             method="GET",
             path="/api/data",
@@ -575,11 +578,11 @@ class APIStreamExecutionTests(TestCase):
                 "type": "cursor_url",
                 "cursorParam": "cursor",
                 "cursorUrlPathInResponse": "next_url",
-                "page_size": 100
+                "page_size": 100,
             },
             records_selector="results",
         )
-        
+
         # Should have fetched 300 records across 3 pages
         self.assertEqual(len(records), 300)
 
@@ -587,34 +590,38 @@ class APIStreamExecutionTests(TestCase):
     def test_execute_api_stream_with_cursor_full_url_pagination(self, mock_request):
         """Test API stream execution with cursor-based full URL pagination."""
         from core.api_utils import APIClient
-        
+
         # Mock responses with full URL cursor pagination
         def make_full_url_response(page_num, has_next):
             response = Mock(status_code=200)
             data = {
-                "results": [{"id": i} for i in range((page_num-1)*50 + 1, page_num*50 + 1)],
+                "results": [
+                    {"id": i} for i in range((page_num - 1) * 50 + 1, page_num * 50 + 1)
+                ],
             }
             if has_next:
-                data["next_url"] = f"https://api.example.com/api/data?page={page_num+1}&limit=50"
+                data["next_url"] = (
+                    f"https://api.example.com/api/data?page={page_num+1}&limit=50"
+                )
             response.json = lambda d=data: d
             response.raise_for_status = Mock()
             return response
-        
+
         # Mock 2 pages of responses
         responses = [
             make_full_url_response(1, True),
             make_full_url_response(2, False),
         ]
-        
+
         mock_request.side_effect = responses
-        
+
         # Create API client and fetch data
         client = APIClient(
             base_url="https://api.example.com",
             auth_type="bearer",
             bearer_token="test-token",
         )
-        
+
         records = client.fetch_paginated_data(
             method="GET",
             path="/api/data",
@@ -622,11 +629,11 @@ class APIStreamExecutionTests(TestCase):
                 "type": "cursor_url",
                 "cursorUrlPathInResponse": "next_url",
                 "useFullUrl": True,
-                "page_size": 50
+                "page_size": 50,
             },
             records_selector="results",
         )
-        
+
         # Should have fetched 100 records across 2 pages
         self.assertEqual(len(records), 100)
 

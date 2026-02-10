@@ -195,10 +195,16 @@ class APIClient:
         page_param = pagination.get("page_param", "page")
         page_size_param = pagination.get("page_size_param", "limit")
         page_size = pagination.get("page_size", 100)
-        next_url_path = pagination.get("next_url_path") or pagination.get("cursorUrlPathInResponse")  # For URL-based pagination
-        cursor_param = pagination.get("cursorParam", "cursor")  # For cursor-based pagination
+        next_url_path = pagination.get("next_url_path") or pagination.get(
+            "cursorUrlPathInResponse"
+        )  # For URL-based pagination
+        cursor_param = pagination.get(
+            "cursorParam", "cursor"
+        )  # For cursor-based pagination
         cursor_value = None  # Track cursor value for cursor-based pagination
-        use_full_url = pagination.get("useFullUrl", False)  # Whether to use full URL from response
+        use_full_url = pagination.get(
+            "useFullUrl", False
+        )  # Whether to use full URL from response
 
         logger.info(f"Starting paginated fetch: {method} {path}")
         logger.info(f"Pagination type: {pagination_type}, max_pages: {max_pages}")
@@ -303,7 +309,7 @@ class APIClient:
                     if not next_value:
                         logger.info("No next URL/cursor found, stopping pagination")
                         break
-                    
+
                     if pagination_type == "cursor_url":
                         # For cursor pagination, store the value (either cursor or full URL)
                         cursor_value = next_value
@@ -328,7 +334,9 @@ class APIClient:
                     break
                 elif pagination_type not in ["cursor_url", "url"]:
                     # Unknown pagination type
-                    logger.warning(f"Unknown pagination type: {pagination_type}, stopping")
+                    logger.warning(
+                        f"Unknown pagination type: {pagination_type}, stopping"
+                    )
                     break
 
                 page_num += 1

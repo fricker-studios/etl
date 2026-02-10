@@ -112,7 +112,6 @@ export function StreamDrawer({
   onClose: () => void;
   stream?: Stream | null;
 }) {
-  const { upsertStream, setStreamPreview } = useAppStore();
   const { data: dataSources = [] } = useDataSources();
   const { data: topics = [] } = useTopics();
   const createStream = useCreateStream();
@@ -229,7 +228,6 @@ export function StreamDrawer({
   // Initialize form when editing a stream
   useEffect(() => {
     if (stream && opened) {
-      const source = dataSources.find((s) => String(s.id) === String(stream.data_source));
       setForm({
         dataSourceId: String(stream.data_source),
         topicId: String(stream.topic || defaultTopic),
@@ -248,7 +246,7 @@ export function StreamDrawer({
         schedule_cron: stream.schedule_cron || "0 0 * * *",
         schedule_interval_minutes: stream.schedule_interval_minutes || 60,
       });
-      
+
       if (stream.query_params) {
         setQueryParams(stream.query_params);
       }
@@ -659,7 +657,7 @@ export function StreamDrawer({
             onSuccess: () => {
               onClose();
             },
-          }
+          },
         );
       } else {
         createStream.mutate(streamData, {
