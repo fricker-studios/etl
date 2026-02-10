@@ -143,12 +143,17 @@ class StorageBackendViewSet(viewsets.ModelViewSet):
             # Create S3 client directly with path_style support
             import boto3
 
+            # Determine region - Ceph RGW often uses empty string or 'default'
+            # Use the exact region from storage backend, don't default to us-east-1
+            region = storage_backend.region if storage_backend.region else None
+            logger.info(f"Using region: {region} (original: {storage_backend.region})")
+
             s3_client = boto3.client(
                 "s3",
                 endpoint_url=(
                     storage_backend.endpoint if storage_backend.endpoint else None
                 ),
-                region_name=storage_backend.region or "us-east-1",
+                region_name=region,
                 aws_access_key_id=storage_backend.access_key_id,
                 aws_secret_access_key=storage_backend.secret_access_key,
                 config=config,
@@ -546,11 +551,16 @@ class DataPackageViewSet(viewsets.ModelViewSet):
             
             logger.info(f"S3 Client Config for download: {config_params}")
 
+            # Determine region - Ceph RGW often uses empty string or 'default'
+            # Use the exact region from storage backend, don't default to us-east-1
+            region = storage.region if storage.region else None
+            logger.info(f"Using region: {region} (original: {storage.region})")
+
             # Create S3 client
             s3_client = boto3.client(
                 "s3",
                 endpoint_url=storage.endpoint if storage.endpoint else None,
-                region_name=storage.region or "us-east-1",
+                region_name=region,
                 aws_access_key_id=storage.access_key_id,
                 aws_secret_access_key=storage.secret_access_key,
                 config=config,
