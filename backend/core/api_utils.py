@@ -198,6 +198,7 @@ class APIClient:
         next_url_path = pagination.get("next_url_path") or pagination.get("cursorUrlPathInResponse")  # For URL-based pagination
         cursor_param = pagination.get("cursorParam", "cursor")  # For cursor-based pagination
         cursor_value = None  # Track cursor value for cursor-based pagination
+        use_full_url = pagination.get("useFullUrl", False)  # Whether to use full URL from response
 
         logger.info(f"Starting paginated fetch: {method} {path}")
         logger.info(f"Pagination type: {pagination_type}, max_pages: {max_pages}")
@@ -223,17 +224,26 @@ class APIClient:
                     )
                 elif pagination_type == "cursor_url":
                     # For cursor-based pagination, add page size and cursor (if we have one)
-                    current_query_params.append(
-                        {"key": page_size_param, "value": str(page_size)}
-                    )
-                    if cursor_value:
+                    if not use_full_url or not cursor_value:
+                        # Add page size parameter if not using full URL or on first page
+                        current_query_params.append(
+                            {"key": page_size_param, "value": str(page_size)}
+                        )
+                    if cursor_value and not use_full_url:
+                        # Add cursor as query parameter if not using full URL
                         current_query_params.append(
                             {"key": cursor_param, "value": cursor_value}
                         )
 
                 # Build URL and headers
-                url = self._build_url(path, current_query_params)
-                request_headers = self._build_headers(headers)
+                if use_full_url and cursor_value and pagination_type == "cursor_url":
+                    # Use the full URL from the previous response
+                    url = cursor_value
+                    request_headers = self._build_headers(headers)
+                else:
+                    # Build URL normally with query params
+                    url = self._build_url(path, current_query_params)
+                    request_headers = self._build_headers(headers)
 
                 logger.info(f"Fetching page {page_num}: {url}")
 
@@ -295,9 +305,15 @@ class APIClient:
                         break
                     
                     if pagination_type == "cursor_url":
-                        # For cursor pagination, extract the cursor value
-                        cursor_value = next_value
-                        logger.info(f"Next cursor: {cursor_value}")
+                        # For cursor pagination, extract the cursor value or full URL
+                        if use_full_url:
+                            # Use the full URL for the next request
+                            cursor_value = next_value
+                            logger.info(f"Next URL: {cursor_value}")
+                        else:
+                            # Extract just the cursor value
+                            cursor_value = next_value
+                            logger.info(f"Next cursor: {cursor_value}")
                     else:
                         # For URL pagination, use the full next URL
                         path = next_value

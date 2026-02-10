@@ -199,6 +199,10 @@ class StreamViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+    def perform_update(self, serializer):
+        """Allow updating streams while maintaining user ownership."""
+        serializer.save(user=self.request.user)
+
     @action(detail=True, methods=["post"])
     def execute(self, request, pk=None):
         """
