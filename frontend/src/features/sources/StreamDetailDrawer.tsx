@@ -11,7 +11,7 @@ import {
   Modal,
 } from "@mantine/core";
 import { useState } from "react";
-import { IconTrash } from "@tabler/icons-react";
+import { IconTrash, IconEdit } from "@tabler/icons-react";
 import type { Stream } from "../../store/useAppStore";
 import { useDataSources } from "../../hooks/useDataSources";
 import { useTopics } from "../../hooks/useTopics";
@@ -21,12 +21,14 @@ interface StreamDetailDrawerProps {
   opened: boolean;
   onClose: () => void;
   stream: Stream | null;
+  onEdit?: (stream: Stream) => void;
 }
 
 export function StreamDetailDrawer({
   opened,
   onClose,
   stream,
+  onEdit,
 }: StreamDetailDrawerProps) {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const { data: dataSources = [] } = useDataSources();
@@ -117,6 +119,28 @@ export function StreamDetailDrawer({
               </Badge>
             )}
           </div>
+          <Group>
+            {onEdit && (
+              <Button
+                variant="light"
+                leftSection={<IconEdit size={16} />}
+                onClick={() => {
+                  onEdit(stream);
+                  onClose();
+                }}
+              >
+                Edit
+              </Button>
+            )}
+            <Button
+              color="red"
+              variant="light"
+              leftSection={<IconTrash size={16} />}
+              onClick={() => setDeleteModalOpen(true)}
+            >
+              Delete
+            </Button>
+          </Group>
         </Group>
 
         <Divider />
@@ -287,15 +311,6 @@ export function StreamDetailDrawer({
         ) : null}
 
         <Divider />
-
-        <Button
-          leftSection={<IconTrash size={16} />}
-          color="red"
-          variant="light"
-          onClick={() => setDeleteModalOpen(true)}
-        >
-          Delete Stream
-        </Button>
       </Stack>
 
       <Modal

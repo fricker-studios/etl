@@ -29,6 +29,8 @@ import { api } from "../../utils/api";
 import { z } from "zod";
 import { useDataSources } from "../../hooks/useDataSources";
 import { useTopics } from "../../hooks/useTopics";
+import { useCreateStream, useUpdateStream } from "../../hooks/useStreams";
+import type { Stream } from "../../store/useAppStore";
 
 type KV = { key: string; value: string };
 
@@ -104,13 +106,17 @@ function kvRowEditor(rows: KV[], setRows: (rows: KV[]) => void, label: string) {
 export function StreamDrawer({
   opened,
   onClose,
+  stream,
 }: {
   opened: boolean;
   onClose: () => void;
+  stream?: Stream | null;
 }) {
   const { upsertStream, setStreamPreview } = useAppStore();
   const { data: dataSources = [] } = useDataSources();
   const { data: topics = [] } = useTopics();
+  const createStream = useCreateStream();
+  const updateStream = useUpdateStream();
 
   const [topicDrawerOpen, { open: openTopicDrawer, close: closeTopicDrawer }] =
     useDisclosure(false);
@@ -179,6 +185,7 @@ export function StreamDrawer({
         type: "cursor_url";
         cursorParam: string;
         cursorUrlPathInResponse: string;
+        useFullUrl?: boolean;
       }
   >({
     type: "page",
@@ -218,6 +225,47 @@ export function StreamDrawer({
     const source = dataSources.find((s) => String(s.id) === form.dataSourceId);
     setSelectedSource(source || null);
   }, [form.dataSourceId, dataSources]);
+
+  // Initialize form when editing a stream
+  useEffect(() => {
+    if (stream && opened) {
+      const source = dataSources.find((s) => String(s.id) === String(stream.data_source));
+      setForm({
+        dataSourceId: String(stream.data_source),
+        topicId: String(stream.topic || defaultTopic),
+        name: stream.name,
+        method: (stream.method || "GET") as "GET" | "POST",
+        path: stream.path || "/v1/items",
+        table_name: stream.table_name || "",
+        ingestion_strategy: stream.ingestion_strategy || "full_refresh",
+        incremental_key: stream.incremental_key || "",
+        s3_path_pattern: stream.s3_path_pattern || "data/*.parquet",
+        s3_file_format: stream.s3_file_format || "parquet",
+        sftp_path_pattern: stream.sftp_path_pattern || "",
+        sftp_file_format: stream.sftp_file_format || "csv",
+        schedule_enabled: stream.schedule_enabled || false,
+        use_cron: !!stream.schedule_cron,
+        schedule_cron: stream.schedule_cron || "0 0 * * *",
+        schedule_interval_minutes: stream.schedule_interval_minutes || 60,
+      });
+      
+      if (stream.query_params) {
+        setQueryParams(stream.query_params);
+      }
+      if (stream.headers) {
+        setHeaders(stream.headers);
+      }
+      if (stream.body_template) {
+        setBodyTemplate(stream.body_template);
+      }
+      if (stream.pagination) {
+        setPagination(stream.pagination as any);
+      }
+      if (stream.records_selector) {
+        setRecordsSelector(stream.records_selector);
+      }
+    }
+  }, [stream, opened, dataSources, defaultTopic]);
 
   const handleTopicCreated = (topicId: string) => {
     // Update form with newly created topic
@@ -551,7 +599,7 @@ export function StreamDrawer({
       const cleanKV = (rows: KV[]) =>
         rows.filter((r) => r.key.trim().length > 0);
 
-      let stream: any = {
+      let streamData: any = {
         data_source: form.dataSourceId,
         topic: form.topicId,
         name: form.name,
@@ -561,16 +609,16 @@ export function StreamDrawer({
       // Add scheduling config
       if (form.schedule_enabled) {
         if (form.use_cron) {
-          stream.schedule_cron = form.schedule_cron;
+          streamData.schedule_cron = form.schedule_cron;
         } else {
-          stream.schedule_interval_minutes = form.schedule_interval_minutes;
+          streamData.schedule_interval_minutes = form.schedule_interval_minutes;
         }
       }
 
       // Add source-specific fields based on data source type
       if (selectedSource?.type === "api") {
-        stream = {
-          ...stream,
+        streamData = {
+          ...streamData,
           method: form.method,
           path: form.path,
           query_params: cleanKV(queryParams),
@@ -580,8 +628,8 @@ export function StreamDrawer({
           records_selector: recordsSelector || undefined,
         };
       } else if (selectedSource?.type === "database") {
-        stream = {
-          ...stream,
+        streamData = {
+          ...streamData,
           table_name: form.table_name,
           ingestion_strategy: form.ingestion_strategy,
           incremental_key:
@@ -590,40 +638,36 @@ export function StreamDrawer({
               : undefined,
         };
       } else if (selectedSource?.type === "s3") {
-        stream = {
-          ...stream,
+        streamData = {
+          ...streamData,
           s3_path_pattern: form.s3_path_pattern,
           s3_file_format: form.s3_file_format,
         };
       } else if (selectedSource?.type === "sftp") {
-        stream = {
-          ...stream,
+        streamData = {
+          ...streamData,
           sftp_path_pattern: form.sftp_path_pattern,
           sftp_file_format: form.sftp_file_format,
         };
       }
 
-      // save stream first
-      upsertStream(stream);
-
-      // then save preview + inferred schema (if valid) for API sources
-      if (selectedSource?.type === "api" && parsedPreview.ok && inferred) {
-        const created = useAppStore
-          .getState()
-          .streams.slice()
-          .reverse()
-          .find(
-            (s) =>
-              s.name === stream.name &&
-              s.path === stream.path &&
-              s.data_source === stream.data_source,
-          );
-
-        if (created) setStreamPreview(created.id, parsedPreview.json, inferred);
+      // Use create or update based on whether stream exists
+      if (stream?.id) {
+        updateStream.mutate(
+          { id: stream.id, data: streamData },
+          {
+            onSuccess: () => {
+              onClose();
+            },
+          }
+        );
+      } else {
+        createStream.mutate(streamData, {
+          onSuccess: () => {
+            onClose();
+          },
+        });
       }
-
-      notifications.show({ message: "Stream saved", color: "teal" });
-      onClose();
     } catch (e: any) {
       notifications.show({
         message: e?.message ?? "Validation error",
@@ -636,7 +680,7 @@ export function StreamDrawer({
     <Drawer
       opened={opened}
       onClose={onClose}
-      title="Add stream"
+      title={stream ? "Edit stream" : "Add stream"}
       position="right"
       size="xl"
     >
@@ -827,30 +871,43 @@ export function StreamDrawer({
                     )}
 
                     {pagination.type === "cursor_url" && (
-                      <SimpleGrid cols={2}>
-                        <TextInput
-                          label="Cursor param"
-                          value={pagination.cursorParam}
+                      <>
+                        <SimpleGrid cols={2}>
+                          <TextInput
+                            label="Cursor param"
+                            value={pagination.cursorParam}
+                            onChange={(e) =>
+                              setPagination({
+                                ...pagination,
+                                cursorParam: e.target.value,
+                              })
+                            }
+                            description="Query param name (e.g., 'cursor' or 'page_token')"
+                          />
+                          <TextInput
+                            label="Next URL path in response"
+                            value={pagination.cursorUrlPathInResponse}
+                            onChange={(e) =>
+                              setPagination({
+                                ...pagination,
+                                cursorUrlPathInResponse: e.target.value,
+                              })
+                            }
+                            description='JSON path to next URL (e.g., "next_url" or "links.next")'
+                          />
+                        </SimpleGrid>
+                        <Switch
+                          label="Use full URL from response"
+                          description="Use the complete URL instead of extracting cursor as parameter"
+                          checked={pagination.useFullUrl ?? false}
                           onChange={(e) =>
                             setPagination({
                               ...pagination,
-                              cursorParam: e.target.value,
+                              useFullUrl: e.currentTarget.checked,
                             })
                           }
-                          description="Query param name (e.g., 'cursor' or 'page_token')"
                         />
-                        <TextInput
-                          label="Next URL path in response"
-                          value={pagination.cursorUrlPathInResponse}
-                          onChange={(e) =>
-                            setPagination({
-                              ...pagination,
-                              cursorUrlPathInResponse: e.target.value,
-                            })
-                          }
-                          description='JSON path to next URL (e.g., "next_url" or "links.next")'
-                        />
-                      </SimpleGrid>
+                      </>
                     )}
 
                     <Divider label="Response Data" />

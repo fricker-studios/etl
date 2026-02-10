@@ -77,6 +77,7 @@ export type Pagination =
       type: "cursor_url";
       cursorParam: string;
       cursorUrlPathInResponse: string;
+      useFullUrl?: boolean;
     };
 
 export type Stream = {
