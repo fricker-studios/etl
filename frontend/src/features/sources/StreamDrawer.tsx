@@ -19,7 +19,7 @@ import {
 } from "@mantine/core";
 import { useMemo, useState, useEffect } from "react";
 import { useDisclosure } from "@mantine/hooks";
-import { useAppStore, type DataSource } from "../../store/useAppStore";
+import { type DataSource } from "../../store/useAppStore";
 import { notifications } from "@mantine/notifications";
 import { inferSchemaFromJson, schemaToPretty } from "../../utils/schemaInfer";
 import { IconPlus, IconTrash, IconWand } from "@tabler/icons-react";
