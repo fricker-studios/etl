@@ -42,7 +42,13 @@ class StorageBackendViewSet(viewsets.ModelViewSet):
         return StorageBackend.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        logger.info(f"Creating storage backend with data: {serializer.validated_data}")
+        instance = serializer.save(user=self.request.user)
+        logger.info(
+            f"Created storage backend: {instance.name} (ID: {instance.id}), "
+            f"access_key_id: {'SET' if instance.access_key_id else 'NULL'}, "
+            f"secret_access_key: {'SET' if instance.secret_access_key else 'NULL'}"
+        )
 
     @action(detail=True, methods=["get"], throttle_classes=[DecryptRateThrottle])
     def decrypt(self, request, pk=None):

@@ -12,6 +12,24 @@ from .models import (
 
 
 class StorageBackendSerializer(serializers.ModelSerializer):
+    # Allow camelCase field names from frontend
+    accessKeyId = serializers.CharField(
+        source="access_key_id", required=False, allow_blank=True, allow_null=True
+    )
+    secretAccessKey = serializers.CharField(
+        source="secret_access_key",
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        write_only=True,
+    )
+    pathStyle = serializers.BooleanField(
+        source="path_style", required=False, allow_null=True
+    )
+    tlsVerify = serializers.BooleanField(
+        source="tls_verify", required=False, allow_null=True
+    )
+
     class Meta:
         model = StorageBackend
         fields = "__all__"
