@@ -151,7 +151,7 @@ export function TopicDetailPage() {
       }
 
       // Fetch the presigned download URL from the API
-      const response = await api.packages.download(pkg.id);
+      const response: any = await api.packages.download(pkg.id);
       
       if (response.download_url) {
         // Open the presigned URL in a new tab
