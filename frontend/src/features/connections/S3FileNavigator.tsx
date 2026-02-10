@@ -30,7 +30,10 @@ interface S3NavigatorProps {
   bucket: string;
 }
 
-export function S3FileNavigator({ storageBackendId, bucket }: S3NavigatorProps) {
+export function S3FileNavigator({
+  storageBackendId,
+  bucket,
+}: S3NavigatorProps) {
   const [loading, setLoading] = useState(false);
   const [currentPrefix, setCurrentPrefix] = useState("");
   const [folders, setFolders] = useState<S3Item[]>([]);
@@ -44,7 +47,10 @@ export function S3FileNavigator({ storageBackendId, bucket }: S3NavigatorProps) 
   const loadFiles = async (prefix: string) => {
     setLoading(true);
     try {
-      const response: any = await api.storageBackends.browseS3(storageBackendId, prefix);
+      const response: any = await api.storageBackends.browseS3(
+        storageBackendId,
+        prefix,
+      );
       setFolders(response.folders || []);
       setFiles(response.files || []);
     } catch (error) {
@@ -101,10 +107,10 @@ export function S3FileNavigator({ storageBackendId, bucket }: S3NavigatorProps) 
         style={{ cursor: "pointer" }}
       >
         {bucket}
-      </Anchor>
+      </Anchor>,
     ];
 
-    const pathParts = currentPrefix.split("/").filter(p => p);
+    const pathParts = currentPrefix.split("/").filter((p) => p);
     pathParts.forEach((part, index) => {
       items.push(
         <Anchor
@@ -113,7 +119,7 @@ export function S3FileNavigator({ storageBackendId, bucket }: S3NavigatorProps) 
           style={{ cursor: "pointer" }}
         >
           {part}
-        </Anchor>
+        </Anchor>,
       );
     });
 
@@ -124,13 +130,11 @@ export function S3FileNavigator({ storageBackendId, bucket }: S3NavigatorProps) 
     <Card withBorder>
       <Stack gap="md">
         <Group justify="space-between">
-          <Text size="lg" fw={600}>S3 File Navigator</Text>
+          <Text size="lg" fw={600}>
+            S3 File Navigator
+          </Text>
           {pathStack.length > 0 && (
-            <ActionIcon
-              onClick={navigateBack}
-              variant="light"
-              title="Go back"
-            >
+            <ActionIcon onClick={navigateBack} variant="light" title="Go back">
               <IconArrowLeft size={16} />
             </ActionIcon>
           )}
@@ -196,11 +200,15 @@ export function S3FileNavigator({ storageBackendId, bucket }: S3NavigatorProps) 
                         <Badge variant="light">File</Badge>
                       </Table.Td>
                       <Table.Td>
-                        <Text size="sm">{file.size ? formatSize(file.size) : "—"}</Text>
+                        <Text size="sm">
+                          {file.size ? formatSize(file.size) : "—"}
+                        </Text>
                       </Table.Td>
                       <Table.Td>
                         <Text size="sm" c="dimmed">
-                          {file.last_modified ? formatDate(file.last_modified) : "—"}
+                          {file.last_modified
+                            ? formatDate(file.last_modified)
+                            : "—"}
                         </Text>
                       </Table.Td>
                     </Table.Tr>

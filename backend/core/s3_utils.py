@@ -13,15 +13,15 @@ class S3FileDiscovery:
     """Handle S3 file discovery and pattern matching."""
 
     def __init__(
-        self, 
-        endpoint_url: Optional[str], 
-        region: str, 
-        access_key: str, 
+        self,
+        endpoint_url: Optional[str],
+        region: str,
+        access_key: str,
         secret_key: str,
-        use_path_style: bool = False
+        use_path_style: bool = False,
     ):
         """Initialize S3 client with credentials.
-        
+
         Args:
             endpoint_url: S3 endpoint URL (None for AWS S3)
             region: AWS region
@@ -32,15 +32,16 @@ class S3FileDiscovery:
         config = None
         if use_path_style:
             from botocore.config import Config
-            config = Config(s3={'addressing_style': 'path'})
-        
+
+            config = Config(s3={"addressing_style": "path"})
+
         self.s3_client = boto3.client(
             "s3",
             endpoint_url=endpoint_url if endpoint_url else None,
             region_name=region,
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
-            config=config
+            config=config,
         )
 
     def convert_pattern_to_regex(self, pattern: str) -> re.Pattern:

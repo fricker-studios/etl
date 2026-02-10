@@ -102,48 +102,51 @@ class StorageBackendViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get"])
     def browse_s3(self, request, pk=None):
         """Browse S3 files in a storage backend
-        
+
         Query parameters:
         - prefix: Path prefix to list (default: "")
         - delimiter: Delimiter for folder-like structure (default: "/")
         """
         storage_backend = self.get_object()
-        
+
         if storage_backend.kind != "s3":
             return Response(
                 {"error": "This storage backend is not an S3 bucket"},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
-        
+
         prefix = request.query_params.get("prefix", "")
         delimiter = request.query_params.get("delimiter", "/")
-        
+
         try:
             from botocore.config import Config
-            
+
             # Create config for path-style addressing if needed
             config = None
             if storage_backend.path_style:
-                config = Config(s3={'addressing_style': 'path'})
-            
+                config = Config(s3={"addressing_style": "path"})
+
             # Create S3 client directly with path_style support
             import boto3
+
             s3_client = boto3.client(
                 "s3",
-                endpoint_url=storage_backend.endpoint if storage_backend.endpoint else None,
+                endpoint_url=(
+                    storage_backend.endpoint if storage_backend.endpoint else None
+                ),
                 region_name=storage_backend.region or "us-east-1",
                 aws_access_key_id=storage_backend.access_key_id,
                 aws_secret_access_key=storage_backend.secret_access_key,
-                config=config
+                config=config,
             )
-            
+
             response = s3_client.list_objects_v2(
                 Bucket=storage_backend.bucket,
                 Prefix=prefix,
                 Delimiter=delimiter,
-                MaxKeys=1000
+                MaxKeys=1000,
             )
-            
+
             # Extract folders (common prefixes) and files
             folders = []
             if "CommonPrefixes" in response:
@@ -151,11 +154,11 @@ class StorageBackendViewSet(viewsets.ModelViewSet):
                     {
                         "name": prefix["Prefix"].rstrip("/").split("/")[-1],
                         "prefix": prefix["Prefix"],
-                        "type": "folder"
+                        "type": "folder",
                     }
                     for prefix in response["CommonPrefixes"]
                 ]
-            
+
             files = []
             if "Contents" in response:
                 files = [
@@ -164,25 +167,26 @@ class StorageBackendViewSet(viewsets.ModelViewSet):
                         "key": obj["Key"],
                         "size": obj["Size"],
                         "last_modified": obj["LastModified"].isoformat(),
-                        "type": "file"
+                        "type": "file",
                     }
                     for obj in response["Contents"]
                     if obj["Key"] != prefix  # Exclude the prefix itself
                 ]
-            
-            return Response({
-                "bucket": storage_backend.bucket,
-                "prefix": prefix,
-                "folders": folders,
-                "files": files,
-                "is_truncated": response.get("IsTruncated", False)
-            })
-            
+
+            return Response(
+                {
+                    "bucket": storage_backend.bucket,
+                    "prefix": prefix,
+                    "folders": folders,
+                    "files": files,
+                    "is_truncated": response.get("IsTruncated", False),
+                }
+            )
+
         except Exception as e:
             logger.error(f"Error browsing S3: {e}")
             return Response(
-                {"error": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
 
@@ -477,36 +481,36 @@ class DataPackageViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get"])
     def download(self, request, pk=None):
         """Generate a presigned URL for downloading a data package from S3
-        
+
         This endpoint generates a temporary presigned URL that allows downloading
         the package file from S3 without exposing credentials.
         """
         package = self.get_object()
-        
+
         if not package.file_path:
             return Response(
                 {"error": "No file associated with this package"},
-                status=status.HTTP_404_NOT_FOUND
+                status=status.HTTP_404_NOT_FOUND,
             )
-        
+
         if not package.destination or package.destination.kind != "s3":
             return Response(
                 {"error": "Package is not stored in an S3 backend"},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
-        
+
         try:
             import boto3
             from botocore.exceptions import ClientError
             from botocore.config import Config
-            
+
             storage = package.destination
-            
+
             # Create config for path-style addressing if needed
             config = None
             if storage.path_style:
-                config = Config(s3={'addressing_style': 'path'})
-            
+                config = Config(s3={"addressing_style": "path"})
+
             # Create S3 client
             s3_client = boto3.client(
                 "s3",
@@ -514,36 +518,38 @@ class DataPackageViewSet(viewsets.ModelViewSet):
                 region_name=storage.region or "us-east-1",
                 aws_access_key_id=storage.access_key_id,
                 aws_secret_access_key=storage.secret_access_key,
-                config=config
+                config=config,
             )
-            
+
             # Generate presigned URL (valid for 1 hour)
             presigned_url = s3_client.generate_presigned_url(
-                'get_object',
+                "get_object",
                 Params={
-                    'Bucket': storage.bucket,
-                    'Key': package.file_path,
+                    "Bucket": storage.bucket,
+                    "Key": package.file_path,
                 },
-                ExpiresIn=3600  # 1 hour
+                ExpiresIn=3600,  # 1 hour
             )
-            
-            return Response({
-                "download_url": presigned_url,
-                "file_name": package.file_path.split("/")[-1],
-                "expires_in": 3600
-            })
-            
+
+            return Response(
+                {
+                    "download_url": presigned_url,
+                    "file_name": package.file_path.split("/")[-1],
+                    "expires_in": 3600,
+                }
+            )
+
         except ClientError as e:
             logger.error(f"Error generating presigned URL: {e}")
             return Response(
                 {"error": f"Failed to generate download URL: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         except Exception as e:
             logger.error(f"Unexpected error generating download URL: {e}")
             return Response(
                 {"error": f"Failed to generate download URL: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 

@@ -10,7 +10,10 @@ import {
 } from "@mantine/core";
 import { useState } from "react";
 import { S3FileNavigator } from "./S3FileNavigator";
-import { useStorageBackends, useDeleteStorageBackend } from "../../hooks/useStorageBackends";
+import {
+  useStorageBackends,
+  useDeleteStorageBackend,
+} from "../../hooks/useStorageBackends";
 
 export function ConnectionCards() {
   const { data: storageBackends = [], isLoading } = useStorageBackends();
@@ -70,7 +73,8 @@ export function ConnectionCards() {
                     Mode: {b.mode} · Secure: {String(b.secure)}
                   </Text>
                   <Text size="sm">
-                    Hosts: {b.hosts.map((h) => `${h.host}:${h.port}`).join(", ")}
+                    Hosts:{" "}
+                    {b.hosts.map((h) => `${h.host}:${h.port}`).join(", ")}
                   </Text>
                   <Text size="sm">
                     DB:{" "}
@@ -85,7 +89,9 @@ export function ConnectionCards() {
                 {b.kind === "s3" && (
                   <Button
                     variant="light"
-                    onClick={() => setOpenNavigator(openNavigator === b.id ? null : b.id)}
+                    onClick={() =>
+                      setOpenNavigator(openNavigator === b.id ? null : b.id)
+                    }
                   >
                     {openNavigator === b.id ? "Hide Browser" : "Browse Files"}
                   </Button>
@@ -106,13 +112,15 @@ export function ConnectionCards() {
       </SimpleGrid>
 
       {/* S3 File Navigator - shown below cards when a backend is selected */}
-      {storageBackends.filter((b) => b.kind === "s3").map((b) => (
-        <Collapse key={`navigator-${b.id}`} in={openNavigator === b.id}>
-          {openNavigator === b.id && (
-            <S3FileNavigator storageBackendId={b.id} bucket={b.bucket} />
-          )}
-        </Collapse>
-      ))}
+      {storageBackends
+        .filter((b) => b.kind === "s3")
+        .map((b) => (
+          <Collapse key={`navigator-${b.id}`} in={openNavigator === b.id}>
+            {openNavigator === b.id && (
+              <S3FileNavigator storageBackendId={b.id} bucket={b.bucket} />
+            )}
+          </Collapse>
+        ))}
     </Stack>
   );
 }
