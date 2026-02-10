@@ -173,6 +173,7 @@ class APIClient:
         """
         all_records = []
         page_num = 1
+        pages_fetched = 0
         
         # Parse pagination config
         pagination = pagination or {}
@@ -207,7 +208,11 @@ class APIClient:
                 
                 # Make request
                 if method.upper() in ['POST', 'PUT', 'PATCH']:
-                    body = json.loads(body_template) if body_template else {}
+                    try:
+                        body = json.loads(body_template) if body_template else {}
+                    except json.JSONDecodeError as e:
+                        raise ValueError(f"Invalid JSON in body_template: {str(e)}")
+                    
                     response = self.session.request(
                         method=method.upper(),
                         url=url,
@@ -236,6 +241,7 @@ class APIClient:
                     break
                 
                 all_records.extend(records)
+                pages_fetched += 1
                 logger.info(f"Page {page_num}: fetched {len(records)} records (total: {len(all_records)})")
                 
                 # Check if there are more pages
@@ -278,5 +284,5 @@ class APIClient:
                 logger.error(f"Error parsing JSON response: {e}")
                 raise ValueError(f"Invalid JSON response: {str(e)}")
         
-        logger.info(f"Completed fetch: {len(all_records)} total records across {page_num - 1} pages")
+        logger.info(f"Completed fetch: {len(all_records)} total records across {pages_fetched} pages")
         return all_records

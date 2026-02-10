@@ -465,13 +465,18 @@ class APIStreamExecutionTests(TestCase):
         """Test API stream execution with multiple pages."""
         from core.api_utils import APIClient
         
+        # Create factory function to properly capture values
+        def make_response(start, end):
+            response = Mock(status_code=200)
+            response.json = lambda: {"data": [{"id": i} for i in range(start, end)]}
+            response.raise_for_status = Mock()
+            return response
+        
         # Mock two pages of responses
         responses = [
-            Mock(status_code=200, json=lambda: {"data": [{"id": i} for i in range(1, 101)]}),
-            Mock(status_code=200, json=lambda: {"data": [{"id": i} for i in range(101, 151)]}),
+            make_response(1, 101),
+            make_response(101, 151),
         ]
-        for resp in responses:
-            resp.raise_for_status = Mock()
         
         mock_request.side_effect = responses
         
