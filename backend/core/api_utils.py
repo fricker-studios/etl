@@ -313,12 +313,8 @@ class APIClient:
                     # No pagination, stop after first page
                     logger.info("No pagination configured, stopping after first page")
                     break
-                elif pagination_type == "cursor_url":
-                    # For cursor pagination, continue to next page with the cursor
-                    # The cursor was already set in the previous if block
-                    pass
-                else:
-                    # Unknown pagination type or no more pages
+                elif pagination_type not in ["cursor_url", "url"]:
+                    # Unknown pagination type
                     logger.warning(f"Unknown pagination type: {pagination_type}, stopping")
                     break
 
