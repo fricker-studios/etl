@@ -16,6 +16,10 @@ class StorageBackendSerializer(serializers.ModelSerializer):
         model = StorageBackend
         fields = "__all__"
         read_only_fields = ("user", "created_at", "updated_at")
+        extra_kwargs = {
+            'secret_access_key': {'write_only': True},
+            'password': {'write_only': True},
+        }
 
 
 class DataSourceSerializer(serializers.ModelSerializer):

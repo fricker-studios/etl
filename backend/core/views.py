@@ -44,6 +44,55 @@ class StorageBackendViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+    @action(detail=True, methods=["get"], throttle_classes=[DecryptRateThrottle])
+    def decrypt(self, request, pk=None):
+        """Get decrypted sensitive fields for a storage backend
+
+        This endpoint returns sensitive credentials in plaintext.
+        Rate limited to 10 requests per minute per user.
+        All requests are logged for audit purposes.
+        """
+        storage_backend = self.get_object()
+
+        # Audit log
+        logger.warning(
+            f"User {request.user.username} (ID: {request.user.id}) "
+            f"requested decrypted credentials for storage backend '{storage_backend.name}' (ID: {storage_backend.id})"
+        )
+
+        decrypted_data = {
+            "id": storage_backend.id,
+            "name": storage_backend.name,
+            "kind": storage_backend.kind,
+        }
+
+        # Add decrypted S3 credentials
+        if storage_backend.kind == "s3":
+            decrypted_data["endpoint"] = storage_backend.endpoint
+            decrypted_data["region"] = storage_backend.region
+            decrypted_data["bucket"] = storage_backend.bucket
+            decrypted_data["access_key_id"] = storage_backend.access_key_id
+            decrypted_data["path_style"] = storage_backend.path_style
+            decrypted_data["tls_verify"] = storage_backend.tls_verify
+
+            if storage_backend.secret_access_key:
+                decrypted_data["secret_access_key"] = (
+                    storage_backend.get_decrypted_secret_access_key()
+                )
+
+        # Add decrypted ClickHouse credentials
+        elif storage_backend.kind == "clickhouse":
+            decrypted_data["mode"] = storage_backend.mode
+            decrypted_data["hosts"] = storage_backend.hosts
+            decrypted_data["database"] = storage_backend.database
+            decrypted_data["username"] = storage_backend.username
+            decrypted_data["secure"] = storage_backend.secure
+
+            if storage_backend.password:
+                decrypted_data["password"] = storage_backend.get_decrypted_password()
+
+        return Response(decrypted_data)
+
 
 class DataSourceViewSet(viewsets.ModelViewSet):
     serializer_class = DataSourceSerializer

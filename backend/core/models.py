@@ -27,7 +27,7 @@ class StorageBackend(models.Model):
     region = models.CharField(max_length=100, blank=True, null=True)
     bucket = models.CharField(max_length=255, blank=True, null=True)
     access_key_id = models.CharField(max_length=255, blank=True, null=True)
-    secret_access_key = models.CharField(max_length=255, blank=True, null=True)
+    secret_access_key = models.CharField(max_length=1000, blank=True, null=True)  # Encrypted
     path_style = models.BooleanField(default=False)
     tls_verify = models.BooleanField(default=True)
 
@@ -38,7 +38,7 @@ class StorageBackend(models.Model):
     )  # [{"host": "localhost", "port": 9000}]
     database = models.CharField(max_length=255, blank=True, null=True)
     username = models.CharField(max_length=255, blank=True, null=True)
-    password = models.CharField(max_length=255, blank=True, null=True)
+    password = models.CharField(max_length=1000, blank=True, null=True)  # Encrypted
     secure = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -49,6 +49,30 @@ class StorageBackend(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.kind})"
+
+    def save(self, *args, **kwargs):
+        """Override save to encrypt sensitive fields."""
+        # Encrypt S3 credentials
+        if self.secret_access_key and not self._is_encrypted(self.secret_access_key):
+            self.secret_access_key = encrypt_value(self.secret_access_key)
+        
+        # Encrypt ClickHouse credentials
+        if self.password and not self._is_encrypted(self.password):
+            self.password = encrypt_value(self.password)
+        
+        super().save(*args, **kwargs)
+
+    def _is_encrypted(self, value):
+        """Check if a value is already encrypted (Fernet encrypted strings start with 'gAAAAA')."""
+        return value and len(value) > 20 and value.startswith("gAAAAA")
+
+    def get_decrypted_secret_access_key(self):
+        """Get decrypted S3 secret access key."""
+        return decrypt_value(self.secret_access_key) if self.secret_access_key else None
+
+    def get_decrypted_password(self):
+        """Get decrypted ClickHouse password."""
+        return decrypt_value(self.password) if self.password else None
 
 
 class DataSource(models.Model):

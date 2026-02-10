@@ -283,13 +283,21 @@ def _execute_api_stream(stream, run):
         
         logger.info(f"Uploading {len(records)} records to S3: {s3_key}")
         
+        # Get decrypted S3 credentials
+        secret_key = storage_backend.get_decrypted_secret_access_key()
+        
+        if not storage_backend.access_key_id or not secret_key:
+            error_msg = f"S3 storage backend '{storage_backend.name}' is missing credentials (access_key_id or secret_access_key)"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        
         # Upload to S3
         s3_client = boto3.client(
             's3',
             endpoint_url=storage_backend.endpoint if storage_backend.endpoint else None,
             region_name=storage_backend.region or 'us-east-1',
             aws_access_key_id=storage_backend.access_key_id,
-            aws_secret_access_key=storage_backend.secret_access_key,
+            aws_secret_access_key=secret_key,
         )
         
         s3_client.put_object(
