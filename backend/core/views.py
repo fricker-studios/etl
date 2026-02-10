@@ -118,13 +118,27 @@ class StorageBackendViewSet(viewsets.ModelViewSet):
         prefix = request.query_params.get("prefix", "")
         delimiter = request.query_params.get("delimiter", "/")
 
+        # Debug logging
+        logger.info(f"S3 Browse Request - Backend: {storage_backend.name} (ID: {storage_backend.id})")
+        logger.info(f"S3 Config - Endpoint: {storage_backend.endpoint}, Region: {storage_backend.region or 'us-east-1'}, Bucket: {storage_backend.bucket}")
+        logger.info(f"S3 Config - Path-style: {storage_backend.path_style}, TLS verify: {storage_backend.tls_verify}")
+        logger.info(f"S3 Config - Access Key ID: {storage_backend.access_key_id[:10]}... (truncated)")
+        logger.info(f"S3 Browse - Prefix: '{prefix}', Delimiter: '{delimiter}'")
+        
         try:
             from botocore.config import Config
 
-            # Create config for path-style addressing if needed
-            config = None
-            if storage_backend.path_style:
-                config = Config(s3={"addressing_style": "path"})
+            # Create config for path-style addressing and signature version
+            # Ceph RGW typically needs signature_version='s3v4' and path-style addressing
+            config_params = {
+                's3': {
+                    'addressing_style': 'path' if storage_backend.path_style else 'auto'
+                },
+                'signature_version': 's3v4'  # Force v4 signatures for Ceph compatibility
+            }
+            config = Config(**config_params)
+            
+            logger.info(f"S3 Client Config: {config_params}")
 
             # Create S3 client directly with path_style support
             import boto3
@@ -138,7 +152,10 @@ class StorageBackendViewSet(viewsets.ModelViewSet):
                 aws_access_key_id=storage_backend.access_key_id,
                 aws_secret_access_key=storage_backend.secret_access_key,
                 config=config,
+                verify=storage_backend.tls_verify  # Honor TLS verification setting
             )
+            
+            logger.info(f"S3 Client created, attempting list_objects_v2...")
 
             response = s3_client.list_objects_v2(
                 Bucket=storage_backend.bucket,
@@ -146,6 +163,8 @@ class StorageBackendViewSet(viewsets.ModelViewSet):
                 Delimiter=delimiter,
                 MaxKeys=1000,
             )
+            
+            logger.info(f"S3 list_objects_v2 successful - Found {len(response.get('Contents', []))} objects, {len(response.get('CommonPrefixes', []))} folders")
 
             # Extract folders (common prefixes) and files
             folders = []
@@ -184,7 +203,10 @@ class StorageBackendViewSet(viewsets.ModelViewSet):
             )
 
         except Exception as e:
-            logger.error(f"Error browsing S3: {e}")
+            logger.error(f"Error browsing S3 for backend {storage_backend.name}: {type(e).__name__}: {str(e)}")
+            logger.error(f"S3 Error Details - Endpoint: {storage_backend.endpoint}, Bucket: {storage_backend.bucket}, Path-style: {storage_backend.path_style}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             return Response(
                 {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
@@ -499,17 +521,30 @@ class DataPackageViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Debug logging
+        storage = package.destination
+        logger.info(f"Package Download Request - Package: {package.name} (ID: {package.id})")
+        logger.info(f"S3 Config - Endpoint: {storage.endpoint}, Region: {storage.region or 'us-east-1'}, Bucket: {storage.bucket}")
+        logger.info(f"S3 Config - Path-style: {storage.path_style}, TLS verify: {storage.tls_verify}")
+        logger.info(f"S3 Config - File path: {package.file_path}")
+        logger.info(f"S3 Config - Access Key ID: {storage.access_key_id[:10]}... (truncated)")
+        
         try:
             import boto3
             from botocore.exceptions import ClientError
             from botocore.config import Config
 
-            storage = package.destination
-
-            # Create config for path-style addressing if needed
-            config = None
-            if storage.path_style:
-                config = Config(s3={"addressing_style": "path"})
+            # Create config for path-style addressing and signature version
+            # Ceph RGW typically needs signature_version='s3v4' and path-style addressing
+            config_params = {
+                's3': {
+                    'addressing_style': 'path' if storage.path_style else 'auto'
+                },
+                'signature_version': 's3v4'  # Force v4 signatures for Ceph compatibility
+            }
+            config = Config(**config_params)
+            
+            logger.info(f"S3 Client Config for download: {config_params}")
 
             # Create S3 client
             s3_client = boto3.client(
@@ -519,7 +554,10 @@ class DataPackageViewSet(viewsets.ModelViewSet):
                 aws_access_key_id=storage.access_key_id,
                 aws_secret_access_key=storage.secret_access_key,
                 config=config,
+                verify=storage.tls_verify  # Honor TLS verification setting
             )
+            
+            logger.info(f"S3 Client created, generating presigned URL...")
 
             # Generate presigned URL (valid for 1 hour)
             presigned_url = s3_client.generate_presigned_url(
@@ -530,6 +568,8 @@ class DataPackageViewSet(viewsets.ModelViewSet):
                 },
                 ExpiresIn=3600,  # 1 hour
             )
+            
+            logger.info(f"Presigned URL generated successfully for package {package.name}")
 
             return Response(
                 {
@@ -540,13 +580,19 @@ class DataPackageViewSet(viewsets.ModelViewSet):
             )
 
         except ClientError as e:
-            logger.error(f"Error generating presigned URL: {e}")
+            logger.error(f"ClientError generating presigned URL for package {package.name}: {type(e).__name__}: {str(e)}")
+            logger.error(f"S3 Error Details - Endpoint: {storage.endpoint}, Bucket: {storage.bucket}, Path: {package.file_path}, Path-style: {storage.path_style}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             return Response(
                 {"error": f"Failed to generate download URL: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         except Exception as e:
-            logger.error(f"Unexpected error generating download URL: {e}")
+            logger.error(f"Unexpected error generating download URL for package {package.name}: {type(e).__name__}: {str(e)}")
+            logger.error(f"S3 Error Details - Endpoint: {storage.endpoint}, Bucket: {storage.bucket}, Path: {package.file_path}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             return Response(
                 {"error": f"Failed to generate download URL: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
