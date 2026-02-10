@@ -44,7 +44,7 @@ export function S3FileNavigator({ storageBackendId, bucket }: S3NavigatorProps) 
   const loadFiles = async (prefix: string) => {
     setLoading(true);
     try {
-      const response = await api.storageBackends.browseS3(storageBackendId, prefix);
+      const response: any = await api.storageBackends.browseS3(storageBackendId, prefix);
       setFolders(response.folders || []);
       setFiles(response.files || []);
     } catch (error) {

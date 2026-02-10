@@ -8,7 +8,6 @@ import {
   Stack,
   Collapse,
 } from "@mantine/core";
-import { notifications } from "@mantine/notifications";
 import { useState } from "react";
 import { S3FileNavigator } from "./S3FileNavigator";
 import { useStorageBackends, useDeleteStorageBackend } from "../../hooks/useStorageBackends";
