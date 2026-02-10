@@ -115,9 +115,9 @@ export function TopicDetailPage() {
           });
           // Refresh the topic to update the UI
           queryClient.invalidateQueries({ queryKey: ["topics", id] });
-        } catch (error: any) {
+        } catch (error) {
           notifications.show({
-            message: error?.message || "Failed to delete revision",
+            message: (error as Error)?.message || "Failed to delete revision",
             color: "red",
           });
         }
@@ -267,35 +267,30 @@ export function TopicDetailPage() {
                                 </Table.Tr>
                               </Table.Thead>
                               <Table.Tbody>
-                                {revision.schema
-                                  .sort(
-                                    (a, b) =>
-                                      a.position - b.position
-                                  )
-                                  .map((col) => (
-                                    <Table.Tr key={col.position}>
-                                      <Table.Td>{col.position}</Table.Td>
-                                      <Table.Td>
-                                        <Text fw={500}>{col.name}</Text>
-                                      </Table.Td>
-                                      <Table.Td>
-                                        <Badge size="sm" variant="light">
-                                          {col.data_type}
-                                        </Badge>
-                                      </Table.Td>
-                                      <Table.Td>
-                                        {col.nullable ? (
-                                          <Text c="dimmed" size="sm">
-                                            Yes
-                                          </Text>
-                                        ) : (
-                                          <Text fw={500} size="sm">
-                                            No
-                                          </Text>
-                                        )}
-                                      </Table.Td>
-                                    </Table.Tr>
-                                  ))}
+                                {revision.schema.sort((a, b) => a.position - b.position).map((col) => (
+                                  <Table.Tr key={col.position}>
+                                    <Table.Td>{col.position}</Table.Td>
+                                    <Table.Td>
+                                      <Text fw={500}>{col.name}</Text>
+                                    </Table.Td>
+                                    <Table.Td>
+                                      <Badge size="sm" variant="light">
+                                        {col.data_type}
+                                      </Badge>
+                                    </Table.Td>
+                                    <Table.Td>
+                                      {col.nullable ? (
+                                        <Text c="dimmed" size="sm">
+                                          Yes
+                                        </Text>
+                                      ) : (
+                                        <Text fw={500} size="sm">
+                                          No
+                                        </Text>
+                                      )}
+                                    </Table.Td>
+                                  </Table.Tr>
+                                ))}
                               </Table.Tbody>
                             </Table>
                           </div>
