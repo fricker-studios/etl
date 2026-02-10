@@ -47,9 +47,9 @@ def execute_stream_task(self, stream_id, run_id=None):
         
         logger.info(f"Executing stream {stream_id} (Run ID: {run.id})")
         
-        # Only S3 sources supported for now
-        if stream.data_source.type != "s3":
-            error_msg = f"Unsupported data source type: {stream.data_source.type}. Only S3 is supported."
+        # Check that stream has a data source
+        if not stream.data_source:
+            error_msg = "Stream does not have a data source configured"
             run.status = 'failed'
             run.error_message = error_msg
             run.completed_at = timezone.now()
@@ -66,14 +66,25 @@ def execute_stream_task(self, stream_id, run_id=None):
             run.save()
             raise ValueError(error_msg)
         
-        # Execute S3 stream
-        result = _execute_s3_stream(stream, run)
+        # Execute stream based on data source type
+        if stream.data_source.type == "s3":
+            result = _execute_s3_stream(stream, run)
+        elif stream.data_source.type == "api":
+            result = _execute_api_stream(stream, run)
+        else:
+            error_msg = f"Unsupported data source type: {stream.data_source.type}. Supported types: s3, api"
+            run.status = 'failed'
+            run.error_message = error_msg
+            run.completed_at = timezone.now()
+            run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+            run.save()
+            raise ValueError(error_msg)
         
         # Update run with success
         run.status = 'success'
         run.completed_at = timezone.now()
         run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
-        run.rows_processed = result.get('packages_created', 0)
+        run.rows_processed = result.get('records_fetched', result.get('packages_created', 0))
         run.save()
         
         logger.info(f"Successfully executed stream {stream_id} (Run ID: {run.id})")
@@ -83,6 +94,7 @@ def execute_stream_task(self, stream_id, run_id=None):
             'run_id': run.id,
             'packages_created': result.get('packages_created', 0),
             'packages_skipped': result.get('packages_skipped', 0),
+            'records_fetched': result.get('records_fetched', 0),
         }
         
     except Exception as e:
@@ -183,6 +195,144 @@ def _execute_s3_stream(stream, run):
         'packages_created': created_count,
         'packages_skipped': skipped_count,
     }
+
+
+def _execute_api_stream(stream, run):
+    """
+    Execute an API stream - fetch data from API and upload to S3.
+    
+    Args:
+        stream: Stream instance
+        run: Run instance for tracking
+    
+    Returns:
+        dict: Execution results
+    """
+    from core.models import DataPackage, StorageBackend
+    from core.api_utils import APIClient
+    import boto3
+    import json
+    from datetime import datetime
+    
+    data_source = stream.data_source
+    
+    logger.info(f"Executing API stream: {stream.name}")
+    logger.info(f"  Base URL: {data_source.base_url}")
+    logger.info(f"  Method: {stream.method}")
+    logger.info(f"  Path: {stream.path}")
+    logger.info(f"  Topic: {stream.topic.name}")
+    
+    # Get S3 storage backend for the user
+    storage_backend = StorageBackend.objects.filter(
+        user=stream.user,
+        kind='s3'
+    ).first()
+    
+    if not storage_backend:
+        error_msg = "No S3 storage backend configured. Please configure an S3 storage backend in Settings."
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+    
+    logger.info(f"  Using storage backend: {storage_backend.name}")
+    logger.info(f"  S3 Bucket: {storage_backend.bucket}")
+    
+    # Get decrypted credentials for API
+    bearer_token = data_source.get_decrypted_bearer_token()
+    basic_pass = data_source.get_decrypted_basic_pass()
+    header_value = data_source.get_decrypted_header_value()
+    
+    # Initialize API client
+    api_client = APIClient(
+        base_url=data_source.base_url,
+        auth_type=data_source.auth_type,
+        bearer_token=bearer_token,
+        basic_user=data_source.basic_user,
+        basic_pass=basic_pass,
+        header_name=data_source.header_name,
+        header_value=header_value,
+    )
+    
+    # Fetch paginated data
+    try:
+        records = api_client.fetch_paginated_data(
+            method=stream.method or 'GET',
+            path=stream.path or '/',
+            query_params=stream.query_params or [],
+            headers=stream.headers or [],
+            body_template=stream.body_template,
+            pagination=stream.pagination or {},
+            records_selector=stream.records_selector,
+            max_pages=100,  # Limit to 100 pages
+        )
+        
+        logger.info(f"Fetched {len(records)} total records from API")
+        
+        if not records:
+            logger.warning("No records fetched from API")
+            return {
+                'packages_created': 0,
+                'packages_skipped': 0,
+            }
+        
+        # Convert records to newline-delimited JSON
+        ndjson_content = '\n'.join(json.dumps(record) for record in records)
+        
+        # Generate S3 key (file path)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        s3_key = f"api_data/{stream.name}/{timestamp}.ndjson"
+        
+        logger.info(f"Uploading {len(records)} records to S3: {s3_key}")
+        
+        # Upload to S3
+        s3_client = boto3.client(
+            's3',
+            endpoint_url=storage_backend.endpoint if storage_backend.endpoint else None,
+            region_name=storage_backend.region or 'us-east-1',
+            aws_access_key_id=storage_backend.access_key_id,
+            aws_secret_access_key=storage_backend.secret_access_key,
+        )
+        
+        s3_client.put_object(
+            Bucket=storage_backend.bucket,
+            Key=s3_key,
+            Body=ndjson_content.encode('utf-8'),
+            ContentType='application/x-ndjson',
+        )
+        
+        file_size = len(ndjson_content.encode('utf-8'))
+        logger.info(f"Successfully uploaded {file_size} bytes to S3")
+        
+        # Get the current revision of the topic
+        current_revision = stream.topic.current_revision
+        if not current_revision:
+            logger.warning(f"Topic {stream.topic.name} has no revisions")
+            raise ValueError(f"Topic {stream.topic.name} has no revisions")
+        
+        # Create data package
+        package_name = f"{stream.name}_{timestamp}.ndjson"
+        package = DataPackage.objects.create(
+            user=stream.user,
+            name=package_name,
+            topic_revision=current_revision,
+            stream=stream,
+            destination=storage_backend,
+            file_path=s3_key,
+            file_size_bytes=file_size,
+            status="materialized",
+            row_count_estimate=len(records),
+        )
+        
+        logger.info(f"Created data package: {package.name}")
+        
+        return {
+            'packages_created': 1,
+            'packages_skipped': 0,
+            'records_fetched': len(records),
+        }
+        
+    except Exception as e:
+        logger.error(f"Error executing API stream: {e}", exc_info=True)
+        raise
 
 
 @shared_task(name='core.execute_scheduled_streams')

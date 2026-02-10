@@ -149,16 +149,24 @@ class StreamViewSet(viewsets.ModelViewSet):
         """
         Execute a stream immediately (discover files and create data packages).
         Uses Celery for asynchronous execution.
+        Supports S3 and API streams.
         """
         from core.tasks import execute_stream_task
         from django.utils import timezone
 
         stream = self.get_object()
 
-        # Only S3 supported for now
-        if not stream.data_source or stream.data_source.type != "s3":
+        # Check that stream has a data source
+        if not stream.data_source:
             return Response(
-                {"error": "Only S3 streams are supported for execution"},
+                {"error": "Stream must have a data source configured"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Check supported data source types
+        if stream.data_source.type not in ["s3", "api"]:
+            return Response(
+                {"error": f"Data source type '{stream.data_source.type}' is not supported for execution. Supported types: s3, api"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -167,6 +175,27 @@ class StreamViewSet(viewsets.ModelViewSet):
                 {"error": "Stream must have a topic assigned"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        # Additional validation for API streams
+        if stream.data_source.type == "api":
+            if not stream.method or not stream.path:
+                return Response(
+                    {"error": "API stream must have method and path configured"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            
+            # Check if S3 storage backend is configured
+            from core.models import StorageBackend
+            storage_backend = StorageBackend.objects.filter(
+                user=request.user,
+                kind='s3'
+            ).first()
+            
+            if not storage_backend:
+                return Response(
+                    {"error": "No S3 storage backend configured. Please configure an S3 storage backend in Settings before executing API streams."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         try:
             # Create a Run instance to track this execution

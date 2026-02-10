@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 from unittest.mock import Mock, patch, MagicMock
 from io import StringIO
 from django.core.management import call_command
-from .models import DataSource, Stream, DataPackage, Topic, TopicRevision
+from .models import DataSource, Stream, DataPackage, Topic, TopicRevision, StorageBackend
 
 
 class DataPackageModelTests(TestCase):
@@ -347,4 +347,212 @@ class RunTrackingTests(TestCase):
         # Check the output mentions skipped packages
         output = out.getvalue()
         self.assertIn("skipped 2 existing", output)
+
+
+class APIStreamExecutionTests(TestCase):
+    """Tests for API stream execution functionality."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="testuser", password="testpass")
+        
+        # Create API data source
+        self.api_data_source = DataSource.objects.create(
+            user=self.user,
+            name="Test API Source",
+            type="api",
+            base_url="https://api.example.com",
+            auth_type="bearer",
+            bearer_token="test-token-123",
+        )
+        
+        # Create S3 storage backend
+        self.storage_backend = StorageBackend.objects.create(
+            user=self.user,
+            kind="s3",
+            name="Test S3 Storage",
+            endpoint="https://s3.amazonaws.com",
+            region="us-east-1",
+            bucket="test-storage-bucket",
+            access_key_id="test-key",
+            secret_access_key="test-secret",
+        )
+        
+        # Create topic and revision
+        self.topic = Topic.objects.create(
+            user=self.user,
+            name="Test Topic",
+            description="Test topic for API packages",
+        )
+        self.topic_revision = TopicRevision.objects.create(
+            topic=self.topic, revision_number=1, schema=[]
+        )
+        
+        # Create API stream
+        self.api_stream = Stream.objects.create(
+            user=self.user,
+            name="Test API Stream",
+            data_source=self.api_data_source,
+            topic=self.topic,
+            method="GET",
+            path="/api/data",
+            query_params=[],
+            headers=[],
+            pagination={"type": "page_number", "page_size": 100},
+            records_selector="data",
+        )
+
+    @patch("core.api_utils.requests.Session.request")
+    @patch("boto3.client")
+    def test_execute_api_stream_success(self, mock_boto_client, mock_request):
+        """Test successful API stream execution."""
+        from core.tasks import execute_stream_task
+        from core.models import Run, DataPackage
+        
+        # Mock API response
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "data": [
+                {"id": 1, "name": "Item 1"},
+                {"id": 2, "name": "Item 2"},
+                {"id": 3, "name": "Item 3"},
+            ]
+        }
+        mock_response.raise_for_status = Mock()
+        mock_request.return_value = mock_response
+        
+        # Mock S3 client
+        mock_s3 = Mock()
+        mock_boto_client.return_value = mock_s3
+        
+        # Create Run instance
+        run = Run.objects.create(
+            user=self.user,
+            stream=self.api_stream,
+            name="Test Run",
+            status='queued',
+        )
+        
+        # Execute the task
+        result = execute_stream_task(self.api_stream.id, run.id)
+        
+        # Verify results
+        self.assertEqual(result['status'], 'success')
+        self.assertEqual(result['packages_created'], 1)
+        self.assertEqual(result['records_fetched'], 3)
+        
+        # Verify Run was updated
+        run.refresh_from_db()
+        self.assertEqual(run.status, 'success')
+        self.assertEqual(run.rows_processed, 3)
+        self.assertIsNotNone(run.completed_at)
+        
+        # Verify DataPackage was created
+        package = DataPackage.objects.filter(stream=self.api_stream).first()
+        self.assertIsNotNone(package)
+        self.assertEqual(package.status, 'materialized')
+        self.assertEqual(package.destination, self.storage_backend)
+        self.assertEqual(package.row_count_estimate, 3)
+        
+        # Verify S3 upload was called
+        mock_s3.put_object.assert_called_once()
+        call_args = mock_s3.put_object.call_args
+        self.assertEqual(call_args[1]['Bucket'], 'test-storage-bucket')
+        self.assertIn('api_data/', call_args[1]['Key'])
+
+    @patch("core.api_utils.requests.Session.request")
+    def test_execute_api_stream_with_pagination(self, mock_request):
+        """Test API stream execution with multiple pages."""
+        from core.api_utils import APIClient
+        
+        # Mock two pages of responses
+        responses = [
+            Mock(status_code=200, json=lambda: {"data": [{"id": i} for i in range(1, 101)]}),
+            Mock(status_code=200, json=lambda: {"data": [{"id": i} for i in range(101, 151)]}),
+        ]
+        for resp in responses:
+            resp.raise_for_status = Mock()
+        
+        mock_request.side_effect = responses
+        
+        # Create API client and fetch data
+        client = APIClient(
+            base_url="https://api.example.com",
+            auth_type="bearer",
+            bearer_token="test-token",
+        )
+        
+        records = client.fetch_paginated_data(
+            method="GET",
+            path="/api/data",
+            pagination={"type": "page_number", "page_size": 100},
+            records_selector="data",
+        )
+        
+        # Should have fetched 150 records across 2 pages
+        self.assertEqual(len(records), 150)
+
+    def test_execute_api_stream_without_storage_backend(self):
+        """Test that API stream execution fails without S3 storage backend."""
+        from core.tasks import execute_stream_task
+        from core.models import Run
+        
+        # Delete the storage backend
+        self.storage_backend.delete()
+        
+        # Create Run instance
+        run = Run.objects.create(
+            user=self.user,
+            stream=self.api_stream,
+            name="Test Run",
+            status='queued',
+        )
+        
+        # Execute should fail
+        with self.assertRaises(ValueError) as context:
+            execute_stream_task(self.api_stream.id, run.id)
+        
+        self.assertIn("No S3 storage backend configured", str(context.exception))
+        
+        # Verify Run was marked as failed
+        run.refresh_from_db()
+        self.assertEqual(run.status, 'failed')
+        self.assertIn("No S3 storage backend", run.error_message)
+
+    def test_api_client_extract_records_with_selector(self):
+        """Test extracting records using records selector."""
+        from core.api_utils import APIClient
+        
+        client = APIClient(base_url="https://api.example.com")
+        
+        # Test with nested selector
+        data = {
+            "response": {
+                "items": [
+                    {"id": 1, "name": "Item 1"},
+                    {"id": 2, "name": "Item 2"},
+                ]
+            }
+        }
+        
+        records = client.extract_records(data, "response.items")
+        self.assertEqual(len(records), 2)
+        self.assertEqual(records[0]['id'], 1)
+
+    def test_api_client_extract_records_without_selector(self):
+        """Test extracting records without selector (auto-detect)."""
+        from core.api_utils import APIClient
+        
+        client = APIClient(base_url="https://api.example.com")
+        
+        # Test auto-detection of 'data' key
+        data = {
+            "data": [
+                {"id": 1, "name": "Item 1"},
+                {"id": 2, "name": "Item 2"},
+            ]
+        }
+        
+        records = client.extract_records(data)
+        self.assertEqual(len(records), 2)
 
