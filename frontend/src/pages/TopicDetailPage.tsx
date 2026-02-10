@@ -48,13 +48,13 @@ export function TopicDetailPage() {
     openRevisionDrawer();
   };
 
-  const loadPackagesForRevision = async (revisionId: string, page: number = 1) => {
+  const loadPackagesForRevision = async (revisionId: string) => {
     setLoadingPackages((prev) => ({ ...prev, [revisionId]: true }));
     try {
       const response = await api.packages.list({ topic_revision: revisionId });
       const packages = response as DataPackage[];
       setRevisionPackages((prev) => ({ ...prev, [revisionId]: packages }));
-      setRevisionPackagesPage((prev) => ({ ...prev, [revisionId]: page }));
+      setRevisionPackagesPage((prev) => ({ ...prev, [revisionId]: 1 }));
     } catch (error) {
       console.error("Failed to load packages:", error);
     } finally {
@@ -269,10 +269,10 @@ export function TopicDetailPage() {
                               <Table.Tbody>
                                 {revision.schema
                                   .sort(
-                                    (a: any, b: any) =>
+                                    (a, b) =>
                                       a.position - b.position
                                   )
-                                  .map((col: any) => (
+                                  .map((col) => (
                                     <Table.Tr key={col.position}>
                                       <Table.Td>{col.position}</Table.Td>
                                       <Table.Td>
