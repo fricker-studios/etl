@@ -99,6 +99,86 @@ class StorageBackendViewSet(viewsets.ModelViewSet):
 
         return Response(decrypted_data)
 
+    @action(detail=True, methods=["get"])
+    def browse_s3(self, request, pk=None):
+        """Browse S3 files in a storage backend
+        
+        Query parameters:
+        - prefix: Path prefix to list (default: "")
+        - delimiter: Delimiter for folder-like structure (default: "/")
+        """
+        storage_backend = self.get_object()
+        
+        if storage_backend.kind != "s3":
+            return Response(
+                {"error": "This storage backend is not an S3 bucket"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        prefix = request.query_params.get("prefix", "")
+        delimiter = request.query_params.get("delimiter", "/")
+        
+        try:
+            from .s3_utils import S3FileDiscovery
+            
+            s3_discovery = S3FileDiscovery(
+                endpoint_url=storage_backend.endpoint,
+                region=storage_backend.region or "us-east-1",
+                access_key=storage_backend.access_key_id,
+                secret_key=storage_backend.secret_access_key,
+            )
+            
+            # Use boto3 client to list objects with delimiter for folder structure
+            s3_client = s3_discovery.s3_client
+            
+            response = s3_client.list_objects_v2(
+                Bucket=storage_backend.bucket,
+                Prefix=prefix,
+                Delimiter=delimiter,
+                MaxKeys=1000
+            )
+            
+            # Extract folders (common prefixes) and files
+            folders = []
+            if "CommonPrefixes" in response:
+                folders = [
+                    {
+                        "name": prefix["Prefix"].rstrip("/").split("/")[-1],
+                        "prefix": prefix["Prefix"],
+                        "type": "folder"
+                    }
+                    for prefix in response["CommonPrefixes"]
+                ]
+            
+            files = []
+            if "Contents" in response:
+                files = [
+                    {
+                        "name": obj["Key"].split("/")[-1],
+                        "key": obj["Key"],
+                        "size": obj["Size"],
+                        "last_modified": obj["LastModified"].isoformat(),
+                        "type": "file"
+                    }
+                    for obj in response["Contents"]
+                    if obj["Key"] != prefix  # Exclude the prefix itself
+                ]
+            
+            return Response({
+                "bucket": storage_backend.bucket,
+                "prefix": prefix,
+                "folders": folders,
+                "files": files,
+                "is_truncated": response.get("IsTruncated", False)
+            })
+            
+        except Exception as e:
+            logger.error(f"Error browsing S3: {e}")
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 
 class DataSourceViewSet(viewsets.ModelViewSet):
     serializer_class = DataSourceSerializer
