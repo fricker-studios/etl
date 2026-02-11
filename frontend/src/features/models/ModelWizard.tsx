@@ -31,6 +31,10 @@ export function ModelWizard({
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [selectedFields, setSelectedFields] = useState<Record<string, string[]>>({});
 
+  // Constants for default field limits
+  const MAX_HUB_FIELDS = 3;
+  const MAX_DIMENSION_FIELDS = 5;
+
   // Topic options for selection
   const topicOptions = topics.map((t: any) => ({
     value: String(t.id),
@@ -89,7 +93,7 @@ export function ModelWizard({
           name: `Hub_${name.replace(/\s+/g, "_")}`,
           topic: firstTopicId,
           business_key: businessKey,
-          fields: firstTopicFields.slice(0, 3), // Take first 3 fields
+          fields: firstTopicFields.slice(0, MAX_HUB_FIELDS),
         },
       ];
       modelData.links = [];
@@ -105,7 +109,7 @@ export function ModelWizard({
           name: `Dim_${name.replace(/\s+/g, "_")}`,
           topic: firstTopicId,
           key: keyField,
-          fields: firstTopicFields.slice(0, 5), // Take first 5 fields
+          fields: firstTopicFields.slice(0, MAX_DIMENSION_FIELDS),
         },
       ];
       modelData.facts = [];
