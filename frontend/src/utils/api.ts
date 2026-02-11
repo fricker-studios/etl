@@ -65,6 +65,13 @@ export const api = {
       request(
         `/storage-backends/${id}/browse_s3/?prefix=${encodeURIComponent(prefix)}`,
       ),
+    deleteS3File: (id: string, key: string) =>
+      request(
+        `/storage-backends/${id}/delete_s3_file/?key=${encodeURIComponent(key)}`,
+        {
+          method: "DELETE",
+        },
+      ),
   },
 
   // Data Sources (renamed from apiSources)

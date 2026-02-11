@@ -246,6 +246,96 @@ class StorageBackendViewSet(viewsets.ModelViewSet):
                 {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @action(detail=True, methods=["delete"])
+    def delete_s3_file(self, request, pk=None):
+        """Delete a file from S3
+
+        Query parameters:
+        - key: S3 object key (file path) to delete
+        """
+        storage_backend = self.get_object()
+
+        if storage_backend.kind != "s3":
+            return Response(
+                {"error": "This storage backend is not an S3 bucket"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        file_key = request.query_params.get("key")
+        if not file_key:
+            return Response(
+                {"error": "File key is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        logger.info(
+            f"S3 Delete Request - Backend: {storage_backend.name} (ID: {storage_backend.id})"
+        )
+        logger.info(f"File key: {file_key}")
+
+        try:
+            import boto3
+            from botocore.config import Config
+
+            # Create S3 client config
+            config_params = {
+                "s3": {
+                    "addressing_style": "path" if storage_backend.path_style else "auto"
+                },
+                "signature_version": "s3v4",
+            }
+            config = Config(**config_params)
+
+            # Use exact region from database
+            region = storage_backend.region if storage_backend.region else None
+
+            # Clean endpoint URL
+            endpoint_url = (
+                storage_backend.endpoint.rstrip("/")
+                if storage_backend.endpoint
+                else None
+            )
+
+            # Get decrypted secret key
+            secret_key = storage_backend.get_decrypted_secret_access_key()
+            if not secret_key:
+                logger.error(
+                    f"Failed to decrypt secret access key for storage backend {storage_backend.id}"
+                )
+                return Response(
+                    {"error": "Failed to decrypt S3 credentials"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+            # Create S3 client
+            s3_client = boto3.client(
+                "s3",
+                endpoint_url=endpoint_url,
+                region_name=region,
+                aws_access_key_id=storage_backend.access_key_id,
+                aws_secret_access_key=secret_key,
+                config=config,
+                verify=storage_backend.tls_verify,
+            )
+
+            # Delete the object
+            s3_client.delete_object(Bucket=storage_backend.bucket, Key=file_key)
+
+            logger.info(f"Successfully deleted S3 file: {file_key}")
+
+            return Response({"message": "File deleted successfully"})
+
+        except Exception as e:
+            logger.error(
+                f"Error deleting S3 file for backend {storage_backend.name}: {type(e).__name__}: {str(e)}"
+            )
+            import traceback
+
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 
 class DataSourceViewSet(viewsets.ModelViewSet):
     serializer_class = DataSourceSerializer
