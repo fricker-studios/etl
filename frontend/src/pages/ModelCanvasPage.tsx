@@ -99,6 +99,22 @@ export function ModelCanvasPage() {
       });
       return;
     }
+    
+    // Auto-create required fields based on entity type
+    const requiredFields: string[] = [];
+    if (entityType === "hub") {
+      requiredFields.push("business_key");
+    } else if (entityType === "link") {
+      requiredFields.push("link_key");
+    } else if (entityType === "satellite") {
+      requiredFields.push("parent_key", "load_date");
+    } else if (entityType === "fact") {
+      requiredFields.push("grain");
+    } else if (entityType === "dimension") {
+      requiredFields.push("dimension_key");
+    }
+    
+    setModelFields(requiredFields);
     closeSetup();
   };
 
@@ -629,7 +645,13 @@ export function ModelCanvasPage() {
                               ref={(el) => (topicColRefs.current[colKey] = el)}
                               p="xs"
                               withBorder
-                              bg={mappedCount > 0 ? "green.0" : undefined}
+                              bg={
+                                mappedCount > 0
+                                  ? colorScheme === "dark"
+                                    ? "green.9"
+                                    : "green.0"
+                                  : undefined
+                              }
                             >
                               <Group justify="space-between" wrap="nowrap">
                                 <Box style={{ flex: 1 }}>
@@ -719,7 +741,13 @@ export function ModelCanvasPage() {
                           withBorder
                           onDragOver={(e) => e.preventDefault()}
                           onDrop={() => handleFieldDrop(fieldName)}
-                          bg={mappings.length > 0 ? "blue.0" : undefined}
+                          bg={
+                            mappings.length > 0
+                              ? colorScheme === "dark"
+                                ? "blue.9"
+                                : "blue.0"
+                              : undefined
+                          }
                           style={{
                             border:
                               draggedColumn && mappings.length === 0
@@ -769,6 +797,15 @@ export function ModelCanvasPage() {
                                   </Badge>
                                 )}
                               </Group>
+                              
+                              {/* Hash note for Data Vault key fields */}
+                              {(entityType === "hub" && fieldName === "business_key" ||
+                                entityType === "link" && fieldName === "link_key" ||
+                                entityType === "satellite" && fieldName === "parent_key") && (
+                                <Text size="xs" c="dimmed" mt={4} italic>
+                                  ℹ️ Values will be hashed
+                                </Text>
+                              )}
 
                               {mappings.length > 0 && (
                                 <Stack gap={4}>
