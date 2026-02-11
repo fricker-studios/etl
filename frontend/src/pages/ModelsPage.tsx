@@ -46,13 +46,6 @@ export function ModelsPage() {
               </Table.Tr>
             ) : (
               models.map((m: any) => {
-                const entityCount =
-                  m.type === "data_vault"
-                    ? (m.hubs?.length || 0) +
-                      (m.links?.length || 0) +
-                      (m.satellites?.length || 0)
-                    : (m.facts?.length || 0) + (m.dimensions?.length || 0);
-
                 return (
                   <Table.Tr key={m.id}>
                     <Table.Td>{m.name}</Table.Td>
