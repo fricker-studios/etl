@@ -12,6 +12,7 @@ import {
   Modal,
   TextInput,
   Select,
+  Menu,
   Divider,
 } from "@mantine/core";
 import {
@@ -21,8 +22,9 @@ import {
   IconArrowLeft,
   IconDeviceFloppy,
   IconX,
+  IconGripVertical,
 } from "@tabler/icons-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDisclosure } from "@mantine/hooks";
 import { useTopics } from "../hooks/useTopics";
@@ -33,9 +35,8 @@ type EntityType = "hub" | "link" | "satellite" | "fact" | "dimension";
 
 interface FieldMapping {
   topicId: string;
-  topicField: string;
-  modelField: string;
-  role?: string; // business_key, measure, attribute, etc.
+  topicField: string; // column name
+  modelField: string; // target field name in model
 }
 
 export function ModelCanvasPage() {
@@ -58,11 +59,12 @@ export function ModelCanvasPage() {
     {},
   );
   const [fieldMappings, setFieldMappings] = useState<FieldMapping[]>([]);
-  const [modelFields, setModelFields] = useState<string[]>([]);
-  const [draggedField, setDraggedField] = useState<{
+  const [modelFields, setModelFields] = useState<string[]>([]); // Fields in the model
+  const [draggedColumn, setDraggedColumn] = useState<{
     topicId: string;
-    field: string;
+    columnName: string;
   } | null>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
 
   // Auto-generate entity name when model name changes
   useEffect(() => {
@@ -113,66 +115,73 @@ export function ModelCanvasPage() {
     });
   };
 
-  const handleFieldDragStart = (topicId: string, field: string) => {
-    setDraggedField({ topicId, field });
+  const handleAddModelField = () => {
+    const fieldName = `field_${modelFields.length + 1}`;
+    setModelFields([...modelFields, fieldName]);
   };
 
-  const handleFieldDrop = (e: React.DragEvent, role?: string) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleRemoveModelField = (fieldName: string) => {
+    setModelFields(modelFields.filter((f) => f !== fieldName));
+    // Remove any mappings to this field
+    setFieldMappings(fieldMappings.filter((m) => m.modelField !== fieldName));
+  };
 
-    if (!draggedField) return;
+  const handleColumnDragStart = (topicId: string, columnName: string) => {
+    setDraggedColumn({ topicId, columnName });
+  };
 
-    const fieldName = draggedField.field;
+  const handleColumnDragEnd = () => {
+    setDraggedColumn(null);
+  };
 
-    // Check if field is already mapped
+  const handleFieldDrop = (modelField: string) => {
+    if (!draggedColumn) return;
+
+    // Check if this mapping already exists
     const existingMapping = fieldMappings.find(
-      (m) => m.topicId === draggedField.topicId && m.topicField === fieldName,
+      (m) =>
+        m.topicId === draggedColumn.topicId &&
+        m.topicField === draggedColumn.columnName &&
+        m.modelField === modelField,
     );
 
     if (existingMapping) {
-      notifications.show({ message: "Field already mapped", color: "orange" });
-      setDraggedField(null);
+      notifications.show({
+        message: "This mapping already exists",
+        color: "orange",
+      });
+      setDraggedColumn(null);
       return;
     }
 
-    // Add field to model
-    if (!modelFields.includes(fieldName)) {
-      setModelFields([...modelFields, fieldName]);
-    }
-
-    // Add mapping
+    // Add new mapping
     setFieldMappings([
       ...fieldMappings,
       {
-        topicId: draggedField.topicId,
-        topicField: fieldName,
-        modelField: fieldName,
-        role: role,
+        topicId: draggedColumn.topicId,
+        topicField: draggedColumn.columnName,
+        modelField: modelField,
       },
     ]);
 
-    setDraggedField(null);
+    setDraggedColumn(null);
+    notifications.show({
+      message: "Mapping created",
+      color: "green",
+    });
   };
 
-  const handleRemoveField = (mapping: FieldMapping) => {
+  const handleRemoveMapping = (mapping: FieldMapping) => {
     setFieldMappings(
       fieldMappings.filter(
         (m) =>
           !(
-            m.topicId === mapping.topicId && m.topicField === mapping.topicField
+            m.topicId === mapping.topicId &&
+            m.topicField === mapping.topicField &&
+            m.modelField === mapping.modelField
           ),
       ),
     );
-    // Also remove from modelFields if no other mapping uses it
-    const stillUsed = fieldMappings.some(
-      (m) =>
-        m.modelField === mapping.modelField &&
-        !(m.topicId === mapping.topicId && m.topicField === mapping.topicField),
-    );
-    if (!stillUsed) {
-      setModelFields(modelFields.filter((f) => f !== mapping.modelField));
-    }
   };
 
   const handleSaveModel = async () => {
@@ -194,7 +203,7 @@ export function ModelCanvasPage() {
 
     if (fieldMappings.length === 0) {
       notifications.show({
-        message: "Please map at least one field",
+        message: "Please create at least one field mapping",
         color: "red",
       });
       return;
@@ -207,19 +216,10 @@ export function ModelCanvasPage() {
       topics: selectedTopics,
     };
 
-    // Get mapped fields by role
-    const businessKey =
-      fieldMappings.find((m) => m.role === "business_key")?.modelField ||
-      modelFields[0];
-    const attributes = fieldMappings
-      .filter((m) => !m.role || m.role === "attribute")
-      .map((m) => m.modelField);
-    const measures = fieldMappings
-      .filter((m) => m.role === "measure")
-      .map((m) => m.modelField);
-    const dimensionKeys = fieldMappings
-      .filter((m) => m.role === "dimension_key")
-      .map((m) => m.modelField);
+    // Get all mapped fields
+    const mappedFields = modelFields.filter((field) =>
+      fieldMappings.some((m) => m.modelField === field),
+    );
 
     if (modelType === "data_vault") {
       if (entityType === "hub") {
@@ -227,8 +227,8 @@ export function ModelCanvasPage() {
           {
             name: entityName,
             topic: selectedTopics[0],
-            business_key: businessKey,
-            fields: attributes,
+            business_key: mappedFields[0] || "id",
+            fields: mappedFields,
           },
         ];
         modelData.links = [];
@@ -239,8 +239,8 @@ export function ModelCanvasPage() {
           {
             name: entityName,
             topic: selectedTopics[0],
-            hub_references: ["Hub_1", "Hub_2"], // Placeholder
-            fields: modelFields,
+            hub_references: ["Hub_1", "Hub_2"],
+            fields: mappedFields,
           },
         ];
         modelData.satellites = [];
@@ -251,8 +251,8 @@ export function ModelCanvasPage() {
           {
             name: entityName,
             topic: selectedTopics[0],
-            parent: "Hub_Parent", // Placeholder
-            fields: modelFields,
+            parent: "Hub_Parent",
+            fields: mappedFields,
           },
         ];
       }
@@ -263,8 +263,8 @@ export function ModelCanvasPage() {
             name: entityName,
             topic: selectedTopics[0],
             grain: "transaction",
-            measures: measures.length > 0 ? measures : modelFields,
-            dimension_keys: dimensionKeys,
+            measures: mappedFields,
+            dimension_keys: [],
           },
         ];
         modelData.dimensions = [];
@@ -274,8 +274,8 @@ export function ModelCanvasPage() {
           {
             name: entityName,
             topic: selectedTopics[0],
-            key: businessKey,
-            fields: attributes,
+            key: mappedFields[0] || "id",
+            fields: mappedFields,
           },
         ];
       }
@@ -292,6 +292,10 @@ export function ModelCanvasPage() {
   const getTopicFields = (topicId: string) => {
     const topic = topics.find((t: any) => String(t.id) === topicId);
     return topic?.current_revision?.schema || [];
+  };
+
+  const getTopicInfo = (topicId: string) => {
+    return topics.find((t: any) => String(t.id) === topicId);
   };
 
   const availableTopics = topics.filter(
@@ -361,7 +365,8 @@ export function ModelCanvasPage() {
       </Modal>
 
       {/* Canvas Page */}
-      <Stack h="calc(100vh - 60px)" p="md">
+      <Stack h="calc(100vh - 60px)" p="md" gap="md">
+        {/* Header */}
         <Group justify="space-between">
           <Group>
             <ActionIcon variant="subtle" onClick={() => navigate("/models")}>
@@ -390,67 +395,70 @@ export function ModelCanvasPage() {
           </Button>
         </Group>
 
+        {/* Single Canvas with SVG overlay */}
         <Box
+          ref={canvasRef}
           style={{
             flex: 1,
-            display: "grid",
-            gridTemplateColumns: "300px 1fr 300px",
-            gap: "1rem",
-            overflow: "hidden",
+            position: "relative",
+            border: "1px solid var(--mantine-color-gray-3)",
+            borderRadius: "8px",
+            backgroundColor: "var(--mantine-color-gray-0)",
+            overflow: "auto",
+            padding: "1rem",
           }}
         >
-          {/* Left Panel - Available Topics */}
-          <Card withBorder p="md" style={{ overflow: "auto" }}>
-            <Text fw={600} mb="md">
-              Available Topics
-            </Text>
-            <Stack gap="xs">
-              {availableTopics.map((topic: any) => (
-                <Paper
-                  key={topic.id}
-                  withBorder
-                  p="sm"
-                  style={{ cursor: "pointer" }}
-                  onClick={() => handleAddTopic(String(topic.id))}
-                >
-                  <Group justify="space-between">
-                    <Text size="sm" fw={500}>
+          {/* Add Topic Button in top left */}
+          <Box style={{ position: "absolute", top: 16, left: 16, zIndex: 10 }}>
+            <Menu shadow="md" width={200}>
+              <Menu.Target>
+                <Button leftSection={<IconPlus size={16} />} size="sm">
+                  Add Topic
+                </Button>
+              </Menu.Target>
+              <Menu.Dropdown>
+                {availableTopics.length > 0 ? (
+                  availableTopics.map((topic: any) => (
+                    <Menu.Item
+                      key={topic.id}
+                      onClick={() => handleAddTopic(String(topic.id))}
+                    >
                       {topic.name}
-                    </Text>
-                    <ActionIcon size="sm" variant="light">
-                      <IconPlus size={14} />
-                    </ActionIcon>
-                  </Group>
-                </Paper>
-              ))}
-              {availableTopics.length === 0 && (
-                <Text c="dimmed" size="sm">
-                  All topics added
-                </Text>
-              )}
-            </Stack>
-          </Card>
+                    </Menu.Item>
+                  ))
+                ) : (
+                  <Menu.Item disabled>No more topics available</Menu.Item>
+                )}
+              </Menu.Dropdown>
+            </Menu>
+          </Box>
 
-          {/* Center - Canvas */}
-          <Card
-            withBorder
-            p="md"
-            style={{ overflow: "auto", position: "relative" }}
+          {/* Canvas Content - Two column layout */}
+          <Box
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              minHeight: "100%",
+              paddingTop: "60px",
+            }}
           >
-            <Text fw={600} mb="md">
-              Model Canvas
-            </Text>
-            <Stack gap="md">
-              {/* Topics on Canvas */}
+            {/* Left side - Topics */}
+            <Stack
+              gap="md"
+              style={{
+                width: "400px",
+                paddingRight: "2rem",
+              }}
+            >
               {selectedTopics.map((topicId) => {
-                const topic = topics.find((t: any) => String(t.id) === topicId);
+                const topic = getTopicInfo(topicId);
                 const schema = getTopicFields(topicId);
                 const expanded = expandedTopics[topicId];
 
                 return (
-                  <Card key={topicId} withBorder shadow="sm">
+                  <Card key={topicId} withBorder shadow="sm" p="md">
                     <Group justify="space-between" mb="xs">
-                      <Group>
+                      <Group gap="xs">
                         <ActionIcon
                           size="sm"
                           variant="subtle"
@@ -462,54 +470,77 @@ export function ModelCanvasPage() {
                             <IconChevronRight size={16} />
                           )}
                         </ActionIcon>
-                        <Badge variant="dot">Topic</Badge>
                         <Text fw={600}>{topic?.name}</Text>
                       </Group>
-                      <Button
-                        size="xs"
-                        variant="subtle"
+                      <ActionIcon
+                        size="sm"
                         color="red"
+                        variant="subtle"
                         onClick={() => handleRemoveTopic(topicId)}
                       >
-                        Remove
-                      </Button>
+                        <IconX size={16} />
+                      </ActionIcon>
                     </Group>
+
+                    {topic?.description && (
+                      <Text size="sm" c="dimmed" mb="xs">
+                        {topic.description}
+                      </Text>
+                    )}
 
                     <Collapse in={expanded}>
                       <Divider my="xs" />
-                      <Text size="sm" c="dimmed" mb="xs">
-                        Drag fields to the model →
+                      <Text size="xs" c="dimmed" mb="xs">
+                        Columns - drag handle to map
                       </Text>
                       <Stack gap={4}>
                         {schema.map((col: any) => {
-                          const isMapped = fieldMappings.some(
+                          const mappedCount = fieldMappings.filter(
                             (m) =>
-                              m.topicId === topicId &&
-                              m.topicField === col.name,
-                          );
+                              m.topicId === topicId && m.topicField === col.name,
+                          ).length;
+
                           return (
                             <Paper
                               key={col.name}
                               p="xs"
                               withBorder
-                              draggable
-                              onDragStart={() =>
-                                handleFieldDragStart(topicId, col.name)
-                              }
                               style={{
-                                cursor: isMapped ? "default" : "grab",
-                                opacity: isMapped ? 0.5 : 1,
-                                backgroundColor: isMapped
-                                  ? "var(--mantine-color-gray-1)"
-                                  : undefined,
+                                backgroundColor:
+                                  mappedCount > 0
+                                    ? "var(--mantine-color-green-0)"
+                                    : "white",
                               }}
                             >
-                              <Group justify="space-between">
-                                <Text size="sm">{col.name}</Text>
-                                <Text size="xs" c="dimmed">
-                                  {col.data_type}
-                                </Text>
+                              <Group justify="space-between" wrap="nowrap">
+                                <Box style={{ flex: 1 }}>
+                                  <Text size="sm" fw={500}>
+                                    {col.name}
+                                  </Text>
+                                  <Text size="xs" c="dimmed">
+                                    {col.data_type}
+                                  </Text>
+                                </Box>
+                                <ActionIcon
+                                  size="lg"
+                                  variant="light"
+                                  color="blue"
+                                  draggable
+                                  onDragStart={() =>
+                                    handleColumnDragStart(topicId, col.name)
+                                  }
+                                  onDragEnd={handleColumnDragEnd}
+                                  style={{ cursor: "grab" }}
+                                  title="Drag to map to model field"
+                                >
+                                  <IconGripVertical size={18} />
+                                </ActionIcon>
                               </Group>
+                              {mappedCount > 0 && (
+                                <Badge size="xs" color="green" mt={4}>
+                                  {mappedCount} mapping{mappedCount > 1 ? "s" : ""}
+                                </Badge>
+                              )}
                             </Paper>
                           );
                         })}
@@ -519,161 +550,142 @@ export function ModelCanvasPage() {
                 );
               })}
             </Stack>
-          </Card>
 
-          {/* Right Panel - Model Definition */}
-          <Card
-            withBorder
-            p="md"
-            style={{ overflow: "auto" }}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => handleFieldDrop(e)}
-          >
-            <Badge variant="filled" mb="md">
-              Model: {entityName}
-            </Badge>
-            <Text fw={600} mb="md">
-              Mapped Fields
-            </Text>
-
-            {/* Drop zones for specific roles */}
-            {entityType === "hub" && (
-              <Paper
-                withBorder
-                p="sm"
-                mb="xs"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => handleFieldDrop(e, "business_key")}
-                style={{ backgroundColor: "var(--mantine-color-blue-0)" }}
-              >
-                <Text size="sm" fw={600} mb={4}>
-                  Business Key (drop here)
-                </Text>
-                <Group gap="xs">
-                  {fieldMappings
-                    .filter((m) => m.role === "business_key")
-                    .map((m, idx) => {
-                      const topic = topics.find(
-                        (t: any) => String(t.id) === m.topicId,
-                      );
-                      return (
-                        <Badge
-                          key={idx}
-                          variant="filled"
-                          pr={3}
-                          rightSection={
-                            <ActionIcon
-                              size="xs"
-                              color="blue"
-                              radius="xl"
-                              variant="transparent"
-                              onClick={() => handleRemoveField(m)}
-                            >
-                              <IconX size={12} />
-                            </ActionIcon>
-                          }
-                        >
-                          {m.modelField} ← {topic?.name}
-                        </Badge>
-                      );
-                    })}
-                </Group>
-              </Paper>
-            )}
-
-            {entityType === "fact" && (
-              <Paper
-                withBorder
-                p="sm"
-                mb="xs"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => handleFieldDrop(e, "measure")}
-                style={{ backgroundColor: "var(--mantine-color-blue-0)" }}
-              >
-                <Text size="sm" fw={600} mb={4}>
-                  Measures (drop here)
-                </Text>
-                <Group gap="xs">
-                  {fieldMappings
-                    .filter((m) => m.role === "measure")
-                    .map((m, idx) => {
-                      const topic = topics.find(
-                        (t: any) => String(t.id) === m.topicId,
-                      );
-                      return (
-                        <Badge
-                          key={idx}
-                          variant="filled"
-                          color="blue"
-                          pr={3}
-                          rightSection={
-                            <ActionIcon
-                              size="xs"
-                              color="blue"
-                              radius="xl"
-                              variant="transparent"
-                              onClick={() => handleRemoveField(m)}
-                            >
-                              <IconX size={12} />
-                            </ActionIcon>
-                          }
-                        >
-                          {m.modelField} ← {topic?.name}
-                        </Badge>
-                      );
-                    })}
-                </Group>
-              </Paper>
-            )}
-
-            <Paper
-              withBorder
-              p="sm"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => handleFieldDrop(e, "attribute")}
-              style={{ backgroundColor: "var(--mantine-color-gray-0)" }}
+            {/* Right side - Model */}
+            <Box
+              style={{
+                width: "400px",
+                paddingLeft: "2rem",
+              }}
             >
-              <Text size="sm" fw={600} mb={4}>
-                {entityType === "fact" ? "Dimension Keys" : "Attributes"} (drop
-                here)
-              </Text>
-              <Stack gap={4}>
-                {fieldMappings
-                  .filter((m) => !m.role || m.role === "attribute")
-                  .map((m, idx) => {
-                    const topic = topics.find(
-                      (t: any) => String(t.id) === m.topicId,
-                    );
-                    return (
-                      <Badge
-                        key={idx}
-                        variant="light"
-                        pr={3}
-                        rightSection={
-                          <ActionIcon
-                            size="xs"
-                            color="gray"
-                            radius="xl"
-                            variant="transparent"
-                            onClick={() => handleRemoveField(m)}
-                          >
-                            <IconX size={12} />
-                          </ActionIcon>
-                        }
-                      >
-                        {m.modelField} ← {topic?.name}
-                      </Badge>
-                    );
-                  })}
-              </Stack>
-            </Paper>
+              <Card withBorder shadow="lg" p="md">
+                <Group justify="space-between" mb="md">
+                  <div>
+                    <Text fw={700} size="lg">
+                      {entityName}
+                    </Text>
+                    <Text size="sm" c="dimmed">
+                      Data Model
+                    </Text>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="light"
+                    leftSection={<IconPlus size={16} />}
+                    onClick={handleAddModelField}
+                  >
+                    Add Field
+                  </Button>
+                </Group>
 
-            {fieldMappings.length === 0 && (
-              <Text c="dimmed" size="sm" ta="center" mt="xl">
-                Drag fields from topics to map them
-              </Text>
-            )}
-          </Card>
+                <Divider mb="md" />
+
+                <Stack gap="xs">
+                  {modelFields.length === 0 ? (
+                    <Text size="sm" c="dimmed" ta="center" py="xl">
+                      Click "Add Field" to create fields
+                    </Text>
+                  ) : (
+                    modelFields.map((fieldName) => {
+                      const mappings = fieldMappings.filter(
+                        (m) => m.modelField === fieldName,
+                      );
+
+                      return (
+                        <Paper
+                          key={fieldName}
+                          p="sm"
+                          withBorder
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={() => handleFieldDrop(fieldName)}
+                          style={{
+                            backgroundColor:
+                              mappings.length > 0
+                                ? "var(--mantine-color-blue-0)"
+                                : "white",
+                            border:
+                              draggedColumn && mappings.length === 0
+                                ? "2px dashed var(--mantine-color-blue-5)"
+                                : undefined,
+                          }}
+                        >
+                          <Group justify="space-between" align="flex-start">
+                            <Box style={{ flex: 1 }}>
+                              <Group gap="xs" mb={4}>
+                                <Text size="sm" fw={600}>
+                                  {fieldName}
+                                </Text>
+                                {mappings.length === 0 && (
+                                  <Badge size="xs" color="gray" variant="outline">
+                                    unmapped
+                                  </Badge>
+                                )}
+                              </Group>
+
+                              {mappings.length > 0 && (
+                                <Stack gap={4}>
+                                  {mappings.map((mapping, idx) => {
+                                    const topic = getTopicInfo(mapping.topicId);
+                                    return (
+                                      <Group key={idx} gap="xs">
+                                        <Badge
+                                          size="sm"
+                                          variant="light"
+                                          pr={3}
+                                          rightSection={
+                                            <ActionIcon
+                                              size="xs"
+                                              color="gray"
+                                              radius="xl"
+                                              variant="transparent"
+                                              onClick={() =>
+                                                handleRemoveMapping(mapping)
+                                              }
+                                            >
+                                              <IconX size={10} />
+                                            </ActionIcon>
+                                          }
+                                        >
+                                          {topic?.name}.{mapping.topicField}
+                                        </Badge>
+                                      </Group>
+                                    );
+                                  })}
+                                </Stack>
+                              )}
+                            </Box>
+                            <ActionIcon
+                              size="sm"
+                              color="red"
+                              variant="subtle"
+                              onClick={() => handleRemoveModelField(fieldName)}
+                            >
+                              <IconX size={16} />
+                            </ActionIcon>
+                          </Group>
+                        </Paper>
+                      );
+                    })
+                  )}
+                </Stack>
+              </Card>
+            </Box>
+          </Box>
+
+          {/* SVG overlay for connection lines */}
+          <svg
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              pointerEvents: "none",
+              zIndex: 1,
+            }}
+          >
+            {/* We'll add connection lines here in future enhancement */}
+          </svg>
         </Box>
       </Stack>
     </>
