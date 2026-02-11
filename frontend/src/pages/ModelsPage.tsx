@@ -4,10 +4,12 @@ import { IconPlus } from "@tabler/icons-react";
 import { ModelWizard } from "../features/models/ModelWizard";
 import { PageHeader } from "../components/common/PageHeader";
 import { useModels } from "../hooks/useModels";
+import { useNavigate } from "react-router-dom";
 
 export function ModelsPage() {
   const [open, { open: openIt, close }] = useDisclosure(false);
   const { data: models = [], isLoading } = useModels();
+  const navigate = useNavigate();
 
   return (
     <Stack>
@@ -57,7 +59,11 @@ export function ModelsPage() {
                 }
 
                 return (
-                  <Table.Tr key={m.id}>
+                  <Table.Tr 
+                    key={m.id}
+                    style={{ cursor: "pointer" }}
+                    onClick={() => navigate(`/models/${m.id}`)}
+                  >
                     <Table.Td>{m.name}</Table.Td>
                     <Table.Td>
                       <Badge variant="light">
