@@ -1,13 +1,10 @@
 import { Stack, Card, Table, Badge, Text } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
 import { IconPlus } from "@tabler/icons-react";
-import { ModelWizard } from "../features/models/ModelWizard";
 import { PageHeader } from "../components/common/PageHeader";
 import { useModels } from "../hooks/useModels";
 import { useNavigate } from "react-router-dom";
 
 export function ModelsPage() {
-  const [open, { open: openIt, close }] = useDisclosure(false);
   const { data: models = [], isLoading } = useModels();
   const navigate = useNavigate();
 
@@ -18,7 +15,7 @@ export function ModelsPage() {
         description="Define semantic structure using Data Vault or Dimensional modeling."
         action={{
           label: "New model",
-          onClick: openIt,
+          onClick: () => navigate("/models/new"),
           icon: <IconPlus size={16} />,
         }}
       />
@@ -89,8 +86,6 @@ export function ModelsPage() {
           </Table.Tbody>
         </Table>
       </Card>
-
-      <ModelWizard opened={open} onClose={close} />
     </Stack>
   );
 }

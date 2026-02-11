@@ -10,6 +10,7 @@ import { TopicsPage } from "../pages/TopicsPage";
 import { TopicDetailPage } from "../pages/TopicDetailPage";
 import { ModelsPage } from "../pages/ModelsPage";
 import { ModelDetailPage } from "../pages/ModelDetailPage";
+import { ModelCanvasPage } from "../pages/ModelCanvasPage";
 import { RunsPage } from "../pages/RunsPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { SentryTestPage } from "../pages/SentryTestPage";
@@ -44,6 +45,7 @@ export const router = createBrowserRouter([
       { path: "topics", element: <TopicsPage /> },
       { path: "topics/:id", element: <TopicDetailPage /> },
       { path: "models", element: <ModelsPage /> },
+      { path: "models/new", element: <ModelCanvasPage /> },
       { path: "models/:id", element: <ModelDetailPage /> },
       { path: "runs", element: <RunsPage /> },
       { path: "settings", element: <SettingsPage /> },
