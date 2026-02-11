@@ -14,6 +14,7 @@ import {
   Select,
   Menu,
   Divider,
+  useMantineColorScheme,
 } from "@mantine/core";
 import {
   IconPlus,
@@ -23,6 +24,7 @@ import {
   IconDeviceFloppy,
   IconX,
   IconGripVertical,
+  IconEdit,
 } from "@tabler/icons-react";
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -43,6 +45,7 @@ export function ModelCanvasPage() {
   const navigate = useNavigate();
   const { data: topics = [] } = useTopics();
   const createModel = useCreateModel();
+  const { colorScheme } = useMantineColorScheme();
 
   // Setup modal state
   const [setupModalOpen, { close: closeSetup }] = useDisclosure(true);
@@ -64,7 +67,11 @@ export function ModelCanvasPage() {
     topicId: string;
     columnName: string;
   } | null>(null);
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editingFieldValue, setEditingFieldValue] = useState("");
   const canvasRef = useRef<HTMLDivElement>(null);
+  const topicColRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const modelFieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Auto-generate entity name when model name changes
   useEffect(() => {
@@ -182,6 +189,61 @@ export function ModelCanvasPage() {
           ),
       ),
     );
+  };
+
+  const handleStartEditField = (fieldName: string) => {
+    setEditingField(fieldName);
+    setEditingFieldValue(fieldName);
+  };
+
+  const handleFinishEditField = () => {
+    if (!editingField) return;
+
+    const trimmedValue = editingFieldValue.trim();
+    
+    // Validate field name
+    if (!trimmedValue) {
+      notifications.show({
+        message: "Field name cannot be empty",
+        color: "red",
+      });
+      setEditingField(null);
+      return;
+    }
+
+    // Check for duplicate names
+    if (
+      trimmedValue !== editingField &&
+      modelFields.includes(trimmedValue)
+    ) {
+      notifications.show({
+        message: "Field name already exists",
+        color: "red",
+      });
+      setEditingField(null);
+      return;
+    }
+
+    // Update field name
+    const updatedFields = modelFields.map((f) =>
+      f === editingField ? trimmedValue : f,
+    );
+    setModelFields(updatedFields);
+
+    // Update mappings to reflect new field name
+    const updatedMappings = fieldMappings.map((m) =>
+      m.modelField === editingField
+        ? { ...m, modelField: trimmedValue }
+        : m,
+    );
+    setFieldMappings(updatedMappings);
+
+    setEditingField(null);
+  };
+
+  const handleCancelEditField = () => {
+    setEditingField(null);
+    setEditingFieldValue("");
   };
 
   const handleSaveModel = async () => {
@@ -302,6 +364,66 @@ export function ModelCanvasPage() {
     (t: any) => !selectedTopics.includes(String(t.id)),
   );
 
+  // Calculate connection lines
+  const calculateConnectionLines = () => {
+    const lines: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+
+    if (!canvasRef.current) return lines;
+
+    const canvasRect = canvasRef.current.getBoundingClientRect();
+
+    fieldMappings.forEach((mapping) => {
+      const colKey = `${mapping.topicId}-${mapping.topicField}`;
+      const colElement = topicColRefs.current[colKey];
+      const fieldElement = modelFieldRefs.current[mapping.modelField];
+
+      if (colElement && fieldElement) {
+        const colRect = colElement.getBoundingClientRect();
+        const fieldRect = fieldElement.getBoundingClientRect();
+
+        // Calculate relative positions within canvas
+        const x1 = colRect.right - canvasRect.left;
+        const y1 = colRect.top + colRect.height / 2 - canvasRect.top;
+        const x2 = fieldRect.left - canvasRect.left;
+        const y2 = fieldRect.top + fieldRect.height / 2 - canvasRect.top;
+
+        lines.push({ x1, y1, x2, y2 });
+      }
+    });
+
+    return lines;
+  };
+
+  const [connectionLines, setConnectionLines] = useState<
+    Array<{ x1: number; y1: number; x2: number; y2: number }>
+  >([]);
+
+  // Update connection lines when mappings change
+  useEffect(() => {
+    const updateLines = () => {
+      setConnectionLines(calculateConnectionLines());
+    };
+
+    // Initial calculation
+    updateLines();
+
+    // Recalculate on scroll or resize
+    const canvas = canvasRef.current;
+    if (canvas) {
+      canvas.addEventListener("scroll", updateLines);
+      window.addEventListener("resize", updateLines);
+      
+      // Also update after a short delay to account for DOM updates
+      const timer = setTimeout(updateLines, 100);
+
+      return () => {
+        canvas.removeEventListener("scroll", updateLines);
+        window.removeEventListener("resize", updateLines);
+        clearTimeout(timer);
+      };
+    }
+  }, [fieldMappings, selectedTopics, expandedTopics, modelFields]);
+
   return (
     <>
       {/* Setup Modal */}
@@ -401,12 +523,12 @@ export function ModelCanvasPage() {
           style={{
             flex: 1,
             position: "relative",
-            border: "1px solid var(--mantine-color-gray-3)",
+            border: `1px solid ${colorScheme === 'dark' ? 'var(--mantine-color-dark-4)' : 'var(--mantine-color-gray-3)'}`,
             borderRadius: "8px",
-            backgroundColor: "var(--mantine-color-gray-0)",
             overflow: "auto",
             padding: "1rem",
           }}
+          bg={colorScheme === 'dark' ? 'dark.8' : 'gray.0'}
         >
           {/* Add Topic Button in top left */}
           <Box style={{ position: "absolute", top: 16, left: 16, zIndex: 10 }}>
@@ -499,18 +621,15 @@ export function ModelCanvasPage() {
                             (m) =>
                               m.topicId === topicId && m.topicField === col.name,
                           ).length;
+                          const colKey = `${topicId}-${col.name}`;
 
                           return (
                             <Paper
                               key={col.name}
+                              ref={(el) => (topicColRefs.current[colKey] = el)}
                               p="xs"
                               withBorder
-                              style={{
-                                backgroundColor:
-                                  mappedCount > 0
-                                    ? "var(--mantine-color-green-0)"
-                                    : "white",
-                              }}
+                              bg={mappedCount > 0 ? "green.0" : undefined}
                             >
                               <Group justify="space-between" wrap="nowrap">
                                 <Box style={{ flex: 1 }}>
@@ -590,19 +709,18 @@ export function ModelCanvasPage() {
                       const mappings = fieldMappings.filter(
                         (m) => m.modelField === fieldName,
                       );
+                      const isEditing = editingField === fieldName;
 
                       return (
                         <Paper
                           key={fieldName}
+                          ref={(el) => (modelFieldRefs.current[fieldName] = el)}
                           p="sm"
                           withBorder
                           onDragOver={(e) => e.preventDefault()}
                           onDrop={() => handleFieldDrop(fieldName)}
+                          bg={mappings.length > 0 ? "blue.0" : undefined}
                           style={{
-                            backgroundColor:
-                              mappings.length > 0
-                                ? "var(--mantine-color-blue-0)"
-                                : "white",
                             border:
                               draggedColumn && mappings.length === 0
                                 ? "2px dashed var(--mantine-color-blue-5)"
@@ -612,10 +730,40 @@ export function ModelCanvasPage() {
                           <Group justify="space-between" align="flex-start">
                             <Box style={{ flex: 1 }}>
                               <Group gap="xs" mb={4}>
-                                <Text size="sm" fw={600}>
-                                  {fieldName}
-                                </Text>
-                                {mappings.length === 0 && (
+                                {isEditing ? (
+                                  <TextInput
+                                    size="sm"
+                                    value={editingFieldValue}
+                                    onChange={(e) =>
+                                      setEditingFieldValue(e.target.value)
+                                    }
+                                    onBlur={handleFinishEditField}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        handleFinishEditField();
+                                      } else if (e.key === "Escape") {
+                                        handleCancelEditField();
+                                      }
+                                    }}
+                                    autoFocus
+                                    styles={{ input: { fontWeight: 600 } }}
+                                  />
+                                ) : (
+                                  <>
+                                    <Text size="sm" fw={600}>
+                                      {fieldName}
+                                    </Text>
+                                    <ActionIcon
+                                      size="xs"
+                                      variant="subtle"
+                                      onClick={() => handleStartEditField(fieldName)}
+                                      title="Edit field name"
+                                    >
+                                      <IconEdit size={12} />
+                                    </ActionIcon>
+                                  </>
+                                )}
+                                {mappings.length === 0 && !isEditing && (
                                   <Badge size="xs" color="gray" variant="outline">
                                     unmapped
                                   </Badge>
@@ -684,7 +832,35 @@ export function ModelCanvasPage() {
               zIndex: 1,
             }}
           >
-            {/* We'll add connection lines here in future enhancement */}
+            {connectionLines.map((line, idx) => (
+              <g key={idx}>
+                {/* Draw line with arrow */}
+                <defs>
+                  <marker
+                    id={`arrowhead-${idx}`}
+                    markerWidth="10"
+                    markerHeight="10"
+                    refX="9"
+                    refY="3"
+                    orient="auto"
+                  >
+                    <polygon
+                      points="0 0, 10 3, 0 6"
+                      fill={colorScheme === 'dark' ? '#4dabf7' : '#1c7ed6'}
+                    />
+                  </marker>
+                </defs>
+                <line
+                  x1={line.x1}
+                  y1={line.y1}
+                  x2={line.x2}
+                  y2={line.y2}
+                  stroke={colorScheme === 'dark' ? '#4dabf7' : '#1c7ed6'}
+                  strokeWidth="2"
+                  markerEnd={`url(#arrowhead-${idx})`}
+                />
+              </g>
+            ))}
           </svg>
         </Box>
       </Stack>
