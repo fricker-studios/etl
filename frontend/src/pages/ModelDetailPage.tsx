@@ -254,18 +254,17 @@ export function ModelDetailPage() {
         </Text>
         <Divider mb="md" />
 
-        {hasFieldMappings ? (
-          <Box
-            className="dag-container"
-            style={{
-              position: "relative",
-              minHeight: "400px",
-              display: "flex",
-              justifyContent: "space-between",
-              gap: "60px",
-              padding: "20px",
-            }}
-          >
+        <Box
+          className="dag-container"
+          style={{
+            position: "relative",
+            minHeight: "400px",
+            display: "flex",
+            justifyContent: "space-between",
+            gap: "60px",
+            padding: "20px",
+          }}
+        >
             {/* SVG for connection lines */}
             <svg
               style={{
@@ -320,39 +319,45 @@ export function ModelDetailPage() {
                     </Badge>
                   </Group>
                   <Divider />
-                  <Stack gap="xs">
-                    {topicSchema.map((field: any) => {
-                      const isMapped = fieldMappings.some(
-                        (m: any) => m.topic_field === field.name,
-                      );
-                      const fieldKey = `${entityDetails.topic}-${field.name}`;
-                      return (
-                        <Box
-                          key={field.name}
-                          ref={(el) => {
-                            topicFieldRefs.current[fieldKey] = el;
-                          }}
-                          p="xs"
-                          style={{
-                            borderRadius: "4px",
-                            border: `1px solid ${isMapped ? (colorScheme === "dark" ? "#2f9e44" : "#37b24d") : colorScheme === "dark" ? "#373A40" : "#dee2e6"}`,
-                            backgroundColor: isMapped
-                              ? colorScheme === "dark"
-                                ? "#2b8a3e"
-                                : "#d3f9d8"
-                              : undefined,
-                          }}
-                        >
-                          <Text size="sm" fw={500}>
-                            {field.name}
-                          </Text>
-                          <Text size="xs" c="dimmed">
-                            {field.type}
-                          </Text>
-                        </Box>
-                      );
-                    })}
-                  </Stack>
+                  {topicSchema.length > 0 ? (
+                    <Stack gap="xs">
+                      {topicSchema.map((field: any) => {
+                        const isMapped = fieldMappings.some(
+                          (m: any) => m.topic_field === field.name,
+                        );
+                        const fieldKey = `${entityDetails.topic}-${field.name}`;
+                        return (
+                          <Box
+                            key={field.name}
+                            ref={(el) => {
+                              topicFieldRefs.current[fieldKey] = el;
+                            }}
+                            p="xs"
+                            style={{
+                              borderRadius: "4px",
+                              border: `1px solid ${isMapped ? (colorScheme === "dark" ? "#2f9e44" : "#37b24d") : colorScheme === "dark" ? "#373A40" : "#dee2e6"}`,
+                              backgroundColor: isMapped
+                                ? colorScheme === "dark"
+                                  ? "#2b8a3e"
+                                  : "#d3f9d8"
+                                : undefined,
+                            }}
+                          >
+                            <Text size="sm" fw={500}>
+                              {field.name}
+                            </Text>
+                            <Text size="xs" c="dimmed">
+                              {field.type}
+                            </Text>
+                          </Box>
+                        );
+                      })}
+                    </Stack>
+                  ) : (
+                    <Text c="dimmed" size="sm" ta="center" py="md">
+                      No topic information available
+                    </Text>
+                  )}
                 </Stack>
               </Card>
             </Box>
@@ -370,226 +375,71 @@ export function ModelDetailPage() {
                     </Badge>
                   </Group>
                   <Divider />
-                  <Stack gap="xs">
-                    {entityDetails.fields?.map((field: string) => {
-                      const mappingsForField = fieldMappings.filter(
-                        (m: any) => m.model_field === field,
-                      );
-                      return (
-                        <Box
-                          key={field}
-                          ref={(el) => {
-                            modelFieldRefs.current[field] = el;
-                          }}
-                          p="xs"
-                          style={{
-                            borderRadius: "4px",
-                            border: `1px solid ${colorScheme === "dark" ? "#1864ab" : "#4dabf7"}`,
-                            backgroundColor:
-                              colorScheme === "dark" ? "#1971c2" : "#e7f5ff",
-                          }}
-                        >
-                          <Text size="sm" fw={500}>
-                            {field}
-                          </Text>
-                          {mappingsForField.length > 0 && (
-                            <Group gap={4} mt={4}>
-                              {mappingsForField.map((m: any, idx: number) => {
-                                const sourceTopic = topics.find(
-                                  (t: any) =>
-                                    String(t.id) === String(m.topic_id),
-                                );
-                                return (
-                                  <Badge
-                                    key={idx}
-                                    size="xs"
-                                    variant="light"
-                                    color="blue"
-                                  >
-                                    ← {m.topic_field}
-                                    {sourceTopic && ` (${sourceTopic.name})`}
-                                  </Badge>
-                                );
-                              })}
-                            </Group>
-                          )}
-                        </Box>
-                      );
-                    })}
-                  </Stack>
+                  {entityDetails.fields && entityDetails.fields.length > 0 ? (
+                    <Stack gap="xs">
+                      {entityDetails.fields.map((field: string) => {
+                        const mappingsForField = fieldMappings.filter(
+                          (m: any) => m.model_field === field,
+                        );
+                        return (
+                          <Box
+                            key={field}
+                            ref={(el) => {
+                              modelFieldRefs.current[field] = el;
+                            }}
+                            p="xs"
+                            style={{
+                              borderRadius: "4px",
+                              border: `1px solid ${colorScheme === "dark" ? "#1864ab" : "#4dabf7"}`,
+                              backgroundColor:
+                                colorScheme === "dark" ? "#1971c2" : "#e7f5ff",
+                            }}
+                          >
+                            <Text size="sm" fw={500}>
+                              {field}
+                            </Text>
+                            {mappingsForField.length > 0 && (
+                              <Group gap={4} mt={4}>
+                                {mappingsForField.map((m: any, idx: number) => {
+                                  const sourceTopic = topics.find(
+                                    (t: any) =>
+                                      String(t.id) === String(m.topic_id),
+                                  );
+                                  return (
+                                    <Badge
+                                      key={idx}
+                                      size="xs"
+                                      variant="light"
+                                      color="blue"
+                                    >
+                                      ← {m.topic_field}
+                                      {sourceTopic && ` (${sourceTopic.name})`}
+                                    </Badge>
+                                  );
+                                })}
+                              </Group>
+                            )}
+                          </Box>
+                        );
+                      })}
+                    </Stack>
+                  ) : (
+                    <Text c="dimmed" size="sm" ta="center" py="md">
+                      No model fields defined
+                    </Text>
+                  )}
                 </Stack>
               </Card>
             </Box>
           </Box>
-        ) : (
-          // Fallback: Show badge-based view if no field_mappings
-          <Stack gap="md">
-            {entityDetails && (
-              <>
-                {entityType === "Hub" && (
-                  <>
-                    <div>
-                      <Text size="sm" c="dimmed" mb={4}>
-                        Business Key
-                      </Text>
-                      <Badge variant="filled">
-                        {entityDetails.business_key}
-                      </Badge>
-                    </div>
-                    {entityDetails.fields &&
-                      entityDetails.fields.length > 0 && (
-                        <div>
-                          <Text size="sm" c="dimmed" mb={4}>
-                            Additional Attributes ({entityDetails.fields.length}
-                            )
-                          </Text>
-                          <Group gap="xs">
-                            {entityDetails.fields.map(
-                              (field: string, idx: number) => (
-                                <Badge key={idx} variant="light">
-                                  {field}
-                                </Badge>
-                              ),
-                            )}
-                          </Group>
-                        </div>
-                      )}
-                  </>
-                )}
 
-                {entityType === "Link" && (
-                  <>
-                    <div>
-                      <Text size="sm" c="dimmed" mb={4}>
-                        Hub References (
-                        {entityDetails.hub_references?.length || 0})
-                      </Text>
-                      <Group gap="xs">
-                        {(entityDetails.hub_references || []).map(
-                          (hub: string, idx: number) => (
-                            <Badge key={idx} variant="filled">
-                              {hub}
-                            </Badge>
-                          ),
-                        )}
-                      </Group>
-                    </div>
-                    {entityDetails.fields &&
-                      entityDetails.fields.length > 0 && (
-                        <div>
-                          <Text size="sm" c="dimmed" mb={4}>
-                            Link Fields ({entityDetails.fields.length})
-                          </Text>
-                          <Group gap="xs">
-                            {entityDetails.fields.map(
-                              (field: string, idx: number) => (
-                                <Badge key={idx} variant="light">
-                                  {field}
-                                </Badge>
-                              ),
-                            )}
-                          </Group>
-                        </div>
-                      )}
-                  </>
-                )}
-
-                {entityType === "Satellite" && (
-                  <>
-                    <div>
-                      <Text size="sm" c="dimmed" mb={4}>
-                        Parent Hub
-                      </Text>
-                      <Badge variant="filled">{entityDetails.parent}</Badge>
-                    </div>
-                    <div>
-                      <Text size="sm" c="dimmed" mb={4}>
-                        Attribute Fields ({entityDetails.fields?.length || 0})
-                      </Text>
-                      <Group gap="xs">
-                        {(entityDetails.fields || []).map(
-                          (field: string, idx: number) => (
-                            <Badge key={idx} variant="light">
-                              {field}
-                            </Badge>
-                          ),
-                        )}
-                      </Group>
-                    </div>
-                  </>
-                )}
-
-                {entityType === "Fact" && (
-                  <>
-                    <div>
-                      <Text size="sm" c="dimmed" mb={4}>
-                        Grain
-                      </Text>
-                      <Text fw={500}>{entityDetails.grain}</Text>
-                    </div>
-                    <div>
-                      <Text size="sm" c="dimmed" mb={4}>
-                        Measures ({entityDetails.measures?.length || 0})
-                      </Text>
-                      <Group gap="xs">
-                        {(entityDetails.measures || []).map(
-                          (measure: string, idx: number) => (
-                            <Badge key={idx} variant="filled" color="blue">
-                              {measure}
-                            </Badge>
-                          ),
-                        )}
-                      </Group>
-                    </div>
-                    {entityDetails.dimension_keys &&
-                      entityDetails.dimension_keys.length > 0 && (
-                        <div>
-                          <Text size="sm" c="dimmed" mb={4}>
-                            Dimension Keys (
-                            {entityDetails.dimension_keys.length})
-                          </Text>
-                          <Group gap="xs">
-                            {entityDetails.dimension_keys.map(
-                              (key: string, idx: number) => (
-                                <Badge key={idx} variant="light">
-                                  {key}
-                                </Badge>
-                              ),
-                            )}
-                          </Group>
-                        </div>
-                      )}
-                  </>
-                )}
-
-                {entityType === "Dimension" && (
-                  <>
-                    <div>
-                      <Text size="sm" c="dimmed" mb={4}>
-                        Primary Key
-                      </Text>
-                      <Badge variant="filled">{entityDetails.key}</Badge>
-                    </div>
-                    <div>
-                      <Text size="sm" c="dimmed" mb={4}>
-                        Attribute Fields ({entityDetails.fields?.length || 0})
-                      </Text>
-                      <Group gap="xs">
-                        {(entityDetails.fields || []).map(
-                          (field: string, idx: number) => (
-                            <Badge key={idx} variant="light">
-                              {field}
-                            </Badge>
-                          ),
-                        )}
-                      </Group>
-                    </div>
-                  </>
-                )}
-              </>
-            )}
-          </Stack>
-        )}
+          {/* Show message if no mappings available */}
+          {!hasFieldMappings && (
+            <Text c="dimmed" ta="center" mt="md" size="sm">
+              Mapping information not available for this model. Models created
+              with the new canvas will show connection lines here.
+            </Text>
+          )}
       </Card>
 
       {/* Edit Modal - Note: This is a placeholder. Full edit functionality would require enhancing ModelWizard */}
