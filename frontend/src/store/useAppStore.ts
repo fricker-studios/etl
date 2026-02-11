@@ -165,23 +165,44 @@ export type Model =
       id: string;
       name: string;
       type: "data_vault";
-      packages: string[];
-      hubs: { name: string; businessKey: string }[];
-      links: { name: string; hubs: string[] }[];
-      satellites: { name: string; parent: string; attributes: string[] }[];
+      topics: string[];
+      hubs: {
+        name: string;
+        topic: string;
+        business_key: string;
+        fields: string[];
+      }[];
+      links: {
+        name: string;
+        topic: string;
+        hub_references: string[];
+        fields: string[];
+      }[];
+      satellites: {
+        name: string;
+        topic: string;
+        parent: string;
+        fields: string[];
+      }[];
     }
   | {
       id: string;
       name: string;
       type: "dimensional";
-      packages: string[];
+      topics: string[];
       facts: {
         name: string;
+        topic: string;
         grain: string;
         measures: string[];
-        dimensions: string[];
+        dimension_keys: string[];
       }[];
-      dimensions: { name: string; key: string; attributes: string[] }[];
+      dimensions: {
+        name: string;
+        topic: string;
+        key: string;
+        fields: string[];
+      }[];
     };
 
 export type Run = {
