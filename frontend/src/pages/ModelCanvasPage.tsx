@@ -25,6 +25,7 @@ import {
   IconX,
   IconGripVertical,
   IconEdit,
+  IconInfoCircle,
 } from "@tabler/icons-react";
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -802,9 +803,12 @@ export function ModelCanvasPage() {
                               {(entityType === "hub" && fieldName === "business_key" ||
                                 entityType === "link" && fieldName === "link_key" ||
                                 entityType === "satellite" && fieldName === "parent_key") && (
-                                <Text size="xs" c="dimmed" mt={4} italic>
-                                  ℹ️ Values will be hashed
-                                </Text>
+                                <Group gap={4} mt={4}>
+                                  <IconInfoCircle size={12} style={{ color: "var(--mantine-color-dimmed)" }} />
+                                  <Text size="xs" c="dimmed" italic>
+                                    Values will be hashed
+                                  </Text>
+                                </Group>
                               )}
 
                               {mappings.length > 0 && (
