@@ -740,11 +740,11 @@ class StreamSchedulingTests(TestCase):
         # Check that periodic task was created
         task_name = f"stream_{stream.id}"
         task = PeriodicTask.objects.filter(name=task_name).first()
-        
+
         self.assertIsNotNone(task)
         self.assertTrue(task.enabled)
         self.assertEqual(task.task, "core.execute_stream_task")
-        
+
         # Verify cron schedule
         self.assertIsNotNone(task.crontab)
         self.assertEqual(task.crontab.minute, "0")
@@ -770,11 +770,11 @@ class StreamSchedulingTests(TestCase):
         # Check that periodic task was created
         task_name = f"stream_{stream.id}"
         task = PeriodicTask.objects.filter(name=task_name).first()
-        
+
         self.assertIsNotNone(task)
         self.assertTrue(task.enabled)
         self.assertEqual(task.task, "core.execute_stream_task")
-        
+
         # Verify interval schedule
         self.assertIsNotNone(task.interval)
         self.assertEqual(task.interval.every, 30)
@@ -796,7 +796,7 @@ class StreamSchedulingTests(TestCase):
         # Check that no periodic task was created
         task_name = f"stream_{stream.id}"
         task = PeriodicTask.objects.filter(name=task_name).first()
-        
+
         self.assertIsNone(task)
 
     def test_update_stream_schedule_from_disabled_to_enabled(self):
