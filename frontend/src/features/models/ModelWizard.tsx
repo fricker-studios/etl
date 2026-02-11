@@ -34,7 +34,7 @@ export function ModelWizard({
   const [entityType, setEntityType] = useState<EntityType>("hub");
   const [entityName, setEntityName] = useState("");
   const [topic, setTopic] = useState("");
-  
+
   // Field mappings
   const [businessKey, setBusinessKey] = useState("");
   const [attributes, setAttributes] = useState<string[]>([]);
@@ -94,12 +94,18 @@ export function ModelWizard({
 
   const save = async () => {
     if (!name.trim()) {
-      notifications.show({ message: "Please enter a model name", color: "red" });
+      notifications.show({
+        message: "Please enter a model name",
+        color: "red",
+      });
       return;
     }
 
     if (!entityName.trim()) {
-      notifications.show({ message: "Please enter an entity name", color: "red" });
+      notifications.show({
+        message: "Please enter an entity name",
+        color: "red",
+      });
       return;
     }
 
@@ -110,12 +116,18 @@ export function ModelWizard({
 
     // Type-specific validation
     if (entityType === "hub" && !businessKey) {
-      notifications.show({ message: "Please select a business key", color: "red" });
+      notifications.show({
+        message: "Please select a business key",
+        color: "red",
+      });
       return;
     }
 
     if (entityType === "dimension" && !primaryKey) {
-      notifications.show({ message: "Please select a primary key", color: "red" });
+      notifications.show({
+        message: "Please select a primary key",
+        color: "red",
+      });
       return;
     }
 
@@ -125,12 +137,18 @@ export function ModelWizard({
     }
 
     if (entityType === "satellite" && !parentHub) {
-      notifications.show({ message: "Please enter a parent hub name", color: "red" });
+      notifications.show({
+        message: "Please enter a parent hub name",
+        color: "red",
+      });
       return;
     }
 
     if (entityType === "link" && hubReferences.length < 2) {
-      notifications.show({ message: "Please enter at least 2 hub references", color: "red" });
+      notifications.show({
+        message: "Please enter at least 2 hub references",
+        color: "red",
+      });
       return;
     }
 
@@ -144,51 +162,61 @@ export function ModelWizard({
     // Build entity based on type
     if (type === "data_vault") {
       if (entityType === "hub") {
-        modelData.hubs = [{
-          name: entityName,
-          topic: topic,
-          business_key: businessKey,
-          fields: attributes,
-        }];
+        modelData.hubs = [
+          {
+            name: entityName,
+            topic: topic,
+            business_key: businessKey,
+            fields: attributes,
+          },
+        ];
         modelData.links = [];
         modelData.satellites = [];
       } else if (entityType === "link") {
         modelData.hubs = [];
-        modelData.links = [{
-          name: entityName,
-          topic: topic,
-          hub_references: hubReferences,
-          fields: linkFields,
-        }];
+        modelData.links = [
+          {
+            name: entityName,
+            topic: topic,
+            hub_references: hubReferences,
+            fields: linkFields,
+          },
+        ];
         modelData.satellites = [];
       } else if (entityType === "satellite") {
         modelData.hubs = [];
         modelData.links = [];
-        modelData.satellites = [{
-          name: entityName,
-          topic: topic,
-          parent: parentHub,
-          fields: attributes,
-        }];
+        modelData.satellites = [
+          {
+            name: entityName,
+            topic: topic,
+            parent: parentHub,
+            fields: attributes,
+          },
+        ];
       }
     } else {
       if (entityType === "fact") {
-        modelData.facts = [{
-          name: entityName,
-          topic: topic,
-          grain: grain,
-          measures: measures,
-          dimension_keys: dimensionKeys,
-        }];
+        modelData.facts = [
+          {
+            name: entityName,
+            topic: topic,
+            grain: grain,
+            measures: measures,
+            dimension_keys: dimensionKeys,
+          },
+        ];
         modelData.dimensions = [];
       } else if (entityType === "dimension") {
         modelData.facts = [];
-        modelData.dimensions = [{
-          name: entityName,
-          topic: topic,
-          key: primaryKey,
-          fields: attributes,
-        }];
+        modelData.dimensions = [
+          {
+            name: entityName,
+            topic: topic,
+            key: primaryKey,
+            fields: attributes,
+          },
+        ];
       }
     }
 
@@ -315,12 +343,19 @@ export function ModelWizard({
                       placeholder="Enter hub names separated by commas (e.g., Hub_Customer, Hub_Order)"
                       value={hubReferences.join(", ")}
                       onChange={(e) => {
-                        const refs = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
+                        const refs = e.target.value
+                          .split(",")
+                          .map((s) => s.trim())
+                          .filter(Boolean);
                         setHubReferences(refs);
                       }}
                       required
                       description="Enter at least 2 hub names to create a relationship"
-                      error={hubReferences.length > 0 && hubReferences.length < 2 ? "Enter at least 2 hubs" : undefined}
+                      error={
+                        hubReferences.length > 0 && hubReferences.length < 2
+                          ? "Enter at least 2 hubs"
+                          : undefined
+                      }
                     />
                     <MultiSelect
                       label="Link Fields"
@@ -424,42 +459,79 @@ export function ModelWizard({
         <Stepper.Step label="Review">
           <Stack>
             <Divider label="Model Summary" />
-            <Text size="sm"><strong>Name:</strong> {name}</Text>
-            <Text size="sm"><strong>Model Type:</strong> {type === "data_vault" ? "Data Vault" : "Dimensional"}</Text>
-            <Text size="sm"><strong>Entity Type:</strong> {entityType}</Text>
-            <Text size="sm"><strong>Entity Name:</strong> {entityName}</Text>
-            <Text size="sm"><strong>Topic:</strong> {topics.find((t: any) => String(t.id) === topic)?.name || "-"}</Text>
+            <Text size="sm">
+              <strong>Name:</strong> {name}
+            </Text>
+            <Text size="sm">
+              <strong>Model Type:</strong>{" "}
+              {type === "data_vault" ? "Data Vault" : "Dimensional"}
+            </Text>
+            <Text size="sm">
+              <strong>Entity Type:</strong> {entityType}
+            </Text>
+            <Text size="sm">
+              <strong>Entity Name:</strong> {entityName}
+            </Text>
+            <Text size="sm">
+              <strong>Topic:</strong>{" "}
+              {topics.find((t: any) => String(t.id) === topic)?.name || "-"}
+            </Text>
 
             <Divider label="Field Mappings" />
             {entityType === "hub" && (
               <>
-                <Text size="sm"><strong>Business Key:</strong> {businessKey}</Text>
-                <Text size="sm"><strong>Attributes:</strong> {attributes.length > 0 ? attributes.join(", ") : "None"}</Text>
+                <Text size="sm">
+                  <strong>Business Key:</strong> {businessKey}
+                </Text>
+                <Text size="sm">
+                  <strong>Attributes:</strong>{" "}
+                  {attributes.length > 0 ? attributes.join(", ") : "None"}
+                </Text>
               </>
             )}
             {entityType === "link" && (
               <>
-                <Text size="sm"><strong>Hub References:</strong> {hubReferences.join(", ")}</Text>
-                <Text size="sm"><strong>Link Fields:</strong> {linkFields.length > 0 ? linkFields.join(", ") : "None"}</Text>
+                <Text size="sm">
+                  <strong>Hub References:</strong> {hubReferences.join(", ")}
+                </Text>
+                <Text size="sm">
+                  <strong>Link Fields:</strong>{" "}
+                  {linkFields.length > 0 ? linkFields.join(", ") : "None"}
+                </Text>
               </>
             )}
             {entityType === "satellite" && (
               <>
-                <Text size="sm"><strong>Parent Hub:</strong> {parentHub}</Text>
-                <Text size="sm"><strong>Attributes:</strong> {attributes.join(", ")}</Text>
+                <Text size="sm">
+                  <strong>Parent Hub:</strong> {parentHub}
+                </Text>
+                <Text size="sm">
+                  <strong>Attributes:</strong> {attributes.join(", ")}
+                </Text>
               </>
             )}
             {entityType === "fact" && (
               <>
-                <Text size="sm"><strong>Grain:</strong> {grain}</Text>
-                <Text size="sm"><strong>Measures:</strong> {measures.join(", ")}</Text>
-                <Text size="sm"><strong>Dimension Keys:</strong> {dimensionKeys.length > 0 ? dimensionKeys.join(", ") : "None"}</Text>
+                <Text size="sm">
+                  <strong>Grain:</strong> {grain}
+                </Text>
+                <Text size="sm">
+                  <strong>Measures:</strong> {measures.join(", ")}
+                </Text>
+                <Text size="sm">
+                  <strong>Dimension Keys:</strong>{" "}
+                  {dimensionKeys.length > 0 ? dimensionKeys.join(", ") : "None"}
+                </Text>
               </>
             )}
             {entityType === "dimension" && (
               <>
-                <Text size="sm"><strong>Primary Key:</strong> {primaryKey}</Text>
-                <Text size="sm"><strong>Attributes:</strong> {attributes.join(", ")}</Text>
+                <Text size="sm">
+                  <strong>Primary Key:</strong> {primaryKey}
+                </Text>
+                <Text size="sm">
+                  <strong>Attributes:</strong> {attributes.join(", ")}
+                </Text>
               </>
             )}
 

@@ -441,28 +441,18 @@ class Model(models.Model):
     # Data Vault fields
     # Each entity contains: name, topic_id, fields mapping
     # Example hub: [{"name": "Hub_Customer", "topic": 1, "business_key": "customer_id", "fields": ["customer_id", "customer_name"]}]
-    hubs = models.JSONField(
-        default=list, blank=True
-    )
+    hubs = models.JSONField(default=list, blank=True)
     # Example link: [{"name": "Link_Order", "topic": 1, "hub_references": ["Hub_Customer", "Hub_Product"], "fields": ["order_id"]}]
-    links = models.JSONField(
-        default=list, blank=True
-    )
+    links = models.JSONField(default=list, blank=True)
     # Example satellite: [{"name": "Sat_Customer", "topic": 1, "parent": "Hub_Customer", "fields": ["email", "phone", "address"]}]
-    satellites = models.JSONField(
-        default=list, blank=True
-    )
+    satellites = models.JSONField(default=list, blank=True)
 
     # Dimensional fields
     # Each entity contains: name, topic_id, fields mapping
     # Example fact: [{"name": "Fact_Sales", "topic": 1, "grain": "transaction", "measures": ["amount", "quantity"], "dimension_keys": ["date_id", "customer_id"]}]
-    facts = models.JSONField(
-        default=list, blank=True
-    )
+    facts = models.JSONField(default=list, blank=True)
     # Example dimension: [{"name": "Dim_Date", "topic": 1, "key": "date_id", "fields": ["date", "year", "month", "day"]}]
-    dimensions = models.JSONField(
-        default=list, blank=True
-    )
+    dimensions = models.JSONField(default=list, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

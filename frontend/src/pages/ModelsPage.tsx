@@ -56,7 +56,7 @@ export function ModelsPage() {
                 }
 
                 return (
-                  <Table.Tr 
+                  <Table.Tr
                     key={m.id}
                     style={{ cursor: "pointer" }}
                     onClick={() => navigate(`/models/${m.id}`)}

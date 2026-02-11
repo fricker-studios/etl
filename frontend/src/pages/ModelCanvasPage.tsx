@@ -46,24 +46,37 @@ export function ModelCanvasPage() {
   // Setup modal state
   const [setupModalOpen, { close: closeSetup }] = useDisclosure(true);
   const [modelName, setModelName] = useState("");
-  const [modelType, setModelType] = useState<"data_vault" | "dimensional">("data_vault");
+  const [modelType, setModelType] = useState<"data_vault" | "dimensional">(
+    "data_vault",
+  );
   const [entityType, setEntityType] = useState<EntityType>("hub");
   const [entityName, setEntityName] = useState("");
 
   // Canvas state
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
-  const [expandedTopics, setExpandedTopics] = useState<Record<string, boolean>>({});
+  const [expandedTopics, setExpandedTopics] = useState<Record<string, boolean>>(
+    {},
+  );
   const [fieldMappings, setFieldMappings] = useState<FieldMapping[]>([]);
   const [modelFields, setModelFields] = useState<string[]>([]);
-  const [draggedField, setDraggedField] = useState<{ topicId: string; field: string } | null>(null);
+  const [draggedField, setDraggedField] = useState<{
+    topicId: string;
+    field: string;
+  } | null>(null);
 
   // Auto-generate entity name when model name changes
   useEffect(() => {
     if (modelName && !entityName) {
-      const prefix = entityType === "hub" ? "Hub" :
-                     entityType === "link" ? "Link" :
-                     entityType === "satellite" ? "Sat" :
-                     entityType === "fact" ? "Fact" : "Dim";
+      const prefix =
+        entityType === "hub"
+          ? "Hub"
+          : entityType === "link"
+            ? "Link"
+            : entityType === "satellite"
+              ? "Sat"
+              : entityType === "fact"
+                ? "Fact"
+                : "Dim";
       const cleanName = modelName.replace(/[^a-zA-Z0-9]/g, "");
       setEntityName(`${prefix}_${cleanName}`);
     }
@@ -71,7 +84,10 @@ export function ModelCanvasPage() {
 
   const handleSetupComplete = () => {
     if (!modelName.trim()) {
-      notifications.show({ message: "Please enter a model name", color: "red" });
+      notifications.show({
+        message: "Please enter a model name",
+        color: "red",
+      });
       return;
     }
     closeSetup();
@@ -104,14 +120,14 @@ export function ModelCanvasPage() {
   const handleFieldDrop = (e: React.DragEvent, role?: string) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     if (!draggedField) return;
 
     const fieldName = draggedField.field;
-    
+
     // Check if field is already mapped
     const existingMapping = fieldMappings.find(
-      (m) => m.topicId === draggedField.topicId && m.topicField === fieldName
+      (m) => m.topicId === draggedField.topicId && m.topicField === fieldName,
     );
 
     if (existingMapping) {
@@ -140,13 +156,19 @@ export function ModelCanvasPage() {
   };
 
   const handleRemoveField = (mapping: FieldMapping) => {
-    setFieldMappings(fieldMappings.filter((m) => 
-      !(m.topicId === mapping.topicId && m.topicField === mapping.topicField)
-    ));
+    setFieldMappings(
+      fieldMappings.filter(
+        (m) =>
+          !(
+            m.topicId === mapping.topicId && m.topicField === mapping.topicField
+          ),
+      ),
+    );
     // Also remove from modelFields if no other mapping uses it
-    const stillUsed = fieldMappings.some((m) => 
-      m.modelField === mapping.modelField && 
-      !(m.topicId === mapping.topicId && m.topicField === mapping.topicField)
+    const stillUsed = fieldMappings.some(
+      (m) =>
+        m.modelField === mapping.modelField &&
+        !(m.topicId === mapping.topicId && m.topicField === mapping.topicField),
     );
     if (!stillUsed) {
       setModelFields(modelFields.filter((f) => f !== mapping.modelField));
@@ -155,17 +177,26 @@ export function ModelCanvasPage() {
 
   const handleSaveModel = async () => {
     if (!modelName.trim()) {
-      notifications.show({ message: "Please enter a model name", color: "red" });
+      notifications.show({
+        message: "Please enter a model name",
+        color: "red",
+      });
       return;
     }
 
     if (selectedTopics.length === 0) {
-      notifications.show({ message: "Please add at least one topic", color: "red" });
+      notifications.show({
+        message: "Please add at least one topic",
+        color: "red",
+      });
       return;
     }
 
     if (fieldMappings.length === 0) {
-      notifications.show({ message: "Please map at least one field", color: "red" });
+      notifications.show({
+        message: "Please map at least one field",
+        color: "red",
+      });
       return;
     }
 
@@ -177,58 +208,76 @@ export function ModelCanvasPage() {
     };
 
     // Get mapped fields by role
-    const businessKey = fieldMappings.find((m) => m.role === "business_key")?.modelField || modelFields[0];
-    const attributes = fieldMappings.filter((m) => !m.role || m.role === "attribute").map((m) => m.modelField);
-    const measures = fieldMappings.filter((m) => m.role === "measure").map((m) => m.modelField);
-    const dimensionKeys = fieldMappings.filter((m) => m.role === "dimension_key").map((m) => m.modelField);
+    const businessKey =
+      fieldMappings.find((m) => m.role === "business_key")?.modelField ||
+      modelFields[0];
+    const attributes = fieldMappings
+      .filter((m) => !m.role || m.role === "attribute")
+      .map((m) => m.modelField);
+    const measures = fieldMappings
+      .filter((m) => m.role === "measure")
+      .map((m) => m.modelField);
+    const dimensionKeys = fieldMappings
+      .filter((m) => m.role === "dimension_key")
+      .map((m) => m.modelField);
 
     if (modelType === "data_vault") {
       if (entityType === "hub") {
-        modelData.hubs = [{
-          name: entityName,
-          topic: selectedTopics[0],
-          business_key: businessKey,
-          fields: attributes,
-        }];
+        modelData.hubs = [
+          {
+            name: entityName,
+            topic: selectedTopics[0],
+            business_key: businessKey,
+            fields: attributes,
+          },
+        ];
         modelData.links = [];
         modelData.satellites = [];
       } else if (entityType === "link") {
         modelData.hubs = [];
-        modelData.links = [{
-          name: entityName,
-          topic: selectedTopics[0],
-          hub_references: ["Hub_1", "Hub_2"], // Placeholder
-          fields: modelFields,
-        }];
+        modelData.links = [
+          {
+            name: entityName,
+            topic: selectedTopics[0],
+            hub_references: ["Hub_1", "Hub_2"], // Placeholder
+            fields: modelFields,
+          },
+        ];
         modelData.satellites = [];
       } else if (entityType === "satellite") {
         modelData.hubs = [];
         modelData.links = [];
-        modelData.satellites = [{
-          name: entityName,
-          topic: selectedTopics[0],
-          parent: "Hub_Parent", // Placeholder
-          fields: modelFields,
-        }];
+        modelData.satellites = [
+          {
+            name: entityName,
+            topic: selectedTopics[0],
+            parent: "Hub_Parent", // Placeholder
+            fields: modelFields,
+          },
+        ];
       }
     } else {
       if (entityType === "fact") {
-        modelData.facts = [{
-          name: entityName,
-          topic: selectedTopics[0],
-          grain: "transaction",
-          measures: measures.length > 0 ? measures : modelFields,
-          dimension_keys: dimensionKeys,
-        }];
+        modelData.facts = [
+          {
+            name: entityName,
+            topic: selectedTopics[0],
+            grain: "transaction",
+            measures: measures.length > 0 ? measures : modelFields,
+            dimension_keys: dimensionKeys,
+          },
+        ];
         modelData.dimensions = [];
       } else {
         modelData.facts = [];
-        modelData.dimensions = [{
-          name: entityName,
-          topic: selectedTopics[0],
-          key: businessKey,
-          fields: attributes,
-        }];
+        modelData.dimensions = [
+          {
+            name: entityName,
+            topic: selectedTopics[0],
+            key: businessKey,
+            fields: attributes,
+          },
+        ];
       }
     }
 
@@ -246,7 +295,7 @@ export function ModelCanvasPage() {
   };
 
   const availableTopics = topics.filter(
-    (t: any) => !selectedTopics.includes(String(t.id))
+    (t: any) => !selectedTopics.includes(String(t.id)),
   );
 
   return (
@@ -383,7 +432,11 @@ export function ModelCanvasPage() {
           </Card>
 
           {/* Center - Canvas */}
-          <Card withBorder p="md" style={{ overflow: "auto", position: "relative" }}>
+          <Card
+            withBorder
+            p="md"
+            style={{ overflow: "auto", position: "relative" }}
+          >
             <Text fw={600} mb="md">
               Model Canvas
             </Text>
@@ -430,7 +483,9 @@ export function ModelCanvasPage() {
                       <Stack gap={4}>
                         {schema.map((col: any) => {
                           const isMapped = fieldMappings.some(
-                            (m) => m.topicId === topicId && m.topicField === col.name
+                            (m) =>
+                              m.topicId === topicId &&
+                              m.topicField === col.name,
                           );
                           return (
                             <Paper
@@ -438,11 +493,15 @@ export function ModelCanvasPage() {
                               p="xs"
                               withBorder
                               draggable
-                              onDragStart={() => handleFieldDragStart(topicId, col.name)}
+                              onDragStart={() =>
+                                handleFieldDragStart(topicId, col.name)
+                              }
                               style={{
                                 cursor: isMapped ? "default" : "grab",
                                 opacity: isMapped ? 0.5 : 1,
-                                backgroundColor: isMapped ? "var(--mantine-color-gray-1)" : undefined,
+                                backgroundColor: isMapped
+                                  ? "var(--mantine-color-gray-1)"
+                                  : undefined,
                               }}
                             >
                               <Group justify="space-between">
@@ -494,7 +553,9 @@ export function ModelCanvasPage() {
                   {fieldMappings
                     .filter((m) => m.role === "business_key")
                     .map((m, idx) => {
-                      const topic = topics.find((t: any) => String(t.id) === m.topicId);
+                      const topic = topics.find(
+                        (t: any) => String(t.id) === m.topicId,
+                      );
                       return (
                         <Badge
                           key={idx}
@@ -536,7 +597,9 @@ export function ModelCanvasPage() {
                   {fieldMappings
                     .filter((m) => m.role === "measure")
                     .map((m, idx) => {
-                      const topic = topics.find((t: any) => String(t.id) === m.topicId);
+                      const topic = topics.find(
+                        (t: any) => String(t.id) === m.topicId,
+                      );
                       return (
                         <Badge
                           key={idx}
@@ -571,13 +634,16 @@ export function ModelCanvasPage() {
               style={{ backgroundColor: "var(--mantine-color-gray-0)" }}
             >
               <Text size="sm" fw={600} mb={4}>
-                {entityType === "fact" ? "Dimension Keys" : "Attributes"} (drop here)
+                {entityType === "fact" ? "Dimension Keys" : "Attributes"} (drop
+                here)
               </Text>
               <Stack gap={4}>
                 {fieldMappings
                   .filter((m) => !m.role || m.role === "attribute")
                   .map((m, idx) => {
-                    const topic = topics.find((t: any) => String(t.id) === m.topicId);
+                    const topic = topics.find(
+                      (t: any) => String(t.id) === m.topicId,
+                    );
                     return (
                       <Badge
                         key={idx}

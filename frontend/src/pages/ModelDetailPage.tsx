@@ -31,7 +31,8 @@ export function ModelDetailPage() {
       title: "Delete Model",
       children: (
         <Text size="sm">
-          Are you sure you want to delete this model? This action cannot be undone.
+          Are you sure you want to delete this model? This action cannot be
+          undone.
         </Text>
       ),
       labels: { confirm: "Delete", cancel: "Cancel" },
@@ -209,11 +210,13 @@ export function ModelDetailPage() {
                       Additional Attributes ({entityDetails.fields.length})
                     </Text>
                     <Group gap="xs">
-                      {entityDetails.fields.map((field: string, idx: number) => (
-                        <Badge key={idx} variant="light">
-                          {field}
-                        </Badge>
-                      ))}
+                      {entityDetails.fields.map(
+                        (field: string, idx: number) => (
+                          <Badge key={idx} variant="light">
+                            {field}
+                          </Badge>
+                        ),
+                      )}
                     </Group>
                   </div>
                 )}
@@ -227,11 +230,13 @@ export function ModelDetailPage() {
                     Hub References ({entityDetails.hub_references?.length || 0})
                   </Text>
                   <Group gap="xs">
-                    {(entityDetails.hub_references || []).map((hub: string, idx: number) => (
-                      <Badge key={idx} variant="filled">
-                        {hub}
-                      </Badge>
-                    ))}
+                    {(entityDetails.hub_references || []).map(
+                      (hub: string, idx: number) => (
+                        <Badge key={idx} variant="filled">
+                          {hub}
+                        </Badge>
+                      ),
+                    )}
                   </Group>
                 </div>
                 {entityDetails.fields && entityDetails.fields.length > 0 && (
@@ -240,11 +245,13 @@ export function ModelDetailPage() {
                       Link Fields ({entityDetails.fields.length})
                     </Text>
                     <Group gap="xs">
-                      {entityDetails.fields.map((field: string, idx: number) => (
-                        <Badge key={idx} variant="light">
-                          {field}
-                        </Badge>
-                      ))}
+                      {entityDetails.fields.map(
+                        (field: string, idx: number) => (
+                          <Badge key={idx} variant="light">
+                            {field}
+                          </Badge>
+                        ),
+                      )}
                     </Group>
                   </div>
                 )}
@@ -264,11 +271,13 @@ export function ModelDetailPage() {
                     Attribute Fields ({entityDetails.fields?.length || 0})
                   </Text>
                   <Group gap="xs">
-                    {(entityDetails.fields || []).map((field: string, idx: number) => (
-                      <Badge key={idx} variant="light">
-                        {field}
-                      </Badge>
-                    ))}
+                    {(entityDetails.fields || []).map(
+                      (field: string, idx: number) => (
+                        <Badge key={idx} variant="light">
+                          {field}
+                        </Badge>
+                      ),
+                    )}
                   </Group>
                 </div>
               </>
@@ -287,27 +296,32 @@ export function ModelDetailPage() {
                     Measures ({entityDetails.measures?.length || 0})
                   </Text>
                   <Group gap="xs">
-                    {(entityDetails.measures || []).map((measure: string, idx: number) => (
-                      <Badge key={idx} variant="filled" color="blue">
-                        {measure}
-                      </Badge>
-                    ))}
+                    {(entityDetails.measures || []).map(
+                      (measure: string, idx: number) => (
+                        <Badge key={idx} variant="filled" color="blue">
+                          {measure}
+                        </Badge>
+                      ),
+                    )}
                   </Group>
                 </div>
-                {entityDetails.dimension_keys && entityDetails.dimension_keys.length > 0 && (
-                  <div>
-                    <Text size="sm" c="dimmed" mb={4}>
-                      Dimension Keys ({entityDetails.dimension_keys.length})
-                    </Text>
-                    <Group gap="xs">
-                      {entityDetails.dimension_keys.map((key: string, idx: number) => (
-                        <Badge key={idx} variant="light">
-                          {key}
-                        </Badge>
-                      ))}
-                    </Group>
-                  </div>
-                )}
+                {entityDetails.dimension_keys &&
+                  entityDetails.dimension_keys.length > 0 && (
+                    <div>
+                      <Text size="sm" c="dimmed" mb={4}>
+                        Dimension Keys ({entityDetails.dimension_keys.length})
+                      </Text>
+                      <Group gap="xs">
+                        {entityDetails.dimension_keys.map(
+                          (key: string, idx: number) => (
+                            <Badge key={idx} variant="light">
+                              {key}
+                            </Badge>
+                          ),
+                        )}
+                      </Group>
+                    </div>
+                  )}
               </>
             )}
 
@@ -324,11 +338,13 @@ export function ModelDetailPage() {
                     Attribute Fields ({entityDetails.fields?.length || 0})
                   </Text>
                   <Group gap="xs">
-                    {(entityDetails.fields || []).map((field: string, idx: number) => (
-                      <Badge key={idx} variant="light">
-                        {field}
-                      </Badge>
-                    ))}
+                    {(entityDetails.fields || []).map(
+                      (field: string, idx: number) => (
+                        <Badge key={idx} variant="light">
+                          {field}
+                        </Badge>
+                      ),
+                    )}
                   </Group>
                 </div>
               </>
@@ -340,7 +356,8 @@ export function ModelDetailPage() {
       {/* Edit Modal - Note: This is a placeholder. Full edit functionality would require enhancing ModelWizard */}
       {editModalOpen && (
         <Text c="dimmed" ta="center" mt="xl">
-          Edit functionality coming soon. Please delete and recreate the model for now.
+          Edit functionality coming soon. Please delete and recreate the model
+          for now.
         </Text>
       )}
     </Stack>
