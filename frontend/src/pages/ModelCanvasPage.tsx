@@ -300,6 +300,13 @@ export function ModelCanvasPage() {
       fieldMappings.some((m) => m.modelField === field),
     );
 
+    // Convert fieldMappings to the format expected by backend
+    const formattedFieldMappings = fieldMappings.map(m => ({
+      model_field: m.modelField,
+      topic_field: m.topicField,
+      topic_id: m.topicId,
+    }));
+
     if (modelType === "data_vault") {
       if (entityType === "hub") {
         modelData.hubs = [
@@ -308,6 +315,7 @@ export function ModelCanvasPage() {
             topic: selectedTopics[0],
             business_key: mappedFields[0] || "id",
             fields: mappedFields,
+            field_mappings: formattedFieldMappings,
           },
         ];
         modelData.links = [];
@@ -320,6 +328,7 @@ export function ModelCanvasPage() {
             topic: selectedTopics[0],
             hub_references: ["Hub_1", "Hub_2"],
             fields: mappedFields,
+            field_mappings: formattedFieldMappings,
           },
         ];
         modelData.satellites = [];
@@ -332,6 +341,7 @@ export function ModelCanvasPage() {
             topic: selectedTopics[0],
             parent: "Hub_Parent",
             fields: mappedFields,
+            field_mappings: formattedFieldMappings,
           },
         ];
       }
@@ -344,6 +354,7 @@ export function ModelCanvasPage() {
             grain: "transaction",
             measures: mappedFields,
             dimension_keys: [],
+            field_mappings: formattedFieldMappings,
           },
         ];
         modelData.dimensions = [];
@@ -355,6 +366,7 @@ export function ModelCanvasPage() {
             topic: selectedTopics[0],
             key: mappedFields[0] || "id",
             fields: mappedFields,
+            field_mappings: formattedFieldMappings,
           },
         ];
       }
