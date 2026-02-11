@@ -261,6 +261,11 @@ def _execute_api_stream(stream, run):
         header_value=header_value,
     )
 
+    # Log configuration
+    logger.info(f"  Query params: {stream.query_params}")
+    logger.info(f"  Pagination config: {stream.pagination}")
+    logger.info(f"  Records selector: {stream.records_selector}")
+
     # Fetch paginated data
     try:
         records = api_client.fetch_paginated_data(
@@ -271,7 +276,7 @@ def _execute_api_stream(stream, run):
             body_template=stream.body_template,
             pagination=stream.pagination or {},
             records_selector=stream.records_selector,
-            max_pages=100,  # Limit to 100 pages
+            max_pages=10000,  # High safety limit - pagination logic will stop when next_url is None
         )
 
         logger.info(f"Fetched {len(records)} total records from API")
@@ -286,9 +291,17 @@ def _execute_api_stream(stream, run):
         # Convert records to newline-delimited JSON
         ndjson_content = "\n".join(json.dumps(record) for record in records)
 
-        # Generate S3 key (file path)
+        # Get the current revision of the topic
+        current_revision = stream.topic.current_revision
+        if not current_revision:
+            logger.warning(f"Topic {stream.topic.name} has no revisions")
+            raise ValueError(f"Topic {stream.topic.name} has no revisions")
+
+        # Generate S3 key (file path) with new format: /packages/t{topic_id}/r{revision_number}/YYYYMMDD/{filename}
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        s3_key = f"api_data/{stream.name}/{timestamp}.ndjson"
+        date_folder = datetime.now().strftime("%Y%m%d")
+        filename = f"{timestamp}.ndjson"
+        s3_key = f"packages/t{stream.topic.id}/r{current_revision.revision_number}/{date_folder}/{filename}"
 
         logger.info(f"Uploading {len(records)} records to S3: {s3_key}")
 
@@ -319,14 +332,8 @@ def _execute_api_stream(stream, run):
         file_size = len(ndjson_content.encode("utf-8"))
         logger.info(f"Successfully uploaded {file_size} bytes to S3")
 
-        # Get the current revision of the topic
-        current_revision = stream.topic.current_revision
-        if not current_revision:
-            logger.warning(f"Topic {stream.topic.name} has no revisions")
-            raise ValueError(f"Topic {stream.topic.name} has no revisions")
-
-        # Create data package
-        package_name = f"{stream.name}_{timestamp}.ndjson"
+        # Create data package with timestamp as the name
+        package_name = f"{stream.name}_{timestamp}"
         package = DataPackage.objects.create(
             user=stream.user,
             name=package_name,

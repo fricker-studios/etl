@@ -208,33 +208,42 @@ class APIClient:
 
         logger.info(f"Starting paginated fetch: {method} {path}")
         logger.info(f"Pagination type: {pagination_type}, max_pages: {max_pages}")
+        logger.info(f"Query params: {query_params}")
 
-        while page_num <= max_pages:
+        while True:
             try:
                 # Build request parameters
                 current_query_params = list(query_params) if query_params else []
+
+                # Check if page size param already exists in query params
+                existing_page_size = any(
+                    param.get("key") == page_size_param for param in current_query_params
+                )
 
                 # Add pagination parameters based on type
                 if pagination_type == "page_number":
                     current_query_params.append(
                         {"key": page_param, "value": str(page_num)}
                     )
-                    current_query_params.append(
-                        {"key": page_size_param, "value": str(page_size)}
-                    )
+                    if not existing_page_size:
+                        current_query_params.append(
+                            {"key": page_size_param, "value": str(page_size)}
+                        )
                 elif pagination_type == "offset":
                     offset = (page_num - 1) * page_size
                     current_query_params.append({"key": "offset", "value": str(offset)})
-                    current_query_params.append(
-                        {"key": page_size_param, "value": str(page_size)}
-                    )
+                    if not existing_page_size:
+                        current_query_params.append(
+                            {"key": page_size_param, "value": str(page_size)}
+                        )
                 elif pagination_type == "cursor_url":
                     # For cursor-based pagination, add page size and cursor (if we have one)
                     if not use_full_url or not cursor_value:
                         # Add page size parameter if not using full URL or on first page
-                        current_query_params.append(
-                            {"key": page_size_param, "value": str(page_size)}
-                        )
+                        if not existing_page_size:
+                            current_query_params.append(
+                                {"key": page_size_param, "value": str(page_size)}
+                            )
                     if cursor_value and not use_full_url:
                         # Add cursor as query parameter if not using full URL
                         current_query_params.append(
@@ -246,10 +255,12 @@ class APIClient:
                     # Use the full URL from the previous response
                     url = cursor_value
                     request_headers = self._build_headers(headers)
+                    logger.info(f"Using full URL from response")
                 else:
                     # Build URL normally with query params
                     url = self._build_url(path, current_query_params)
                     request_headers = self._build_headers(headers)
+                    logger.info(f"Query params being sent: {current_query_params}")
 
                 logger.info(f"Fetching page {page_num}: {url}")
 
@@ -294,6 +305,11 @@ class APIClient:
                 logger.info(
                     f"Page {page_num}: fetched {len(records)} records (total: {len(all_records)})"
                 )
+
+                # Check if we've hit the safety limit (only for non-cursor pagination)
+                if page_num >= max_pages and pagination_type not in ["url", "cursor_url"]:
+                    logger.warning(f"Reached max_pages limit ({max_pages}), stopping pagination")
+                    break
 
                 # Check if there are more pages
                 if pagination_type in ["url", "cursor_url"] and next_url_path:

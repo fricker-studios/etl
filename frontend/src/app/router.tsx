@@ -7,6 +7,7 @@ import { DashboardPage } from "../pages/DashboardPage";
 import { DataSourcesPage } from "../pages/DataSourcesPage";
 import { StreamsPage } from "../pages/StreamsPage";
 import { TopicsPage } from "../pages/TopicsPage";
+import { TopicDetailPage } from "../pages/TopicDetailPage";
 import { ModelsPage } from "../pages/ModelsPage";
 import { RunsPage } from "../pages/RunsPage";
 import { SettingsPage } from "../pages/SettingsPage";
@@ -40,6 +41,7 @@ export const router = createBrowserRouter([
       { path: "data-sources", element: <DataSourcesPage /> },
       { path: "streams", element: <StreamsPage /> },
       { path: "topics", element: <TopicsPage /> },
+      { path: "topics/:id", element: <TopicDetailPage /> },
       { path: "models", element: <ModelsPage /> },
       { path: "runs", element: <RunsPage /> },
       { path: "settings", element: <SettingsPage /> },

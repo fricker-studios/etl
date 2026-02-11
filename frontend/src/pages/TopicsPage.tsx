@@ -13,10 +13,11 @@ import {
   Group,
   Button,
 } from "@mantine/core";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconPlus, IconTrash, IconEye } from "@tabler/icons-react";
 import { useDisclosure } from "@mantine/hooks";
 import type { Topic, DataPackage } from "../store/useAppStore";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { TopicDrawer } from "../features/sources/TopicDrawer";
 import { TopicRevisionDrawer } from "../features/sources/TopicRevisionDrawer";
 import { modals } from "@mantine/modals";
@@ -27,6 +28,7 @@ import { notifications } from "@mantine/notifications";
 import { useQueryClient } from "@tanstack/react-query";
 
 export function TopicsPage() {
+  const navigate = useNavigate();
   const { data: topics = [], isLoading } = useTopics();
   const deleteTopic = useDeleteTopic();
   const queryClient = useQueryClient();
@@ -179,6 +181,19 @@ export function TopicsPage() {
                         {topic.total_packages || 0} package
                         {topic.total_packages !== 1 ? "s" : ""}
                       </Badge>
+                      <Tooltip label="View details">
+                        <ActionIcon
+                          color="blue"
+                          variant="light"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/topics/${topic.id}`);
+                          }}
+                        >
+                          <IconEye size={16} />
+                        </ActionIcon>
+                      </Tooltip>
                       <Tooltip label="Delete topic">
                         <ActionIcon
                           color="red"

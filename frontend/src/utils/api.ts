@@ -61,6 +61,10 @@ export const api = {
       request(`/storage-backends/${id}/`, {
         method: "DELETE",
       }),
+    browseS3: (id: string, prefix: string = "") =>
+      request(
+        `/storage-backends/${id}/browse_s3/?prefix=${encodeURIComponent(prefix)}`,
+      ),
   },
 
   // Data Sources (renamed from apiSources)
@@ -139,6 +143,7 @@ export const api = {
       request(`/packages/${id}/`, {
         method: "DELETE",
       }),
+    download: (id: string) => request(`/packages/${id}/download/`),
   },
 
   // Models
