@@ -436,26 +436,30 @@ class Model(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="models")
     name = models.CharField(max_length=255)
     type = models.CharField(max_length=20, choices=TYPE_CHOICES)
-    packages = models.ManyToManyField(DataPackage, related_name="models", blank=True)
+    topics = models.ManyToManyField(Topic, related_name="models", blank=True)
 
     # Data Vault fields
+    # Each entity contains: name, topic_id, fields mapping
+    # Example: [{"name": "Hub_Customer", "topic": 1, "business_key": "customer_id", "fields": ["customer_id", "customer_name"]}]
     hubs = models.JSONField(
         default=list, blank=True
-    )  # [{"name": "Hub_Customer", "businessKey": "customer_id"}]
+    )
     links = models.JSONField(
         default=list, blank=True
-    )  # [{"name": "Link_Order", "hubs": ["Hub_Customer", "Hub_Product"]}]
+    )  # [{"name": "Link_Order", "topic": 1, "hub_references": ["Hub_Customer", "Hub_Product"], "fields": ["order_id"]}]
     satellites = models.JSONField(
         default=list, blank=True
-    )  # [{"name": "Sat_Customer", "parent": "Hub_Customer", "attributes": ["name", "email"]}]
+    )  # [{"name": "Sat_Customer", "topic": 1, "parent": "Hub_Customer", "fields": ["email", "phone", "address"]}]
 
     # Dimensional fields
+    # Each entity contains: name, topic_id, fields mapping
+    # Example: [{"name": "Fact_Sales", "topic": 1, "grain": "transaction", "measures": ["amount", "quantity"], "dimension_keys": ["date_id", "customer_id"]}]
     facts = models.JSONField(
         default=list, blank=True
-    )  # [{"name": "Fact_Sales", "grain": "transaction", "measures": ["amount"], "dimensions": ["Dim_Date"]}]
+    )
     dimensions = models.JSONField(
         default=list, blank=True
-    )  # [{"name": "Dim_Date", "key": "date_id", "attributes": ["date", "year", "month"]}]
+    )  # [{"name": "Dim_Date", "topic": 1, "key": "date_id", "fields": ["date", "year", "month", "day"]}]
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
