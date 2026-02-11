@@ -700,3 +700,250 @@ class APIStreamExecutionTests(TestCase):
 
         records = client.extract_records(data)
         self.assertEqual(len(records), 2)
+
+
+class StreamSchedulingTests(TestCase):
+    """Tests for Stream scheduling with Celery Beat."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="testuser", password="testpass")
+        self.data_source = DataSource.objects.create(
+            user=self.user,
+            name="Test S3 Source",
+            type="s3",
+            s3_endpoint="https://s3.amazonaws.com",
+            s3_region="us-east-1",
+            s3_bucket="test-bucket",
+            s3_access_key="test-key",
+            s3_secret_key="test-secret",
+        )
+        self.topic = Topic.objects.create(
+            user=self.user,
+            name="Test Topic",
+            description="Test topic for scheduling",
+        )
+
+    def test_create_stream_with_cron_schedule(self):
+        """Test that creating a stream with cron schedule creates a periodic task."""
+        from django_celery_beat.models import PeriodicTask, CrontabSchedule
+
+        # Create stream with cron schedule
+        stream = Stream.objects.create(
+            user=self.user,
+            name="Scheduled Stream",
+            data_source=self.data_source,
+            topic=self.topic,
+            schedule_enabled=True,
+            schedule_cron="0 2 * * *",  # Daily at 2 AM
+        )
+
+        # Check that periodic task was created
+        task_name = f"stream_{stream.id}_Scheduled Stream"
+        task = PeriodicTask.objects.filter(name=task_name).first()
+        
+        self.assertIsNotNone(task)
+        self.assertTrue(task.enabled)
+        self.assertEqual(task.task, "core.execute_stream_task")
+        
+        # Verify cron schedule
+        self.assertIsNotNone(task.crontab)
+        self.assertEqual(task.crontab.minute, "0")
+        self.assertEqual(task.crontab.hour, "2")
+        self.assertEqual(task.crontab.day_of_week, "*")
+        self.assertEqual(task.crontab.day_of_month, "*")
+        self.assertEqual(task.crontab.month_of_year, "*")
+
+    def test_create_stream_with_interval_schedule(self):
+        """Test that creating a stream with interval schedule creates a periodic task."""
+        from django_celery_beat.models import PeriodicTask, IntervalSchedule
+
+        # Create stream with interval schedule
+        stream = Stream.objects.create(
+            user=self.user,
+            name="Interval Stream",
+            data_source=self.data_source,
+            topic=self.topic,
+            schedule_enabled=True,
+            schedule_interval_minutes=30,
+        )
+
+        # Check that periodic task was created
+        task_name = f"stream_{stream.id}_Interval Stream"
+        task = PeriodicTask.objects.filter(name=task_name).first()
+        
+        self.assertIsNotNone(task)
+        self.assertTrue(task.enabled)
+        self.assertEqual(task.task, "core.execute_stream_task")
+        
+        # Verify interval schedule
+        self.assertIsNotNone(task.interval)
+        self.assertEqual(task.interval.every, 30)
+        self.assertEqual(task.interval.period, IntervalSchedule.MINUTES)
+
+    def test_create_stream_without_schedule(self):
+        """Test that creating a stream without schedule doesn't create a periodic task."""
+        from django_celery_beat.models import PeriodicTask
+
+        # Create stream without schedule
+        stream = Stream.objects.create(
+            user=self.user,
+            name="Unscheduled Stream",
+            data_source=self.data_source,
+            topic=self.topic,
+            schedule_enabled=False,
+        )
+
+        # Check that no periodic task was created
+        task_name = f"stream_{stream.id}_Unscheduled Stream"
+        task = PeriodicTask.objects.filter(name=task_name).first()
+        
+        self.assertIsNone(task)
+
+    def test_update_stream_schedule_from_disabled_to_enabled(self):
+        """Test that enabling schedule on existing stream creates a periodic task."""
+        from django_celery_beat.models import PeriodicTask
+
+        # Create stream without schedule
+        stream = Stream.objects.create(
+            user=self.user,
+            name="Test Stream",
+            data_source=self.data_source,
+            topic=self.topic,
+            schedule_enabled=False,
+        )
+
+        # Verify no task exists
+        task_name = f"stream_{stream.id}_Test Stream"
+        self.assertIsNone(PeriodicTask.objects.filter(name=task_name).first())
+
+        # Enable schedule
+        stream.schedule_enabled = True
+        stream.schedule_interval_minutes = 60
+        stream.save()
+
+        # Verify task was created
+        task = PeriodicTask.objects.filter(name=task_name).first()
+        self.assertIsNotNone(task)
+        self.assertTrue(task.enabled)
+        self.assertEqual(task.interval.every, 60)
+
+    def test_update_stream_schedule_from_enabled_to_disabled(self):
+        """Test that disabling schedule deletes the periodic task."""
+        from django_celery_beat.models import PeriodicTask
+
+        # Create stream with schedule
+        stream = Stream.objects.create(
+            user=self.user,
+            name="Test Stream",
+            data_source=self.data_source,
+            topic=self.topic,
+            schedule_enabled=True,
+            schedule_interval_minutes=30,
+        )
+
+        # Verify task exists
+        task_name = f"stream_{stream.id}_Test Stream"
+        self.assertIsNotNone(PeriodicTask.objects.filter(name=task_name).first())
+
+        # Disable schedule
+        stream.schedule_enabled = False
+        stream.save()
+
+        # Verify task was deleted
+        self.assertIsNone(PeriodicTask.objects.filter(name=task_name).first())
+
+    def test_update_stream_schedule_interval(self):
+        """Test that updating schedule interval updates the periodic task."""
+        from django_celery_beat.models import PeriodicTask
+
+        # Create stream with interval schedule
+        stream = Stream.objects.create(
+            user=self.user,
+            name="Test Stream",
+            data_source=self.data_source,
+            topic=self.topic,
+            schedule_enabled=True,
+            schedule_interval_minutes=30,
+        )
+
+        # Update interval
+        stream.schedule_interval_minutes = 60
+        stream.save()
+
+        # Verify task was updated
+        task_name = f"stream_{stream.id}_Test Stream"
+        task = PeriodicTask.objects.filter(name=task_name).first()
+        self.assertIsNotNone(task)
+        self.assertEqual(task.interval.every, 60)
+
+    def test_update_stream_schedule_from_interval_to_cron(self):
+        """Test that changing from interval to cron schedule updates the task."""
+        from django_celery_beat.models import PeriodicTask
+
+        # Create stream with interval schedule
+        stream = Stream.objects.create(
+            user=self.user,
+            name="Test Stream",
+            data_source=self.data_source,
+            topic=self.topic,
+            schedule_enabled=True,
+            schedule_interval_minutes=30,
+        )
+
+        # Change to cron schedule
+        stream.schedule_interval_minutes = None
+        stream.schedule_cron = "0 3 * * *"  # Daily at 3 AM
+        stream.save()
+
+        # Verify task was updated
+        task_name = f"stream_{stream.id}_Test Stream"
+        task = PeriodicTask.objects.filter(name=task_name).first()
+        self.assertIsNotNone(task)
+        self.assertIsNotNone(task.crontab)
+        self.assertIsNone(task.interval)
+        self.assertEqual(task.crontab.hour, "3")
+        self.assertEqual(task.crontab.minute, "0")
+
+    def test_delete_stream_deletes_periodic_task(self):
+        """Test that deleting a stream deletes its periodic task."""
+        from django_celery_beat.models import PeriodicTask
+
+        # Create stream with schedule
+        stream = Stream.objects.create(
+            user=self.user,
+            name="Test Stream",
+            data_source=self.data_source,
+            topic=self.topic,
+            schedule_enabled=True,
+            schedule_interval_minutes=30,
+        )
+
+        # Verify task exists
+        task_name = f"stream_{stream.id}_Test Stream"
+        self.assertIsNotNone(PeriodicTask.objects.filter(name=task_name).first())
+
+        # Delete stream
+        stream_id = stream.id
+        stream.delete()
+
+        # Verify task was deleted
+        self.assertIsNone(PeriodicTask.objects.filter(name=task_name).first())
+
+    def test_create_stream_with_invalid_cron(self):
+        """Test that creating a stream with invalid cron format doesn't crash."""
+        from django_celery_beat.models import PeriodicTask
+
+        # Create stream with invalid cron (should not crash, just log error)
+        stream = Stream.objects.create(
+            user=self.user,
+            name="Invalid Cron Stream",
+            data_source=self.data_source,
+            topic=self.topic,
+            schedule_enabled=True,
+            schedule_cron="invalid",  # Invalid format
+        )
+
+        # Check that no periodic task was created (due to invalid cron)
+        task_name = f"stream_{stream.id}_Invalid Cron Stream"
+        task = PeriodicTask.objects.filter(name=task_name).first()
+        self.assertIsNone(task)
