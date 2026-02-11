@@ -208,8 +208,9 @@ class APIClient:
 
         logger.info(f"Starting paginated fetch: {method} {path}")
         logger.info(f"Pagination type: {pagination_type}, max_pages: {max_pages}")
+        logger.info(f"Query params: {query_params}")
 
-        while page_num <= max_pages:
+        while True:
             try:
                 # Build request parameters
                 current_query_params = list(query_params) if query_params else []
@@ -246,10 +247,12 @@ class APIClient:
                     # Use the full URL from the previous response
                     url = cursor_value
                     request_headers = self._build_headers(headers)
+                    logger.info(f"Using full URL from response")
                 else:
                     # Build URL normally with query params
                     url = self._build_url(path, current_query_params)
                     request_headers = self._build_headers(headers)
+                    logger.info(f"Query params being sent: {current_query_params}")
 
                 logger.info(f"Fetching page {page_num}: {url}")
 
@@ -294,6 +297,11 @@ class APIClient:
                 logger.info(
                     f"Page {page_num}: fetched {len(records)} records (total: {len(all_records)})"
                 )
+
+                # Check if we've hit the safety limit (only for non-cursor pagination)
+                if page_num >= max_pages and pagination_type not in ["url", "cursor_url"]:
+                    logger.warning(f"Reached max_pages limit ({max_pages}), stopping pagination")
+                    break
 
                 # Check if there are more pages
                 if pagination_type in ["url", "cursor_url"] and next_url_path:

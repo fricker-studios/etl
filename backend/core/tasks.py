@@ -261,6 +261,11 @@ def _execute_api_stream(stream, run):
         header_value=header_value,
     )
 
+    # Log configuration
+    logger.info(f"  Query params: {stream.query_params}")
+    logger.info(f"  Pagination config: {stream.pagination}")
+    logger.info(f"  Records selector: {stream.records_selector}")
+
     # Fetch paginated data
     try:
         records = api_client.fetch_paginated_data(
@@ -271,7 +276,7 @@ def _execute_api_stream(stream, run):
             body_template=stream.body_template,
             pagination=stream.pagination or {},
             records_selector=stream.records_selector,
-            max_pages=100,  # Limit to 100 pages
+            max_pages=10000,  # High safety limit - pagination logic will stop when next_url is None
         )
 
         logger.info(f"Fetched {len(records)} total records from API")
