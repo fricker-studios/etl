@@ -217,7 +217,8 @@ class APIClient:
 
                 # Check if page size param already exists in query params
                 existing_page_size = any(
-                    param.get("key") == page_size_param for param in current_query_params
+                    param.get("key") == page_size_param
+                    for param in current_query_params
                 )
 
                 # Add pagination parameters based on type
@@ -307,8 +308,13 @@ class APIClient:
                 )
 
                 # Check if we've hit the safety limit (only for non-cursor pagination)
-                if page_num >= max_pages and pagination_type not in ["url", "cursor_url"]:
-                    logger.warning(f"Reached max_pages limit ({max_pages}), stopping pagination")
+                if page_num >= max_pages and pagination_type not in [
+                    "url",
+                    "cursor_url",
+                ]:
+                    logger.warning(
+                        f"Reached max_pages limit ({max_pages}), stopping pagination"
+                    )
                     break
 
                 # Check if there are more pages

@@ -303,9 +303,8 @@ export function S3FileNavigator({
                   size="sm"
                 />
                 <Text size="sm" c="dimmed">
-                  Showing {startIndex + 1}-
-                  {Math.min(endIndex, allItems.length)} of {allItems.length}{" "}
-                  items
+                  Showing {startIndex + 1}-{Math.min(endIndex, allItems.length)}{" "}
+                  of {allItems.length} items
                 </Text>
               </Group>
             )}
