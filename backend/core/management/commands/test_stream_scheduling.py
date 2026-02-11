@@ -57,7 +57,7 @@ class Command(BaseCommand):
             schedule_interval_minutes=15,
         )
         
-        task_name = f"stream_{stream1.id}_Interval Test Stream"
+        task_name = f"stream_{stream1.id}"
         task = PeriodicTask.objects.filter(name=task_name).first()
         
         if task and task.interval and task.interval.every == 15:
@@ -77,7 +77,7 @@ class Command(BaseCommand):
             schedule_cron="0 2 * * *",  # Daily at 2 AM
         )
         
-        task_name = f"stream_{stream2.id}_Cron Test Stream"
+        task_name = f"stream_{stream2.id}"
         task = PeriodicTask.objects.filter(name=task_name).first()
         
         if task and task.crontab:
@@ -92,7 +92,7 @@ class Command(BaseCommand):
         stream1.schedule_cron = "*/30 * * * *"  # Every 30 minutes
         stream1.save()
         
-        task_name = f"stream_{stream1.id}_Interval Test Stream"
+        task_name = f"stream_{stream1.id}"
         task = PeriodicTask.objects.filter(name=task_name).first()
         
         if task and task.crontab and task.crontab.minute == "*/30":
@@ -106,7 +106,7 @@ class Command(BaseCommand):
         stream1.schedule_enabled = False
         stream1.save()
         
-        task_name = f"stream_{stream1.id}_Interval Test Stream"
+        task_name = f"stream_{stream1.id}"
         task = PeriodicTask.objects.filter(name=task_name).first()
         
         if not task:
@@ -116,7 +116,7 @@ class Command(BaseCommand):
 
         # Test 5: Delete stream
         self.stdout.write(self.style.WARNING("\nTest 5: Delete stream"))
-        task_name = f"stream_{stream2.id}_Cron Test Stream"
+        task_name = f"stream_{stream2.id}"
         stream2.delete()
         
         task = PeriodicTask.objects.filter(name=task_name).first()
@@ -125,6 +125,30 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS(f"✓ Periodic task deleted when stream deleted"))
         else:
             self.stdout.write(self.style.ERROR(f"✗ Failed to delete periodic task on stream deletion"))
+
+        # Test 6: Rename stream
+        self.stdout.write(self.style.WARNING("\nTest 6: Rename stream and verify task persists"))
+        stream1.schedule_enabled = True
+        stream1.schedule_interval_minutes = 20
+        stream1.schedule_cron = None  # Clear cron to use interval
+        stream1.save()
+        
+        # Get original task name
+        original_task_name = f"stream_{stream1.id}"
+        
+        # Rename stream
+        stream1.name = "Renamed Stream"
+        stream1.save()
+        
+        # Task name should still be based on ID only
+        task_name = f"stream_{stream1.id}"
+        task = PeriodicTask.objects.filter(name=task_name).first()
+        
+        if task and task.interval and task.interval.every == 20:
+            self.stdout.write(self.style.SUCCESS(f"✓ Periodic task persists after stream rename"))
+            self.stdout.write(f"  - Task name unchanged: {task_name}")
+        else:
+            self.stdout.write(self.style.ERROR(f"✗ Failed to maintain task after rename"))
 
         # Clean up
         stream1.delete()

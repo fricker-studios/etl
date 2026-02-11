@@ -19,7 +19,8 @@ def create_or_update_stream_task(stream):
     Returns:
         PeriodicTask instance if schedule is enabled, None otherwise
     """
-    task_name = f"stream_{stream.id}_{stream.name}"
+    # Use only stream ID for task name to avoid orphaned tasks when stream name changes
+    task_name = f"stream_{stream.id}"
     
     # If schedule is disabled, delete any existing task
     if not stream.schedule_enabled:
@@ -100,7 +101,8 @@ def delete_stream_task(stream):
     Args:
         stream: Stream instance
     """
-    task_name = f"stream_{stream.id}_{stream.name}"
+    # Use only stream ID to ensure we find the task even if name changed
+    task_name = f"stream_{stream.id}"
     
     deleted_count, _ = PeriodicTask.objects.filter(name=task_name).delete()
     

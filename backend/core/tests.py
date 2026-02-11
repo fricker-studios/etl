@@ -738,7 +738,7 @@ class StreamSchedulingTests(TestCase):
         )
 
         # Check that periodic task was created
-        task_name = f"stream_{stream.id}_Scheduled Stream"
+        task_name = f"stream_{stream.id}"
         task = PeriodicTask.objects.filter(name=task_name).first()
         
         self.assertIsNotNone(task)
@@ -768,7 +768,7 @@ class StreamSchedulingTests(TestCase):
         )
 
         # Check that periodic task was created
-        task_name = f"stream_{stream.id}_Interval Stream"
+        task_name = f"stream_{stream.id}"
         task = PeriodicTask.objects.filter(name=task_name).first()
         
         self.assertIsNotNone(task)
@@ -794,7 +794,7 @@ class StreamSchedulingTests(TestCase):
         )
 
         # Check that no periodic task was created
-        task_name = f"stream_{stream.id}_Unscheduled Stream"
+        task_name = f"stream_{stream.id}"
         task = PeriodicTask.objects.filter(name=task_name).first()
         
         self.assertIsNone(task)
@@ -813,7 +813,7 @@ class StreamSchedulingTests(TestCase):
         )
 
         # Verify no task exists
-        task_name = f"stream_{stream.id}_Test Stream"
+        task_name = f"stream_{stream.id}"
         self.assertIsNone(PeriodicTask.objects.filter(name=task_name).first())
 
         # Enable schedule
@@ -842,7 +842,7 @@ class StreamSchedulingTests(TestCase):
         )
 
         # Verify task exists
-        task_name = f"stream_{stream.id}_Test Stream"
+        task_name = f"stream_{stream.id}"
         self.assertIsNotNone(PeriodicTask.objects.filter(name=task_name).first())
 
         # Disable schedule
@@ -871,7 +871,7 @@ class StreamSchedulingTests(TestCase):
         stream.save()
 
         # Verify task was updated
-        task_name = f"stream_{stream.id}_Test Stream"
+        task_name = f"stream_{stream.id}"
         task = PeriodicTask.objects.filter(name=task_name).first()
         self.assertIsNotNone(task)
         self.assertEqual(task.interval.every, 60)
@@ -896,7 +896,7 @@ class StreamSchedulingTests(TestCase):
         stream.save()
 
         # Verify task was updated
-        task_name = f"stream_{stream.id}_Test Stream"
+        task_name = f"stream_{stream.id}"
         task = PeriodicTask.objects.filter(name=task_name).first()
         self.assertIsNotNone(task)
         self.assertIsNotNone(task.crontab)
@@ -919,7 +919,7 @@ class StreamSchedulingTests(TestCase):
         )
 
         # Verify task exists
-        task_name = f"stream_{stream.id}_Test Stream"
+        task_name = f"stream_{stream.id}"
         self.assertIsNotNone(PeriodicTask.objects.filter(name=task_name).first())
 
         # Delete stream
@@ -944,6 +944,34 @@ class StreamSchedulingTests(TestCase):
         )
 
         # Check that no periodic task was created (due to invalid cron)
-        task_name = f"stream_{stream.id}_Invalid Cron Stream"
+        task_name = f"stream_{stream.id}"
         task = PeriodicTask.objects.filter(name=task_name).first()
         self.assertIsNone(task)
+
+    def test_rename_stream_preserves_periodic_task(self):
+        """Test that renaming a stream doesn't orphan the periodic task."""
+        from django_celery_beat.models import PeriodicTask
+
+        # Create stream with schedule
+        stream = Stream.objects.create(
+            user=self.user,
+            name="Original Name",
+            data_source=self.data_source,
+            topic=self.topic,
+            schedule_enabled=True,
+            schedule_interval_minutes=30,
+        )
+
+        # Verify task exists
+        task_name = f"stream_{stream.id}"
+        original_task = PeriodicTask.objects.filter(name=task_name).first()
+        self.assertIsNotNone(original_task)
+
+        # Rename stream
+        stream.name = "New Name"
+        stream.save()
+
+        # Verify task still exists with same name (based on ID only)
+        task = PeriodicTask.objects.filter(name=task_name).first()
+        self.assertIsNotNone(task)
+        self.assertEqual(task.id, original_task.id)  # Same task object
