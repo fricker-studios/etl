@@ -215,27 +215,35 @@ class APIClient:
                 # Build request parameters
                 current_query_params = list(query_params) if query_params else []
 
+                # Check if page size param already exists in query params
+                existing_page_size = any(
+                    param.get("key") == page_size_param for param in current_query_params
+                )
+
                 # Add pagination parameters based on type
                 if pagination_type == "page_number":
                     current_query_params.append(
                         {"key": page_param, "value": str(page_num)}
                     )
-                    current_query_params.append(
-                        {"key": page_size_param, "value": str(page_size)}
-                    )
+                    if not existing_page_size:
+                        current_query_params.append(
+                            {"key": page_size_param, "value": str(page_size)}
+                        )
                 elif pagination_type == "offset":
                     offset = (page_num - 1) * page_size
                     current_query_params.append({"key": "offset", "value": str(offset)})
-                    current_query_params.append(
-                        {"key": page_size_param, "value": str(page_size)}
-                    )
+                    if not existing_page_size:
+                        current_query_params.append(
+                            {"key": page_size_param, "value": str(page_size)}
+                        )
                 elif pagination_type == "cursor_url":
                     # For cursor-based pagination, add page size and cursor (if we have one)
                     if not use_full_url or not cursor_value:
                         # Add page size parameter if not using full URL or on first page
-                        current_query_params.append(
-                            {"key": page_size_param, "value": str(page_size)}
-                        )
+                        if not existing_page_size:
+                            current_query_params.append(
+                                {"key": page_size_param, "value": str(page_size)}
+                            )
                     if cursor_value and not use_full_url:
                         # Add cursor as query parameter if not using full URL
                         current_query_params.append(
