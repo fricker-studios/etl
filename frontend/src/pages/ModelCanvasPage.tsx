@@ -20,8 +20,9 @@ import {
   IconChevronRight,
   IconArrowLeft,
   IconDeviceFloppy,
+  IconX,
 } from "@tabler/icons-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDisclosure } from "@mantine/hooks";
 import { useTopics } from "../hooks/useTopics";
@@ -55,6 +56,7 @@ export function ModelCanvasPage() {
   const [fieldMappings, setFieldMappings] = useState<FieldMapping[]>([]);
   const [modelFields, setModelFields] = useState<string[]>([]);
   const [draggedField, setDraggedField] = useState<{ topicId: string; field: string } | null>(null);
+  const [fieldElements, setFieldElements] = useState<Record<string, { x: number; y: number; width: number; height: number }>>({});
 
   // Auto-generate entity name when model name changes
   useEffect(() => {
@@ -100,7 +102,10 @@ export function ModelCanvasPage() {
     setDraggedField({ topicId, field });
   };
 
-  const handleFieldDrop = (role?: string) => {
+  const handleFieldDrop = (e: React.DragEvent, role?: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
     if (!draggedField) return;
 
     const topic = topics.find((t: any) => String(t.id) === draggedField.topicId);
@@ -134,6 +139,20 @@ export function ModelCanvasPage() {
     ]);
 
     setDraggedField(null);
+  };
+
+  const handleRemoveField = (mapping: FieldMapping) => {
+    setFieldMappings(fieldMappings.filter((m) => 
+      !(m.topicId === mapping.topicId && m.topicField === mapping.topicField)
+    ));
+    // Also remove from modelFields if no other mapping uses it
+    const stillUsed = fieldMappings.some((m) => 
+      m.modelField === mapping.modelField && 
+      !(m.topicId === mapping.topicId && m.topicField === mapping.topicField)
+    );
+    if (!stillUsed) {
+      setModelFields(modelFields.filter((f) => f !== mapping.modelField));
+    }
   };
 
   const handleSaveModel = async () => {
@@ -451,7 +470,7 @@ export function ModelCanvasPage() {
             p="md"
             style={{ overflow: "auto" }}
             onDragOver={(e) => e.preventDefault()}
-            onDrop={() => handleFieldDrop()}
+            onDrop={(e) => handleFieldDrop(e)}
           >
             <Badge variant="filled" mb="md">
               Model: {entityName}
@@ -467,19 +486,39 @@ export function ModelCanvasPage() {
                 p="sm"
                 mb="xs"
                 onDragOver={(e) => e.preventDefault()}
-                onDrop={() => handleFieldDrop("business_key")}
+                onDrop={(e) => handleFieldDrop(e, "business_key")}
                 style={{ backgroundColor: "var(--mantine-color-blue-0)" }}
               >
                 <Text size="sm" fw={600} mb={4}>
                   Business Key (drop here)
                 </Text>
-                {fieldMappings
-                  .filter((m) => m.role === "business_key")
-                  .map((m, idx) => (
-                    <Badge key={idx} variant="filled">
-                      {m.modelField}
-                    </Badge>
-                  ))}
+                <Group gap="xs">
+                  {fieldMappings
+                    .filter((m) => m.role === "business_key")
+                    .map((m, idx) => {
+                      const topic = topics.find((t: any) => String(t.id) === m.topicId);
+                      return (
+                        <Badge
+                          key={idx}
+                          variant="filled"
+                          pr={3}
+                          rightSection={
+                            <ActionIcon
+                              size="xs"
+                              color="blue"
+                              radius="xl"
+                              variant="transparent"
+                              onClick={() => handleRemoveField(m)}
+                            >
+                              <IconX size={12} />
+                            </ActionIcon>
+                          }
+                        >
+                          {m.modelField} ← {topic?.name}
+                        </Badge>
+                      );
+                    })}
+                </Group>
               </Paper>
             )}
 
@@ -489,7 +528,7 @@ export function ModelCanvasPage() {
                 p="sm"
                 mb="xs"
                 onDragOver={(e) => e.preventDefault()}
-                onDrop={() => handleFieldDrop("measure")}
+                onDrop={(e) => handleFieldDrop(e, "measure")}
                 style={{ backgroundColor: "var(--mantine-color-blue-0)" }}
               >
                 <Text size="sm" fw={600} mb={4}>
@@ -498,11 +537,30 @@ export function ModelCanvasPage() {
                 <Group gap="xs">
                   {fieldMappings
                     .filter((m) => m.role === "measure")
-                    .map((m, idx) => (
-                      <Badge key={idx} variant="filled" color="blue">
-                        {m.modelField}
-                      </Badge>
-                    ))}
+                    .map((m, idx) => {
+                      const topic = topics.find((t: any) => String(t.id) === m.topicId);
+                      return (
+                        <Badge
+                          key={idx}
+                          variant="filled"
+                          color="blue"
+                          pr={3}
+                          rightSection={
+                            <ActionIcon
+                              size="xs"
+                              color="blue"
+                              radius="xl"
+                              variant="transparent"
+                              onClick={() => handleRemoveField(m)}
+                            >
+                              <IconX size={12} />
+                            </ActionIcon>
+                          }
+                        >
+                          {m.modelField} ← {topic?.name}
+                        </Badge>
+                      );
+                    })}
                 </Group>
               </Paper>
             )}
@@ -511,7 +569,7 @@ export function ModelCanvasPage() {
               withBorder
               p="sm"
               onDragOver={(e) => e.preventDefault()}
-              onDrop={() => handleFieldDrop("attribute")}
+              onDrop={(e) => handleFieldDrop(e, "attribute")}
               style={{ backgroundColor: "var(--mantine-color-gray-0)" }}
             >
               <Text size="sm" fw={600} mb={4}>
@@ -520,11 +578,29 @@ export function ModelCanvasPage() {
               <Stack gap={4}>
                 {fieldMappings
                   .filter((m) => !m.role || m.role === "attribute")
-                  .map((m, idx) => (
-                    <Badge key={idx} variant="light">
-                      {m.modelField}
-                    </Badge>
-                  ))}
+                  .map((m, idx) => {
+                    const topic = topics.find((t: any) => String(t.id) === m.topicId);
+                    return (
+                      <Badge
+                        key={idx}
+                        variant="light"
+                        pr={3}
+                        rightSection={
+                          <ActionIcon
+                            size="xs"
+                            color="gray"
+                            radius="xl"
+                            variant="transparent"
+                            onClick={() => handleRemoveField(m)}
+                          >
+                            <IconX size={12} />
+                          </ActionIcon>
+                        }
+                      >
+                        {m.modelField} ← {topic?.name}
+                      </Badge>
+                    );
+                  })}
               </Stack>
             </Paper>
 
