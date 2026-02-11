@@ -43,9 +43,10 @@ export function ModelDetailPage() {
   >([]);
 
   // Extract field mappings for DAG visualization (must be done before conditional returns)
-  const entityDetails: any = model?.type === "data_vault" 
-    ? (model.hubs?.[0] || model.links?.[0] || model.satellites?.[0])
-    : (model?.facts?.[0] || model?.dimensions?.[0]);
+  const entityDetails: any =
+    model?.type === "data_vault"
+      ? model.hubs?.[0] || model.links?.[0] || model.satellites?.[0]
+      : model?.facts?.[0] || model?.dimensions?.[0];
   const fieldMappings = entityDetails?.field_mappings || [];
   const hasFieldMappings = fieldMappings.length > 0;
 
@@ -265,181 +266,181 @@ export function ModelDetailPage() {
             padding: "20px",
           }}
         >
-            {/* SVG for connection lines */}
-            <svg
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                height: "100%",
-                pointerEvents: "none",
-                zIndex: 1,
-              }}
-            >
-              <defs>
-                <marker
-                  id="arrowhead-detail"
-                  markerWidth="10"
-                  markerHeight="10"
-                  refX="9"
-                  refY="3"
-                  orient="auto"
-                >
-                  <polygon
-                    points="0 0, 10 3, 0 6"
-                    fill={colorScheme === "dark" ? "#4dabf7" : "#1c7ed6"}
-                  />
-                </marker>
-              </defs>
-              {connectionLines.map((line, idx) => (
-                <line
-                  key={idx}
-                  x1={line.x1}
-                  y1={line.y1}
-                  x2={line.x2}
-                  y2={line.y2}
-                  stroke={colorScheme === "dark" ? "#4dabf7" : "#1c7ed6"}
-                  strokeWidth="2"
-                  markerEnd="url(#arrowhead-detail)"
+          {/* SVG for connection lines */}
+          <svg
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              pointerEvents: "none",
+              zIndex: 1,
+            }}
+          >
+            <defs>
+              <marker
+                id="arrowhead-detail"
+                markerWidth="10"
+                markerHeight="10"
+                refX="9"
+                refY="3"
+                orient="auto"
+              >
+                <polygon
+                  points="0 0, 10 3, 0 6"
+                  fill={colorScheme === "dark" ? "#4dabf7" : "#1c7ed6"}
                 />
-              ))}
-            </svg>
+              </marker>
+            </defs>
+            {connectionLines.map((line, idx) => (
+              <line
+                key={idx}
+                x1={line.x1}
+                y1={line.y1}
+                x2={line.x2}
+                y2={line.y2}
+                stroke={colorScheme === "dark" ? "#4dabf7" : "#1c7ed6"}
+                strokeWidth="2"
+                markerEnd="url(#arrowhead-detail)"
+              />
+            ))}
+          </svg>
 
-            {/* Left side: Topic Fields */}
-            <Box style={{ flex: "0 0 40%", zIndex: 2 }}>
-              <Card withBorder shadow="sm" p="md">
-                <Stack gap="sm">
-                  <Group justify="space-between">
-                    <Text fw={600} size="sm">
-                      Source Topic
-                    </Text>
-                    <Badge variant="dot" size="sm">
-                      {topic?.name || "Unknown"}
-                    </Badge>
-                  </Group>
-                  <Divider />
-                  {topicSchema.length > 0 ? (
-                    <Stack gap="xs">
-                      {topicSchema.map((field: any) => {
-                        const isMapped = fieldMappings.some(
-                          (m: any) => m.topic_field === field.name,
-                        );
-                        const fieldKey = `${entityDetails.topic}-${field.name}`;
-                        return (
-                          <Box
-                            key={field.name}
-                            ref={(el) => {
-                              topicFieldRefs.current[fieldKey] = el;
-                            }}
-                            p="xs"
-                            style={{
-                              borderRadius: "4px",
-                              border: `1px solid ${isMapped ? (colorScheme === "dark" ? "#2f9e44" : "#37b24d") : colorScheme === "dark" ? "#373A40" : "#dee2e6"}`,
-                              backgroundColor: isMapped
-                                ? colorScheme === "dark"
-                                  ? "#2b8a3e"
-                                  : "#d3f9d8"
-                                : undefined,
-                            }}
-                          >
-                            <Text size="sm" fw={500}>
-                              {field.name}
-                            </Text>
-                            <Text size="xs" c="dimmed">
-                              {field.type}
-                            </Text>
-                          </Box>
-                        );
-                      })}
-                    </Stack>
-                  ) : (
-                    <Text c="dimmed" size="sm" ta="center" py="md">
-                      No topic information available
-                    </Text>
-                  )}
-                </Stack>
-              </Card>
-            </Box>
-
-            {/* Right side: Model Fields */}
-            <Box style={{ flex: "0 0 40%", zIndex: 2 }}>
-              <Card withBorder shadow="sm" p="md">
-                <Stack gap="sm">
-                  <Group justify="space-between">
-                    <Text fw={600} size="sm">
-                      Model Fields
-                    </Text>
-                    <Badge variant="outline" size="sm">
-                      {entityType}
-                    </Badge>
-                  </Group>
-                  <Divider />
-                  {entityDetails.fields && entityDetails.fields.length > 0 ? (
-                    <Stack gap="xs">
-                      {entityDetails.fields.map((field: string) => {
-                        const mappingsForField = fieldMappings.filter(
-                          (m: any) => m.model_field === field,
-                        );
-                        return (
-                          <Box
-                            key={field}
-                            ref={(el) => {
-                              modelFieldRefs.current[field] = el;
-                            }}
-                            p="xs"
-                            style={{
-                              borderRadius: "4px",
-                              border: `1px solid ${colorScheme === "dark" ? "#1864ab" : "#4dabf7"}`,
-                              backgroundColor:
-                                colorScheme === "dark" ? "#1971c2" : "#e7f5ff",
-                            }}
-                          >
-                            <Text size="sm" fw={500}>
-                              {field}
-                            </Text>
-                            {mappingsForField.length > 0 && (
-                              <Group gap={4} mt={4}>
-                                {mappingsForField.map((m: any, idx: number) => {
-                                  const sourceTopic = topics.find(
-                                    (t: any) =>
-                                      String(t.id) === String(m.topic_id),
-                                  );
-                                  return (
-                                    <Badge
-                                      key={idx}
-                                      size="xs"
-                                      variant="light"
-                                      color="blue"
-                                    >
-                                      ← {m.topic_field}
-                                      {sourceTopic && ` (${sourceTopic.name})`}
-                                    </Badge>
-                                  );
-                                })}
-                              </Group>
-                            )}
-                          </Box>
-                        );
-                      })}
-                    </Stack>
-                  ) : (
-                    <Text c="dimmed" size="sm" ta="center" py="md">
-                      No model fields defined
-                    </Text>
-                  )}
-                </Stack>
-              </Card>
-            </Box>
+          {/* Left side: Topic Fields */}
+          <Box style={{ flex: "0 0 40%", zIndex: 2 }}>
+            <Card withBorder shadow="sm" p="md">
+              <Stack gap="sm">
+                <Group justify="space-between">
+                  <Text fw={600} size="sm">
+                    Source Topic
+                  </Text>
+                  <Badge variant="dot" size="sm">
+                    {topic?.name || "Unknown"}
+                  </Badge>
+                </Group>
+                <Divider />
+                {topicSchema.length > 0 ? (
+                  <Stack gap="xs">
+                    {topicSchema.map((field: any) => {
+                      const isMapped = fieldMappings.some(
+                        (m: any) => m.topic_field === field.name,
+                      );
+                      const fieldKey = `${entityDetails.topic}-${field.name}`;
+                      return (
+                        <Box
+                          key={field.name}
+                          ref={(el) => {
+                            topicFieldRefs.current[fieldKey] = el;
+                          }}
+                          p="xs"
+                          style={{
+                            borderRadius: "4px",
+                            border: `1px solid ${isMapped ? (colorScheme === "dark" ? "#2f9e44" : "#37b24d") : colorScheme === "dark" ? "#373A40" : "#dee2e6"}`,
+                            backgroundColor: isMapped
+                              ? colorScheme === "dark"
+                                ? "#2b8a3e"
+                                : "#d3f9d8"
+                              : undefined,
+                          }}
+                        >
+                          <Text size="sm" fw={500}>
+                            {field.name}
+                          </Text>
+                          <Text size="xs" c="dimmed">
+                            {field.type}
+                          </Text>
+                        </Box>
+                      );
+                    })}
+                  </Stack>
+                ) : (
+                  <Text c="dimmed" size="sm" ta="center" py="md">
+                    No topic information available
+                  </Text>
+                )}
+              </Stack>
+            </Card>
           </Box>
 
-          {/* Show message if no mappings available */}
-          {!hasFieldMappings && (
-            <Text c="dimmed" ta="center" mt="md" size="sm">
-              Mapping information not available for this model. Models created
-              with the new canvas will show connection lines here.
-            </Text>
-          )}
+          {/* Right side: Model Fields */}
+          <Box style={{ flex: "0 0 40%", zIndex: 2 }}>
+            <Card withBorder shadow="sm" p="md">
+              <Stack gap="sm">
+                <Group justify="space-between">
+                  <Text fw={600} size="sm">
+                    Model Fields
+                  </Text>
+                  <Badge variant="outline" size="sm">
+                    {entityType}
+                  </Badge>
+                </Group>
+                <Divider />
+                {entityDetails.fields && entityDetails.fields.length > 0 ? (
+                  <Stack gap="xs">
+                    {entityDetails.fields.map((field: string) => {
+                      const mappingsForField = fieldMappings.filter(
+                        (m: any) => m.model_field === field,
+                      );
+                      return (
+                        <Box
+                          key={field}
+                          ref={(el) => {
+                            modelFieldRefs.current[field] = el;
+                          }}
+                          p="xs"
+                          style={{
+                            borderRadius: "4px",
+                            border: `1px solid ${colorScheme === "dark" ? "#1864ab" : "#4dabf7"}`,
+                            backgroundColor:
+                              colorScheme === "dark" ? "#1971c2" : "#e7f5ff",
+                          }}
+                        >
+                          <Text size="sm" fw={500}>
+                            {field}
+                          </Text>
+                          {mappingsForField.length > 0 && (
+                            <Group gap={4} mt={4}>
+                              {mappingsForField.map((m: any, idx: number) => {
+                                const sourceTopic = topics.find(
+                                  (t: any) =>
+                                    String(t.id) === String(m.topic_id),
+                                );
+                                return (
+                                  <Badge
+                                    key={idx}
+                                    size="xs"
+                                    variant="light"
+                                    color="blue"
+                                  >
+                                    ← {m.topic_field}
+                                    {sourceTopic && ` (${sourceTopic.name})`}
+                                  </Badge>
+                                );
+                              })}
+                            </Group>
+                          )}
+                        </Box>
+                      );
+                    })}
+                  </Stack>
+                ) : (
+                  <Text c="dimmed" size="sm" ta="center" py="md">
+                    No model fields defined
+                  </Text>
+                )}
+              </Stack>
+            </Card>
+          </Box>
+        </Box>
+
+        {/* Show message if no mappings available */}
+        {!hasFieldMappings && (
+          <Text c="dimmed" ta="center" mt="md" size="sm">
+            Mapping information not available for this model. Models created
+            with the new canvas will show connection lines here.
+          </Text>
+        )}
       </Card>
 
       {/* Edit Modal - Note: This is a placeholder. Full edit functionality would require enhancing ModelWizard */}
