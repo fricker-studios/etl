@@ -42,6 +42,53 @@ export function ModelDetailPage() {
     }>
   >([]);
 
+  // Extract field mappings for DAG visualization (must be done before conditional returns)
+  const entityDetails: any = model?.type === "data_vault" 
+    ? (model.hubs?.[0] || model.links?.[0] || model.satellites?.[0])
+    : (model?.facts?.[0] || model?.dimensions?.[0]);
+  const fieldMappings = entityDetails?.field_mappings || [];
+  const hasFieldMappings = fieldMappings.length > 0;
+
+  // Calculate connection lines for DAG - must be called before any conditional returns
+  useEffect(() => {
+    if (!hasFieldMappings || !entityDetails) return;
+
+    const calculateLines = () => {
+      const lines: Array<{ x1: number; y1: number; x2: number; y2: number }> =
+        [];
+
+      fieldMappings.forEach((mapping: any) => {
+        const topicFieldKey = `${mapping.topic_id}-${mapping.topic_field}`;
+        const modelFieldKey = mapping.model_field;
+
+        const topicFieldEl = topicFieldRefs.current[topicFieldKey];
+        const modelFieldEl = modelFieldRefs.current[modelFieldKey];
+
+        if (topicFieldEl && modelFieldEl) {
+          const topicRect = topicFieldEl.getBoundingClientRect();
+          const modelRect = modelFieldEl.getBoundingClientRect();
+          const container = topicFieldEl.closest(".dag-container");
+          const containerRect = container?.getBoundingClientRect();
+
+          if (containerRect) {
+            lines.push({
+              x1: topicRect.right - containerRect.left,
+              y1: topicRect.top + topicRect.height / 2 - containerRect.top,
+              x2: modelRect.left - containerRect.left,
+              y2: modelRect.top + modelRect.height / 2 - containerRect.top,
+            });
+          }
+        }
+      });
+
+      setConnectionLines(lines);
+    };
+
+    calculateLines();
+    window.addEventListener("resize", calculateLines);
+    return () => window.removeEventListener("resize", calculateLines);
+  }, [fieldMappings, hasFieldMappings]);
+
   const handleDelete = () => {
     modals.openConfirmModal({
       title: "Delete Model",
@@ -87,79 +134,29 @@ export function ModelDetailPage() {
   // Determine entity type and details
   let entityType = "";
   let entityName = "";
-  let entityDetails: any = null;
 
   if (model.type === "data_vault") {
     if (model.hubs && model.hubs.length > 0) {
       entityType = "Hub";
       entityName = model.hubs[0].name;
-      entityDetails = model.hubs[0];
     } else if (model.links && model.links.length > 0) {
       entityType = "Link";
       entityName = model.links[0].name;
-      entityDetails = model.links[0];
     } else if (model.satellites && model.satellites.length > 0) {
       entityType = "Satellite";
       entityName = model.satellites[0].name;
-      entityDetails = model.satellites[0];
     }
   } else {
     if (model.facts && model.facts.length > 0) {
       entityType = "Fact";
       entityName = model.facts[0].name;
-      entityDetails = model.facts[0];
     } else if (model.dimensions && model.dimensions.length > 0) {
       entityType = "Dimension";
       entityName = model.dimensions[0].name;
-      entityDetails = model.dimensions[0];
     }
   }
 
   const topic = topics.find((t: any) => String(t.id) === entityDetails?.topic);
-
-  // Extract field mappings for DAG visualization
-  const fieldMappings = entityDetails?.field_mappings || [];
-  const hasFieldMappings = fieldMappings.length > 0;
-
-  // Calculate connection lines for DAG
-  useEffect(() => {
-    if (!hasFieldMappings) return;
-
-    const calculateLines = () => {
-      const lines: Array<{ x1: number; y1: number; x2: number; y2: number }> =
-        [];
-
-      fieldMappings.forEach((mapping: any) => {
-        const topicFieldKey = `${mapping.topic_id}-${mapping.topic_field}`;
-        const modelFieldKey = mapping.model_field;
-
-        const topicFieldEl = topicFieldRefs.current[topicFieldKey];
-        const modelFieldEl = modelFieldRefs.current[modelFieldKey];
-
-        if (topicFieldEl && modelFieldEl) {
-          const topicRect = topicFieldEl.getBoundingClientRect();
-          const modelRect = modelFieldEl.getBoundingClientRect();
-          const container = topicFieldEl.closest(".dag-container");
-          const containerRect = container?.getBoundingClientRect();
-
-          if (containerRect) {
-            lines.push({
-              x1: topicRect.right - containerRect.left,
-              y1: topicRect.top + topicRect.height / 2 - containerRect.top,
-              x2: modelRect.left - containerRect.left,
-              y2: modelRect.top + modelRect.height / 2 - containerRect.top,
-            });
-          }
-        }
-      });
-
-      setConnectionLines(lines);
-    };
-
-    calculateLines();
-    window.addEventListener("resize", calculateLines);
-    return () => window.removeEventListener("resize", calculateLines);
-  }, [fieldMappings, hasFieldMappings]);
 
   // Get topic schema for displaying fields
   const topicSchema = topic?.current_revision?.schema || [];
