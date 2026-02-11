@@ -29,16 +29,18 @@ export function ModelDetailPage() {
   const { data: topics = [] } = useTopics();
   const [editModalOpen, { open: openEditModal }] = useDisclosure(false);
   const { colorScheme } = useMantineColorScheme();
-  
+
   // Refs for DAG visualization
   const topicFieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const modelFieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const [connectionLines, setConnectionLines] = useState<Array<{
-    x1: number;
-    y1: number;
-    x2: number;
-    y2: number;
-  }>>([]);
+  const [connectionLines, setConnectionLines] = useState<
+    Array<{
+      x1: number;
+      y1: number;
+      x2: number;
+      y2: number;
+    }>
+  >([]);
 
   const handleDelete = () => {
     modals.openConfirmModal({
@@ -124,21 +126,22 @@ export function ModelDetailPage() {
     if (!hasFieldMappings) return;
 
     const calculateLines = () => {
-      const lines: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
-      
+      const lines: Array<{ x1: number; y1: number; x2: number; y2: number }> =
+        [];
+
       fieldMappings.forEach((mapping: any) => {
         const topicFieldKey = `${mapping.topic_id}-${mapping.topic_field}`;
         const modelFieldKey = mapping.model_field;
-        
+
         const topicFieldEl = topicFieldRefs.current[topicFieldKey];
         const modelFieldEl = modelFieldRefs.current[modelFieldKey];
-        
+
         if (topicFieldEl && modelFieldEl) {
           const topicRect = topicFieldEl.getBoundingClientRect();
           const modelRect = modelFieldEl.getBoundingClientRect();
-          const container = topicFieldEl.closest('.dag-container');
+          const container = topicFieldEl.closest(".dag-container");
           const containerRect = container?.getBoundingClientRect();
-          
+
           if (containerRect) {
             lines.push({
               x1: topicRect.right - containerRect.left,
@@ -149,13 +152,13 @@ export function ModelDetailPage() {
           }
         }
       });
-      
+
       setConnectionLines(lines);
     };
 
     calculateLines();
-    window.addEventListener('resize', calculateLines);
-    return () => window.removeEventListener('resize', calculateLines);
+    window.addEventListener("resize", calculateLines);
+    return () => window.removeEventListener("resize", calculateLines);
   }, [fieldMappings, hasFieldMappings]);
 
   // Get topic schema for displaying fields
@@ -329,11 +332,13 @@ export function ModelDetailPage() {
                       return (
                         <Box
                           key={field.name}
-                          ref={(el) => (topicFieldRefs.current[fieldKey] = el)}
+                          ref={(el) => {
+                            topicFieldRefs.current[fieldKey] = el;
+                          }}
                           p="xs"
                           style={{
                             borderRadius: "4px",
-                            border: `1px solid ${isMapped ? (colorScheme === "dark" ? "#2f9e44" : "#37b24d") : (colorScheme === "dark" ? "#373A40" : "#dee2e6")}`,
+                            border: `1px solid ${isMapped ? (colorScheme === "dark" ? "#2f9e44" : "#37b24d") : colorScheme === "dark" ? "#373A40" : "#dee2e6"}`,
                             backgroundColor: isMapped
                               ? colorScheme === "dark"
                                 ? "#2b8a3e"
@@ -376,7 +381,9 @@ export function ModelDetailPage() {
                       return (
                         <Box
                           key={field}
-                          ref={(el) => (modelFieldRefs.current[field] = el)}
+                          ref={(el) => {
+                            modelFieldRefs.current[field] = el;
+                          }}
                           p="xs"
                           style={{
                             borderRadius: "4px",
@@ -392,7 +399,8 @@ export function ModelDetailPage() {
                             <Group gap={4} mt={4}>
                               {mappingsForField.map((m: any, idx: number) => {
                                 const sourceTopic = topics.find(
-                                  (t: any) => String(t.id) === String(m.topic_id),
+                                  (t: any) =>
+                                    String(t.id) === String(m.topic_id),
                                 );
                                 return (
                                   <Badge
@@ -427,24 +435,28 @@ export function ModelDetailPage() {
                       <Text size="sm" c="dimmed" mb={4}>
                         Business Key
                       </Text>
-                      <Badge variant="filled">{entityDetails.business_key}</Badge>
+                      <Badge variant="filled">
+                        {entityDetails.business_key}
+                      </Badge>
                     </div>
-                    {entityDetails.fields && entityDetails.fields.length > 0 && (
-                      <div>
-                        <Text size="sm" c="dimmed" mb={4}>
-                          Additional Attributes ({entityDetails.fields.length})
-                        </Text>
-                        <Group gap="xs">
-                          {entityDetails.fields.map(
-                            (field: string, idx: number) => (
-                              <Badge key={idx} variant="light">
-                                {field}
-                              </Badge>
-                            ),
-                          )}
-                        </Group>
-                      </div>
-                    )}
+                    {entityDetails.fields &&
+                      entityDetails.fields.length > 0 && (
+                        <div>
+                          <Text size="sm" c="dimmed" mb={4}>
+                            Additional Attributes ({entityDetails.fields.length}
+                            )
+                          </Text>
+                          <Group gap="xs">
+                            {entityDetails.fields.map(
+                              (field: string, idx: number) => (
+                                <Badge key={idx} variant="light">
+                                  {field}
+                                </Badge>
+                              ),
+                            )}
+                          </Group>
+                        </div>
+                      )}
                   </>
                 )}
 
@@ -452,7 +464,8 @@ export function ModelDetailPage() {
                   <>
                     <div>
                       <Text size="sm" c="dimmed" mb={4}>
-                        Hub References ({entityDetails.hub_references?.length || 0})
+                        Hub References (
+                        {entityDetails.hub_references?.length || 0})
                       </Text>
                       <Group gap="xs">
                         {(entityDetails.hub_references || []).map(
@@ -464,22 +477,23 @@ export function ModelDetailPage() {
                         )}
                       </Group>
                     </div>
-                    {entityDetails.fields && entityDetails.fields.length > 0 && (
-                      <div>
-                        <Text size="sm" c="dimmed" mb={4}>
-                          Link Fields ({entityDetails.fields.length})
-                        </Text>
-                        <Group gap="xs">
-                          {entityDetails.fields.map(
-                            (field: string, idx: number) => (
-                              <Badge key={idx} variant="light">
-                                {field}
-                              </Badge>
-                            ),
-                          )}
-                        </Group>
-                      </div>
-                    )}
+                    {entityDetails.fields &&
+                      entityDetails.fields.length > 0 && (
+                        <div>
+                          <Text size="sm" c="dimmed" mb={4}>
+                            Link Fields ({entityDetails.fields.length})
+                          </Text>
+                          <Group gap="xs">
+                            {entityDetails.fields.map(
+                              (field: string, idx: number) => (
+                                <Badge key={idx} variant="light">
+                                  {field}
+                                </Badge>
+                              ),
+                            )}
+                          </Group>
+                        </div>
+                      )}
                   </>
                 )}
 
@@ -534,7 +548,8 @@ export function ModelDetailPage() {
                       entityDetails.dimension_keys.length > 0 && (
                         <div>
                           <Text size="sm" c="dimmed" mb={4}>
-                            Dimension Keys ({entityDetails.dimension_keys.length})
+                            Dimension Keys (
+                            {entityDetails.dimension_keys.length})
                           </Text>
                           <Group gap="xs">
                             {entityDetails.dimension_keys.map(

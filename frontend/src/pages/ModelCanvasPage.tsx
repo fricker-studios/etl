@@ -100,7 +100,7 @@ export function ModelCanvasPage() {
       });
       return;
     }
-    
+
     // Auto-create required fields based on entity type
     const requiredFields: string[] = [];
     if (entityType === "hub") {
@@ -114,7 +114,7 @@ export function ModelCanvasPage() {
     } else if (entityType === "dimension") {
       requiredFields.push("dimension_key");
     }
-    
+
     setModelFields(requiredFields);
     closeSetup();
   };
@@ -217,7 +217,7 @@ export function ModelCanvasPage() {
     if (!editingField) return;
 
     const trimmedValue = editingFieldValue.trim();
-    
+
     // Validate field name
     if (!trimmedValue) {
       notifications.show({
@@ -229,10 +229,7 @@ export function ModelCanvasPage() {
     }
 
     // Check for duplicate names
-    if (
-      trimmedValue !== editingField &&
-      modelFields.includes(trimmedValue)
-    ) {
+    if (trimmedValue !== editingField && modelFields.includes(trimmedValue)) {
       notifications.show({
         message: "Field name already exists",
         color: "red",
@@ -249,9 +246,7 @@ export function ModelCanvasPage() {
 
     // Update mappings to reflect new field name
     const updatedMappings = fieldMappings.map((m) =>
-      m.modelField === editingField
-        ? { ...m, modelField: trimmedValue }
-        : m,
+      m.modelField === editingField ? { ...m, modelField: trimmedValue } : m,
     );
     setFieldMappings(updatedMappings);
 
@@ -301,7 +296,7 @@ export function ModelCanvasPage() {
     );
 
     // Convert fieldMappings to the format expected by backend
-    const formattedFieldMappings = fieldMappings.map(m => ({
+    const formattedFieldMappings = fieldMappings.map((m) => ({
       model_field: m.modelField,
       topic_field: m.topicField,
       topic_id: m.topicId,
@@ -441,7 +436,7 @@ export function ModelCanvasPage() {
     if (canvas) {
       canvas.addEventListener("scroll", updateLines);
       window.addEventListener("resize", updateLines);
-      
+
       // Also update after a short delay to account for DOM updates
       const timer = setTimeout(updateLines, 100);
 
@@ -552,12 +547,12 @@ export function ModelCanvasPage() {
           style={{
             flex: 1,
             position: "relative",
-            border: `1px solid ${colorScheme === 'dark' ? 'var(--mantine-color-dark-4)' : 'var(--mantine-color-gray-3)'}`,
+            border: `1px solid ${colorScheme === "dark" ? "var(--mantine-color-dark-4)" : "var(--mantine-color-gray-3)"}`,
             borderRadius: "8px",
             overflow: "auto",
             padding: "1rem",
           }}
-          bg={colorScheme === 'dark' ? 'dark.8' : 'gray.0'}
+          bg={colorScheme === "dark" ? "dark.8" : "gray.0"}
         >
           {/* Add Topic Button in top left */}
           <Box style={{ position: "absolute", top: 16, left: 16, zIndex: 10 }}>
@@ -648,14 +643,17 @@ export function ModelCanvasPage() {
                         {schema.map((col: any) => {
                           const mappedCount = fieldMappings.filter(
                             (m) =>
-                              m.topicId === topicId && m.topicField === col.name,
+                              m.topicId === topicId &&
+                              m.topicField === col.name,
                           ).length;
                           const colKey = `${topicId}-${col.name}`;
 
                           return (
                             <Paper
                               key={col.name}
-                              ref={(el) => (topicColRefs.current[colKey] = el)}
+                              ref={(el) => {
+                                topicColRefs.current[colKey] = el;
+                              }}
                               p="xs"
                               withBorder
                               bg={
@@ -692,7 +690,8 @@ export function ModelCanvasPage() {
                               </Group>
                               {mappedCount > 0 && (
                                 <Badge size="xs" color="green" mt={4}>
-                                  {mappedCount} mapping{mappedCount > 1 ? "s" : ""}
+                                  {mappedCount} mapping
+                                  {mappedCount > 1 ? "s" : ""}
                                 </Badge>
                               )}
                             </Paper>
@@ -749,7 +748,9 @@ export function ModelCanvasPage() {
                       return (
                         <Paper
                           key={fieldName}
-                          ref={(el) => (modelFieldRefs.current[fieldName] = el)}
+                          ref={(el) => {
+                            modelFieldRefs.current[fieldName] = el;
+                          }}
                           p="sm"
                           withBorder
                           onDragOver={(e) => e.preventDefault()}
@@ -797,7 +798,9 @@ export function ModelCanvasPage() {
                                     <ActionIcon
                                       size="xs"
                                       variant="subtle"
-                                      onClick={() => handleStartEditField(fieldName)}
+                                      onClick={() =>
+                                        handleStartEditField(fieldName)
+                                      }
                                       title="Edit field name"
                                     >
                                       <IconEdit size={12} />
@@ -805,19 +808,31 @@ export function ModelCanvasPage() {
                                   </>
                                 )}
                                 {mappings.length === 0 && !isEditing && (
-                                  <Badge size="xs" color="gray" variant="outline">
+                                  <Badge
+                                    size="xs"
+                                    color="gray"
+                                    variant="outline"
+                                  >
                                     unmapped
                                   </Badge>
                                 )}
                               </Group>
-                              
+
                               {/* Hash note for Data Vault key fields */}
-                              {(entityType === "hub" && fieldName === "business_key" ||
-                                entityType === "link" && fieldName === "link_key" ||
-                                entityType === "satellite" && fieldName === "parent_key") && (
+                              {((entityType === "hub" &&
+                                fieldName === "business_key") ||
+                                (entityType === "link" &&
+                                  fieldName === "link_key") ||
+                                (entityType === "satellite" &&
+                                  fieldName === "parent_key")) && (
                                 <Group gap={4} mt={4}>
-                                  <IconInfoCircle size={12} style={{ color: "var(--mantine-color-dimmed)" }} />
-                                  <Text size="xs" c="dimmed" italic>
+                                  <IconInfoCircle
+                                    size={12}
+                                    style={{
+                                      color: "var(--mantine-color-dimmed)",
+                                    }}
+                                  />
+                                  <Text size="xs" c="dimmed" fs="italic">
                                     Values will be hashed
                                   </Text>
                                 </Group>
@@ -899,7 +914,7 @@ export function ModelCanvasPage() {
                   >
                     <polygon
                       points="0 0, 10 3, 0 6"
-                      fill={colorScheme === 'dark' ? '#4dabf7' : '#1c7ed6'}
+                      fill={colorScheme === "dark" ? "#4dabf7" : "#1c7ed6"}
                     />
                   </marker>
                 </defs>
@@ -908,7 +923,7 @@ export function ModelCanvasPage() {
                   y1={line.y1}
                   x2={line.x2}
                   y2={line.y2}
-                  stroke={colorScheme === 'dark' ? '#4dabf7' : '#1c7ed6'}
+                  stroke={colorScheme === "dark" ? "#4dabf7" : "#1c7ed6"}
                   strokeWidth="2"
                   markerEnd={`url(#arrowhead-${idx})`}
                 />
