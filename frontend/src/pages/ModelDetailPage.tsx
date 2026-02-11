@@ -4,21 +4,17 @@ import {
   Text,
   Badge,
   Group,
-  Button,
   Breadcrumbs,
   Anchor,
   Divider,
   ActionIcon,
   Tooltip,
-  Table,
 } from "@mantine/core";
 import { IconArrowLeft, IconEdit, IconTrash } from "@tabler/icons-react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useModel, useDeleteModel } from "../hooks/useModels";
 import { PageHeader } from "../components/common/PageHeader";
 import { modals } from "@mantine/modals";
-import { useState } from "react";
-import { ModelWizard } from "../features/models/ModelWizard";
 import { useDisclosure } from "@mantine/hooks";
 import { useTopics } from "../hooks/useTopics";
 
@@ -28,7 +24,7 @@ export function ModelDetailPage() {
   const { data: model, isLoading } = useModel(id ?? null);
   const deleteModel = useDeleteModel();
   const { data: topics = [] } = useTopics();
-  const [editModalOpen, { open: openEditModal, close: closeEditModal }] = useDisclosure(false);
+  const [editModalOpen, { open: openEditModal }] = useDisclosure(false);
 
   const handleDelete = () => {
     modals.openConfirmModal({

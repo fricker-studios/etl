@@ -22,7 +22,7 @@ import {
   IconDeviceFloppy,
   IconX,
 } from "@tabler/icons-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDisclosure } from "@mantine/hooks";
 import { useTopics } from "../hooks/useTopics";
@@ -44,7 +44,7 @@ export function ModelCanvasPage() {
   const createModel = useCreateModel();
 
   // Setup modal state
-  const [setupModalOpen, { open: openSetup, close: closeSetup }] = useDisclosure(true);
+  const [setupModalOpen, { close: closeSetup }] = useDisclosure(true);
   const [modelName, setModelName] = useState("");
   const [modelType, setModelType] = useState<"data_vault" | "dimensional">("data_vault");
   const [entityType, setEntityType] = useState<EntityType>("hub");
@@ -56,7 +56,6 @@ export function ModelCanvasPage() {
   const [fieldMappings, setFieldMappings] = useState<FieldMapping[]>([]);
   const [modelFields, setModelFields] = useState<string[]>([]);
   const [draggedField, setDraggedField] = useState<{ topicId: string; field: string } | null>(null);
-  const [fieldElements, setFieldElements] = useState<Record<string, { x: number; y: number; width: number; height: number }>>({});
 
   // Auto-generate entity name when model name changes
   useEffect(() => {
@@ -108,7 +107,6 @@ export function ModelCanvasPage() {
     
     if (!draggedField) return;
 
-    const topic = topics.find((t: any) => String(t.id) === draggedField.topicId);
     const fieldName = draggedField.field;
     
     // Check if field is already mapped
