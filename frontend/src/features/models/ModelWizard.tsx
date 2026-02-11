@@ -9,38 +9,14 @@ import {
   MultiSelect,
   Divider,
   Text,
-  Card,
-  Table,
-  ActionIcon,
-  Tooltip,
-  Badge,
 } from "@mantine/core";
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { notifications } from "@mantine/notifications";
-import { IconPlus, IconTrash, IconEdit } from "@tabler/icons-react";
 import { useTopics } from "../../hooks/useTopics";
 import { useCreateModel } from "../../hooks/useModels";
 
 // Entity types
 type EntityType = "hub" | "link" | "satellite" | "fact" | "dimension";
-
-interface EntityDefinition {
-  id: string;
-  name: string;
-  type: EntityType;
-  topic: string;
-  fieldMappings: {
-    businessKey?: string;
-    parent?: string;
-    hubReferences?: string[];
-    key?: string;
-    grain?: string;
-    measures?: string[];
-    dimensionKeys?: string[];
-    attributes?: string[];
-    fields?: string[];
-  };
-}
 
 export function ModelWizard({
   opened,
@@ -55,8 +31,20 @@ export function ModelWizard({
 
   const [type, setType] = useState<"data_vault" | "dimensional">("data_vault");
   const [name, setName] = useState("");
-  const [entities, setEntities] = useState<EntityDefinition[]>([]);
-  const [editingEntity, setEditingEntity] = useState<EntityDefinition | null>(null);
+  const [entityType, setEntityType] = useState<EntityType>("hub");
+  const [entityName, setEntityName] = useState("");
+  const [topic, setTopic] = useState("");
+  
+  // Field mappings
+  const [businessKey, setBusinessKey] = useState("");
+  const [attributes, setAttributes] = useState<string[]>([]);
+  const [hubReferences, setHubReferences] = useState<string[]>([]);
+  const [linkFields, setLinkFields] = useState<string[]>([]);
+  const [parentHub, setParentHub] = useState("");
+  const [primaryKey, setPrimaryKey] = useState("");
+  const [grain, setGrain] = useState("");
+  const [measures, setMeasures] = useState<string[]>([]);
+  const [dimensionKeys, setDimensionKeys] = useState<string[]>([]);
 
   const topicOptions = topics.map((t: any) => ({
     value: String(t.id),
@@ -64,18 +52,13 @@ export function ModelWizard({
   }));
 
   const getTopicFields = (topicId: string) => {
-    const topic = topics.find((t: any) => String(t.id) === topicId);
-    if (!topic?.current_revision?.schema) return [];
-    return topic.current_revision.schema.map((col: any) => ({
+    const topicData = topics.find((t: any) => String(t.id) === topicId);
+    if (!topicData?.current_revision?.schema) return [];
+    return topicData.current_revision.schema.map((col: any) => ({
       value: col.name,
       label: `${col.name} (${col.data_type})`,
     }));
   };
-
-  const selectedTopics = useMemo(() => {
-    const topicSet = new Set(entities.map((e) => e.topic).filter(Boolean));
-    return Array.from(topicSet);
-  }, [entities]);
 
   const getEntityTypeOptions = () => {
     if (type === "data_vault") {
@@ -92,14 +75,21 @@ export function ModelWizard({
     }
   };
 
-  const generateId = () => `entity_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
   const resetForm = () => {
     setActive(0);
     setName("");
-    setType("data_vault");
-    setEntities([]);
-    setEditingEntity(null);
+    setEntityType("hub");
+    setEntityName("");
+    setTopic("");
+    setBusinessKey("");
+    setAttributes([]);
+    setHubReferences([]);
+    setLinkFields([]);
+    setParentHub("");
+    setPrimaryKey("");
+    setGrain("");
+    setMeasures([]);
+    setDimensionKeys([]);
   };
 
   const save = async () => {
@@ -108,59 +98,98 @@ export function ModelWizard({
       return;
     }
 
-    if (entities.length === 0) {
-      notifications.show({ message: "Please define at least one entity", color: "red" });
+    if (!entityName.trim()) {
+      notifications.show({ message: "Please enter an entity name", color: "red" });
       return;
     }
 
-    const modelData: any = { name, type, topics: selectedTopics };
+    if (!topic) {
+      notifications.show({ message: "Please select a topic", color: "red" });
+      return;
+    }
 
+    // Type-specific validation
+    if (entityType === "hub" && !businessKey) {
+      notifications.show({ message: "Please select a business key", color: "red" });
+      return;
+    }
+
+    if (entityType === "dimension" && !primaryKey) {
+      notifications.show({ message: "Please select a primary key", color: "red" });
+      return;
+    }
+
+    if (entityType === "fact" && !grain) {
+      notifications.show({ message: "Please enter a grain", color: "red" });
+      return;
+    }
+
+    if (entityType === "satellite" && !parentHub) {
+      notifications.show({ message: "Please enter a parent hub name", color: "red" });
+      return;
+    }
+
+    if (entityType === "link" && hubReferences.length < 2) {
+      notifications.show({ message: "Please enter at least 2 hub references", color: "red" });
+      return;
+    }
+
+    const modelData: any = {
+      name,
+      type,
+      topics: [topic],
+      entity_type: entityType,
+    };
+
+    // Build entity based on type
     if (type === "data_vault") {
-      modelData.hubs = entities
-        .filter((e) => e.type === "hub")
-        .map((e) => ({
-          name: e.name,
-          topic: e.topic,
-          business_key: e.fieldMappings.businessKey || "",
-          fields: e.fieldMappings.attributes || [],
-        }));
-
-      modelData.links = entities
-        .filter((e) => e.type === "link")
-        .map((e) => ({
-          name: e.name,
-          topic: e.topic,
-          hub_references: e.fieldMappings.hubReferences || [],
-          fields: e.fieldMappings.fields || [],
-        }));
-
-      modelData.satellites = entities
-        .filter((e) => e.type === "satellite")
-        .map((e) => ({
-          name: e.name,
-          topic: e.topic,
-          parent: e.fieldMappings.parent || "",
-          fields: e.fieldMappings.attributes || [],
-        }));
+      if (entityType === "hub") {
+        modelData.hubs = [{
+          name: entityName,
+          topic: topic,
+          business_key: businessKey,
+          fields: attributes,
+        }];
+        modelData.links = [];
+        modelData.satellites = [];
+      } else if (entityType === "link") {
+        modelData.hubs = [];
+        modelData.links = [{
+          name: entityName,
+          topic: topic,
+          hub_references: hubReferences,
+          fields: linkFields,
+        }];
+        modelData.satellites = [];
+      } else if (entityType === "satellite") {
+        modelData.hubs = [];
+        modelData.links = [];
+        modelData.satellites = [{
+          name: entityName,
+          topic: topic,
+          parent: parentHub,
+          fields: attributes,
+        }];
+      }
     } else {
-      modelData.facts = entities
-        .filter((e) => e.type === "fact")
-        .map((e) => ({
-          name: e.name,
-          topic: e.topic,
-          grain: e.fieldMappings.grain || "",
-          measures: e.fieldMappings.measures || [],
-          dimension_keys: e.fieldMappings.dimensionKeys || [],
-        }));
-
-      modelData.dimensions = entities
-        .filter((e) => e.type === "dimension")
-        .map((e) => ({
-          name: e.name,
-          topic: e.topic,
-          key: e.fieldMappings.key || "",
-          fields: e.fieldMappings.attributes || [],
-        }));
+      if (entityType === "fact") {
+        modelData.facts = [{
+          name: entityName,
+          topic: topic,
+          grain: grain,
+          measures: measures,
+          dimension_keys: dimensionKeys,
+        }];
+        modelData.dimensions = [];
+      } else if (entityType === "dimension") {
+        modelData.facts = [];
+        modelData.dimensions = [{
+          name: entityName,
+          topic: topic,
+          key: primaryKey,
+          fields: attributes,
+        }];
+      }
     }
 
     try {
@@ -170,83 +199,6 @@ export function ModelWizard({
     } catch (error) {
       // Error handled by mutation hook
     }
-  };
-
-  const startAddEntity = () => {
-    const defaultType: EntityType = type === "data_vault" ? "hub" : "dimension";
-    setEditingEntity({
-      id: generateId(),
-      name: "",
-      type: defaultType,
-      topic: "",
-      fieldMappings: {},
-    });
-  };
-
-  const startEditEntity = (entity: EntityDefinition) => {
-    setEditingEntity({ ...entity });
-  };
-
-  const cancelEditEntity = () => {
-    setEditingEntity(null);
-  };
-
-  const saveEntity = () => {
-    if (!editingEntity) return;
-
-    if (!editingEntity.name.trim()) {
-      notifications.show({ message: "Please enter entity name", color: "red" });
-      return;
-    }
-
-    if (!editingEntity.topic) {
-      notifications.show({ message: "Please select a topic", color: "red" });
-      return;
-    }
-
-    if (editingEntity.type === "hub" && !editingEntity.fieldMappings.businessKey) {
-      notifications.show({ message: "Please select a business key", color: "red" });
-      return;
-    }
-
-    if (editingEntity.type === "dimension" && !editingEntity.fieldMappings.key) {
-      notifications.show({ message: "Please select a key field", color: "red" });
-      return;
-    }
-
-    if (editingEntity.type === "fact" && !editingEntity.fieldMappings.grain) {
-      notifications.show({ message: "Please enter a grain", color: "red" });
-      return;
-    }
-
-    if (editingEntity.type === "satellite" && !editingEntity.fieldMappings.parent) {
-      notifications.show({ message: "Please select a parent hub", color: "red" });
-      return;
-    }
-
-    if (editingEntity.type === "link" && (editingEntity.fieldMappings.hubReferences || []).length < 2) {
-      notifications.show({ message: "Please select at least 2 hubs to link", color: "red" });
-      return;
-    }
-
-    const existingIndex = entities.findIndex((e) => e.id === editingEntity.id);
-    if (existingIndex >= 0) {
-      const newEntities = [...entities];
-      newEntities[existingIndex] = editingEntity;
-      setEntities(newEntities);
-    } else {
-      setEntities([...entities, editingEntity]);
-    }
-
-    setEditingEntity(null);
-  };
-
-  const deleteEntity = (id: string) => {
-    setEntities(entities.filter((e) => e.id !== id));
-  };
-
-  const getHubNames = () => {
-    return entities.filter((e) => e.type === "hub").map((e) => e.name);
   };
 
   return (
@@ -274,13 +226,21 @@ export function ModelWizard({
               value={type}
               onChange={(v) => {
                 setType((v as any) ?? "data_vault");
-                setEntities([]);
+                setEntityType(v === "data_vault" ? "hub" : "dimension");
               }}
               data={[
-                { value: "data_vault", label: "Data Vault (hubs, links, satellites)" },
-                { value: "dimensional", label: "Dimensional (facts, dimensions)" },
+                { value: "data_vault", label: "Data Vault" },
+                { value: "dimensional", label: "Dimensional" },
               ]}
               required
+            />
+            <Select
+              label="Entity Type"
+              value={entityType}
+              onChange={(v) => setEntityType((v as EntityType) || "hub")}
+              data={getEntityTypeOptions()}
+              required
+              description="The type of entity this model represents"
             />
             <Text size="sm" c="dimmed">
               {type === "data_vault"
@@ -293,371 +253,214 @@ export function ModelWizard({
           </Stack>
         </Stepper.Step>
 
-        <Stepper.Step label="Define Entities">
-          {editingEntity ? (
-            <Stack>
-              <Text fw={500}>
-                {entities.find((e) => e.id === editingEntity.id) ? "Edit" : "Add"} Entity
-              </Text>
+        <Stepper.Step label="Define Entity">
+          <Stack>
+            <TextInput
+              label="Entity Name"
+              placeholder="e.g., Hub_Customer, Dim_Date"
+              value={entityName}
+              onChange={(e) => setEntityName(e.target.value)}
+              required
+            />
 
-              <TextInput
-                label="Entity Name"
-                placeholder="e.g., Hub_Customer, Dim_Date"
-                value={editingEntity.name}
-                onChange={(e) => setEditingEntity({ ...editingEntity, name: e.target.value })}
-                required
-              />
+            <Select
+              label="Source Topic"
+              data={topicOptions}
+              value={topic}
+              onChange={(v) => {
+                setTopic(v || "");
+                // Reset field selections when topic changes
+                setBusinessKey("");
+                setAttributes([]);
+                setHubReferences([]);
+                setLinkFields([]);
+                setPrimaryKey("");
+                setMeasures([]);
+                setDimensionKeys([]);
+              }}
+              searchable
+              required
+            />
 
-              <Select
-                label="Entity Type"
-                data={getEntityTypeOptions()}
-                value={editingEntity.type}
-                onChange={(v) =>
-                  setEditingEntity({
-                    ...editingEntity,
-                    type: (v as EntityType) || "hub",
-                    fieldMappings: {},
-                  })
-                }
-                required
-              />
+            {topic && (
+              <>
+                <Divider label="Field Mappings" />
 
-              <Select
-                label="Source Topic"
-                data={topicOptions}
-                value={editingEntity.topic}
-                onChange={(v) =>
-                  setEditingEntity({
-                    ...editingEntity,
-                    topic: v || "",
-                    fieldMappings: {},
-                  })
-                }
-                searchable
-                required
-              />
+                {entityType === "hub" && (
+                  <>
+                    <Select
+                      label="Business Key *"
+                      data={getTopicFields(topic)}
+                      value={businessKey}
+                      onChange={(v) => setBusinessKey(v || "")}
+                      searchable
+                      required
+                      description="Natural business key that uniquely identifies this entity"
+                    />
+                    <MultiSelect
+                      label="Additional Attributes"
+                      data={getTopicFields(topic)}
+                      value={attributes}
+                      onChange={setAttributes}
+                      searchable
+                      description="Additional fields to store with the hub (optional)"
+                    />
+                  </>
+                )}
 
-              {editingEntity.topic && (
-                <>
-                  <Divider label="Field Mappings" />
+                {entityType === "link" && (
+                  <>
+                    <TextInput
+                      label="Hub References *"
+                      placeholder="Enter hub names separated by commas (e.g., Hub_Customer, Hub_Order)"
+                      value={hubReferences.join(", ")}
+                      onChange={(e) => {
+                        const refs = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
+                        setHubReferences(refs);
+                      }}
+                      required
+                      description="Enter at least 2 hub names to create a relationship"
+                      error={hubReferences.length > 0 && hubReferences.length < 2 ? "Enter at least 2 hubs" : undefined}
+                    />
+                    <MultiSelect
+                      label="Link Fields"
+                      data={getTopicFields(topic)}
+                      value={linkFields}
+                      onChange={setLinkFields}
+                      searchable
+                      description="Fields that describe the relationship (optional)"
+                    />
+                  </>
+                )}
 
-                  {editingEntity.type === "hub" && (
-                    <>
-                      <Select
-                        label="Business Key *"
-                        data={getTopicFields(editingEntity.topic)}
-                        value={editingEntity.fieldMappings.businessKey}
-                        onChange={(v) =>
-                          setEditingEntity({
-                            ...editingEntity,
-                            fieldMappings: {
-                              ...editingEntity.fieldMappings,
-                              businessKey: v || "",
-                            },
-                          })
-                        }
-                        searchable
-                        required
-                        description="Natural business key that uniquely identifies this entity"
-                      />
-                      <MultiSelect
-                        label="Attributes"
-                        data={getTopicFields(editingEntity.topic)}
-                        value={editingEntity.fieldMappings.attributes || []}
-                        onChange={(v) =>
-                          setEditingEntity({
-                            ...editingEntity,
-                            fieldMappings: {
-                              ...editingEntity.fieldMappings,
-                              attributes: v,
-                            },
-                          })
-                        }
-                        searchable
-                      />
-                    </>
-                  )}
+                {entityType === "satellite" && (
+                  <>
+                    <TextInput
+                      label="Parent Hub *"
+                      placeholder="e.g., Hub_Customer"
+                      value={parentHub}
+                      onChange={(e) => setParentHub(e.target.value)}
+                      required
+                      description="The hub this satellite extends"
+                    />
+                    <MultiSelect
+                      label="Attribute Fields *"
+                      data={getTopicFields(topic)}
+                      value={attributes}
+                      onChange={setAttributes}
+                      searchable
+                      description="Descriptive attributes that change over time"
+                      required
+                    />
+                  </>
+                )}
 
-                  {editingEntity.type === "link" && (
-                    <>
-                      <MultiSelect
-                        label="Hub References *"
-                        data={getHubNames().map((h) => ({ value: h, label: h }))}
-                        value={editingEntity.fieldMappings.hubReferences || []}
-                        onChange={(v) =>
-                          setEditingEntity({
-                            ...editingEntity,
-                            fieldMappings: {
-                              ...editingEntity.fieldMappings,
-                              hubReferences: v,
-                            },
-                          })
-                        }
-                        description="Select at least 2 hubs to link"
-                      />
-                      <MultiSelect
-                        label="Fields"
-                        data={getTopicFields(editingEntity.topic)}
-                        value={editingEntity.fieldMappings.fields || []}
-                        onChange={(v) =>
-                          setEditingEntity({
-                            ...editingEntity,
-                            fieldMappings: {
-                              ...editingEntity.fieldMappings,
-                              fields: v,
-                            },
-                          })
-                        }
-                        searchable
-                      />
-                    </>
-                  )}
+                {entityType === "fact" && (
+                  <>
+                    <TextInput
+                      label="Grain *"
+                      placeholder="e.g., transaction, order_line, daily_snapshot"
+                      value={grain}
+                      onChange={(e) => setGrain(e.target.value)}
+                      description="The level of detail for this fact table (one row per...)"
+                      required
+                    />
+                    <MultiSelect
+                      label="Measures *"
+                      data={getTopicFields(topic)}
+                      value={measures}
+                      onChange={setMeasures}
+                      searchable
+                      description="Quantitative fields to analyze (e.g., amount, quantity, revenue)"
+                      required
+                    />
+                    <MultiSelect
+                      label="Dimension Keys"
+                      data={getTopicFields(topic)}
+                      value={dimensionKeys}
+                      onChange={setDimensionKeys}
+                      searchable
+                      description="Keys that reference dimension tables (e.g., customer_id, date_id)"
+                    />
+                  </>
+                )}
 
-                  {editingEntity.type === "satellite" && (
-                    <>
-                      <Select
-                        label="Parent Hub *"
-                        data={getHubNames().map((h) => ({ value: h, label: h }))}
-                        value={editingEntity.fieldMappings.parent}
-                        onChange={(v) =>
-                          setEditingEntity({
-                            ...editingEntity,
-                            fieldMappings: {
-                              ...editingEntity.fieldMappings,
-                              parent: v || "",
-                            },
-                          })
-                        }
-                        required
-                      />
-                      <MultiSelect
-                        label="Attributes *"
-                        data={getTopicFields(editingEntity.topic)}
-                        value={editingEntity.fieldMappings.attributes || []}
-                        onChange={(v) =>
-                          setEditingEntity({
-                            ...editingEntity,
-                            fieldMappings: {
-                              ...editingEntity.fieldMappings,
-                              attributes: v,
-                            },
-                          })
-                        }
-                        searchable
-                      />
-                    </>
-                  )}
+                {entityType === "dimension" && (
+                  <>
+                    <Select
+                      label="Primary Key *"
+                      data={getTopicFields(topic)}
+                      value={primaryKey}
+                      onChange={(v) => setPrimaryKey(v || "")}
+                      searchable
+                      required
+                      description="The surrogate or natural key for this dimension"
+                    />
+                    <MultiSelect
+                      label="Attribute Fields *"
+                      data={getTopicFields(topic)}
+                      value={attributes}
+                      onChange={setAttributes}
+                      searchable
+                      description="Descriptive attributes for this dimension (e.g., name, category, description)"
+                      required
+                    />
+                  </>
+                )}
+              </>
+            )}
 
-                  {editingEntity.type === "fact" && (
-                    <>
-                      <TextInput
-                        label="Grain *"
-                        placeholder="e.g., transaction, order_line"
-                        value={editingEntity.fieldMappings.grain}
-                        onChange={(e) =>
-                          setEditingEntity({
-                            ...editingEntity,
-                            fieldMappings: {
-                              ...editingEntity.fieldMappings,
-                              grain: e.target.value,
-                            },
-                          })
-                        }
-                        required
-                      />
-                      <MultiSelect
-                        label="Measures *"
-                        data={getTopicFields(editingEntity.topic)}
-                        value={editingEntity.fieldMappings.measures || []}
-                        onChange={(v) =>
-                          setEditingEntity({
-                            ...editingEntity,
-                            fieldMappings: {
-                              ...editingEntity.fieldMappings,
-                              measures: v,
-                            },
-                          })
-                        }
-                        searchable
-                      />
-                      <MultiSelect
-                        label="Dimension Keys"
-                        data={getTopicFields(editingEntity.topic)}
-                        value={editingEntity.fieldMappings.dimensionKeys || []}
-                        onChange={(v) =>
-                          setEditingEntity({
-                            ...editingEntity,
-                            fieldMappings: {
-                              ...editingEntity.fieldMappings,
-                              dimensionKeys: v,
-                            },
-                          })
-                        }
-                        searchable
-                      />
-                    </>
-                  )}
-
-                  {editingEntity.type === "dimension" && (
-                    <>
-                      <Select
-                        label="Primary Key *"
-                        data={getTopicFields(editingEntity.topic)}
-                        value={editingEntity.fieldMappings.key}
-                        onChange={(v) =>
-                          setEditingEntity({
-                            ...editingEntity,
-                            fieldMappings: {
-                              ...editingEntity.fieldMappings,
-                              key: v || "",
-                            },
-                          })
-                        }
-                        searchable
-                        required
-                      />
-                      <MultiSelect
-                        label="Attributes *"
-                        data={getTopicFields(editingEntity.topic)}
-                        value={editingEntity.fieldMappings.attributes || []}
-                        onChange={(v) =>
-                          setEditingEntity({
-                            ...editingEntity,
-                            fieldMappings: {
-                              ...editingEntity.fieldMappings,
-                              attributes: v,
-                            },
-                          })
-                        }
-                        searchable
-                      />
-                    </>
-                  )}
-                </>
-              )}
-
-              <Group justify="flex-end">
-                <Button variant="light" onClick={cancelEditEntity}>
-                  Cancel
-                </Button>
-                <Button onClick={saveEntity}>
-                  {entities.find((e) => e.id === editingEntity.id) ? "Update" : "Add"}
-                </Button>
-              </Group>
-            </Stack>
-          ) : (
-            <Stack>
-              <Group justify="space-between">
-                <Text size="sm" c="dimmed">
-                  Define entities with field mappings for your {type === "data_vault" ? "Data Vault" : "Dimensional"} model
-                </Text>
-                <Button leftSection={<IconPlus size={16} />} onClick={startAddEntity} size="sm">
-                  Add Entity
-                </Button>
-              </Group>
-
-              {entities.length > 0 ? (
-                <Card withBorder>
-                  <Table>
-                    <Table.Thead>
-                      <Table.Tr>
-                        <Table.Th>Name</Table.Th>
-                        <Table.Th>Type</Table.Th>
-                        <Table.Th>Topic</Table.Th>
-                        <Table.Th>Key Info</Table.Th>
-                        <Table.Th></Table.Th>
-                      </Table.Tr>
-                    </Table.Thead>
-                    <Table.Tbody>
-                      {entities.map((entity) => {
-                        const topic = topics.find((t: any) => String(t.id) === entity.topic);
-                        let keyInfo = "";
-                        
-                        if (entity.type === "hub") keyInfo = entity.fieldMappings.businessKey || "-";
-                        else if (entity.type === "dimension") keyInfo = entity.fieldMappings.key || "-";
-                        else if (entity.type === "fact") keyInfo = entity.fieldMappings.grain || "-";
-                        else if (entity.type === "satellite") keyInfo = entity.fieldMappings.parent || "-";
-                        else if (entity.type === "link") keyInfo = (entity.fieldMappings.hubReferences || []).join(", ") || "-";
-
-                        return (
-                          <Table.Tr key={entity.id}>
-                            <Table.Td>{entity.name}</Table.Td>
-                            <Table.Td>
-                              <Badge size="sm" variant="light">{entity.type}</Badge>
-                            </Table.Td>
-                            <Table.Td>
-                              <Text size="sm">{topic?.name || "Unknown"}</Text>
-                            </Table.Td>
-                            <Table.Td>
-                              <Text size="xs" c="dimmed">{keyInfo}</Text>
-                            </Table.Td>
-                            <Table.Td>
-                              <Group gap="xs">
-                                <ActionIcon variant="subtle" color="blue" onClick={() => startEditEntity(entity)}>
-                                  <IconEdit size={16} />
-                                </ActionIcon>
-                                <ActionIcon variant="subtle" color="red" onClick={() => deleteEntity(entity.id)}>
-                                  <IconTrash size={16} />
-                                </ActionIcon>
-                              </Group>
-                            </Table.Td>
-                          </Table.Tr>
-                        );
-                      })}
-                    </Table.Tbody>
-                  </Table>
-                </Card>
-              ) : (
-                <Card withBorder p="xl">
-                  <Stack align="center">
-                    <Text c="dimmed">No entities defined yet</Text>
-                  </Stack>
-                </Card>
-              )}
-
-              <Group justify="space-between">
-                <Button variant="light" onClick={() => setActive(0)}>
-                  Back
-                </Button>
-                <Button onClick={() => setActive(2)} disabled={entities.length === 0}>
-                  Next
-                </Button>
-              </Group>
-            </Stack>
-          )}
+            <Group justify="space-between">
+              <Button variant="light" onClick={() => setActive(0)}>
+                Back
+              </Button>
+              <Button onClick={() => setActive(2)} disabled={!topic}>
+                Next
+              </Button>
+            </Group>
+          </Stack>
         </Stepper.Step>
 
         <Stepper.Step label="Review">
           <Stack>
             <Divider label="Model Summary" />
             <Text size="sm"><strong>Name:</strong> {name}</Text>
-            <Text size="sm"><strong>Type:</strong> {type === "data_vault" ? "Data Vault" : "Dimensional"}</Text>
-            <Text size="sm"><strong>Entities:</strong> {entities.length} defined</Text>
+            <Text size="sm"><strong>Model Type:</strong> {type === "data_vault" ? "Data Vault" : "Dimensional"}</Text>
+            <Text size="sm"><strong>Entity Type:</strong> {entityType}</Text>
+            <Text size="sm"><strong>Entity Name:</strong> {entityName}</Text>
+            <Text size="sm"><strong>Topic:</strong> {topics.find((t: any) => String(t.id) === topic)?.name || "-"}</Text>
 
-            {entities.length > 0 && (
-              <Card withBorder>
-                <Stack gap="sm">
-                  {entities.map((entity) => {
-                    const topic = topics.find((t: any) => String(t.id) === entity.topic);
-                    return (
-                      <div key={entity.id}>
-                        <Group>
-                          <Badge variant="light">{entity.type}</Badge>
-                          <Text fw={500}>{entity.name}</Text>
-                          <Text size="sm" c="dimmed">(from {topic?.name})</Text>
-                        </Group>
-                        <Text size="xs" c="dimmed" ml="md">
-                          {entity.type === "hub" && `Key: ${entity.fieldMappings.businessKey}, ${(entity.fieldMappings.attributes || []).length} attrs`}
-                          {entity.type === "link" && `Links: ${(entity.fieldMappings.hubReferences || []).join(", ")}`}
-                          {entity.type === "satellite" && `Parent: ${entity.fieldMappings.parent}, ${(entity.fieldMappings.attributes || []).length} attrs`}
-                          {entity.type === "fact" && `Grain: ${entity.fieldMappings.grain}, ${(entity.fieldMappings.measures || []).length} measures`}
-                          {entity.type === "dimension" && `Key: ${entity.fieldMappings.key}, ${(entity.fieldMappings.attributes || []).length} attrs`}
-                        </Text>
-                      </div>
-                    );
-                  })}
-                </Stack>
-              </Card>
+            <Divider label="Field Mappings" />
+            {entityType === "hub" && (
+              <>
+                <Text size="sm"><strong>Business Key:</strong> {businessKey}</Text>
+                <Text size="sm"><strong>Attributes:</strong> {attributes.length > 0 ? attributes.join(", ") : "None"}</Text>
+              </>
+            )}
+            {entityType === "link" && (
+              <>
+                <Text size="sm"><strong>Hub References:</strong> {hubReferences.join(", ")}</Text>
+                <Text size="sm"><strong>Link Fields:</strong> {linkFields.length > 0 ? linkFields.join(", ") : "None"}</Text>
+              </>
+            )}
+            {entityType === "satellite" && (
+              <>
+                <Text size="sm"><strong>Parent Hub:</strong> {parentHub}</Text>
+                <Text size="sm"><strong>Attributes:</strong> {attributes.join(", ")}</Text>
+              </>
+            )}
+            {entityType === "fact" && (
+              <>
+                <Text size="sm"><strong>Grain:</strong> {grain}</Text>
+                <Text size="sm"><strong>Measures:</strong> {measures.join(", ")}</Text>
+                <Text size="sm"><strong>Dimension Keys:</strong> {dimensionKeys.length > 0 ? dimensionKeys.join(", ") : "None"}</Text>
+              </>
+            )}
+            {entityType === "dimension" && (
+              <>
+                <Text size="sm"><strong>Primary Key:</strong> {primaryKey}</Text>
+                <Text size="sm"><strong>Attributes:</strong> {attributes.join(", ")}</Text>
+              </>
             )}
 
             <Group justify="space-between" mt="md">

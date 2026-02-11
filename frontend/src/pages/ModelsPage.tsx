@@ -26,9 +26,9 @@ export function ModelsPage() {
           <Table.Thead>
             <Table.Tr>
               <Table.Th>Name</Table.Th>
-              <Table.Th>Type</Table.Th>
-              <Table.Th>Topics</Table.Th>
-              <Table.Th>Entities</Table.Th>
+              <Table.Th>Model Type</Table.Th>
+              <Table.Th>Entity Type</Table.Th>
+              <Table.Th>Topic</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -46,6 +46,16 @@ export function ModelsPage() {
               </Table.Tr>
             ) : (
               models.map((m: any) => {
+                let entityType = "";
+                if (m.type === "data_vault") {
+                  if (m.hubs?.length > 0) entityType = "Hub";
+                  else if (m.links?.length > 0) entityType = "Link";
+                  else if (m.satellites?.length > 0) entityType = "Satellite";
+                } else {
+                  if (m.facts?.length > 0) entityType = "Fact";
+                  else if (m.dimensions?.length > 0) entityType = "Dimension";
+                }
+
                 return (
                   <Table.Tr key={m.id}>
                     <Table.Td>{m.name}</Table.Td>
@@ -54,19 +64,17 @@ export function ModelsPage() {
                         {m.type === "data_vault" ? "Data Vault" : "Dimensional"}
                       </Badge>
                     </Table.Td>
-                    <Table.Td>{m.topics?.length ?? 0} topics</Table.Td>
                     <Table.Td>
-                      {m.type === "data_vault" ? (
-                        <>
-                          {m.hubs?.length || 0} hubs, {m.links?.length || 0} links,{" "}
-                          {m.satellites?.length || 0} satellites
-                        </>
+                      {entityType ? (
+                        <Badge size="sm" variant="outline">
+                          {entityType}
+                        </Badge>
                       ) : (
-                        <>
-                          {m.facts?.length || 0} facts, {m.dimensions?.length || 0}{" "}
-                          dimensions
-                        </>
+                        "-"
                       )}
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm">{m.topics?.length ?? 0} topic(s)</Text>
                     </Table.Td>
                   </Table.Tr>
                 );
