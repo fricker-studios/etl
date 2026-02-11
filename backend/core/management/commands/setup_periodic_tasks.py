@@ -1,5 +1,11 @@
 """
 Django management command to set up periodic tasks for scheduled streams.
+
+DEPRECATED: This command is no longer needed as of the latest version.
+Stream schedules are now automatically managed via Celery Beat when streams
+are created or updated. Individual periodic tasks are created for each stream.
+
+This command can be removed in a future version.
 """
 
 from django.core.management.base import BaseCommand
@@ -11,9 +17,17 @@ logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = "Set up Celery Beat periodic tasks for stream scheduling"
+    help = "Set up Celery Beat periodic tasks for stream scheduling (DEPRECATED)"
 
     def handle(self, *args, **options):
+        self.stdout.write(
+            self.style.WARNING(
+                "\n⚠️  DEPRECATION WARNING: This command is deprecated.\n"
+                "Stream schedules are now automatically managed when streams are created or updated.\n"
+                "Individual Celery Beat tasks are created for each scheduled stream.\n"
+            )
+        )
+
         self.stdout.write("Setting up periodic tasks for stream scheduling...")
 
         # Create or get the interval schedule for checking streams (every 5 minutes)
