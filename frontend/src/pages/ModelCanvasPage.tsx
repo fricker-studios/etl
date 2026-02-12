@@ -73,6 +73,7 @@ export function ModelCanvasPage() {
   const [editingFieldValue, setEditingFieldValue] = useState("");
   const canvasRef = useRef<HTMLDivElement>(null);
   const topicColRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const topicCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const modelFieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
   
   // Positions for draggable elements
@@ -499,15 +500,21 @@ export function ModelCanvasPage() {
     fieldMappings.forEach((mapping) => {
       const colKey = `${mapping.topicId}-${mapping.topicField}`;
       const colElement = topicColRefs.current[colKey];
+      const topicCard = topicCardRefs.current[mapping.topicId];
       const fieldElement = modelFieldRefs.current[mapping.modelField];
+      const isTopicExpanded = expandedTopics[mapping.topicId];
 
-      if (colElement && fieldElement) {
-        const colRect = colElement.getBoundingClientRect();
+      // Determine the starting element based on whether topic is expanded
+      const startElement = isTopicExpanded ? colElement : topicCard;
+
+      if (startElement && fieldElement) {
+        const startRect = startElement.getBoundingClientRect();
         const fieldRect = fieldElement.getBoundingClientRect();
 
         // Calculate positions relative to the canvas, accounting for scroll
-        const x1 = colRect.right - canvasRect.left + scrollLeft;
-        const y1 = colRect.top + colRect.height / 2 - canvasRect.top + scrollTop;
+        // If topic is collapsed, use the right edge center of the topic card
+        const x1 = startRect.right - canvasRect.left + scrollLeft;
+        const y1 = startRect.top + startRect.height / 2 - canvasRect.top + scrollTop;
         const x2 = fieldRect.left - canvasRect.left + scrollLeft;
         const y2 = fieldRect.top + fieldRect.height / 2 - canvasRect.top + scrollTop;
 
@@ -736,6 +743,9 @@ export function ModelCanvasPage() {
               return (
                 <Card
                   key={topicId}
+                  ref={(el) => {
+                    topicCardRefs.current[topicId] = el;
+                  }}
                   withBorder
                   shadow="sm"
                   p="md"
