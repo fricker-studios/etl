@@ -98,7 +98,10 @@ export function ModelCanvasPage() {
                 : "Dim";
       // Clean the name: remove whitespace and special characters, keep alphanumeric
       const cleanName = modelName.replace(/[^a-zA-Z0-9]/g, "");
-      setEntityName(`${prefix}_${cleanName}`);
+      
+      // Fallback to "Unnamed" if the cleaned name is empty
+      const finalName = cleanName || "Unnamed";
+      setEntityName(`${prefix}_${finalName}`);
     }
   }, [modelName, entityType, isEntityNameManuallyEdited]);
 
@@ -165,11 +168,15 @@ export function ModelCanvasPage() {
       return;
     }
 
+    if (!canvasRef.current) return;
+    
+    const canvasRect = canvasRef.current.getBoundingClientRect();
+    const pos = topicPositions[topicId] || { x: 50, y: 100 };
+    
     setDraggingTopic(topicId);
-    const pos = topicPositions[topicId] || { x: 0, y: 0 };
     setDragOffset({
-      x: e.clientX - pos.x,
-      y: e.clientY - pos.y,
+      x: e.clientX - canvasRect.left - pos.x + canvasRef.current.scrollLeft,
+      y: e.clientY - canvasRect.top - pos.y + canvasRef.current.scrollTop,
     });
   };
 
@@ -186,24 +193,34 @@ export function ModelCanvasPage() {
       return;
     }
 
+    if (!canvasRef.current) return;
+    
+    const canvasRect = canvasRef.current.getBoundingClientRect();
+    
     setDraggingModel(true);
     setDragOffset({
-      x: e.clientX - modelPosition.x,
-      y: e.clientY - modelPosition.y,
+      x: e.clientX - canvasRect.left - modelPosition.x + canvasRef.current.scrollLeft,
+      y: e.clientY - canvasRect.top - modelPosition.y + canvasRef.current.scrollTop,
     });
   };
 
   const handleCanvasMouseMove = (e: React.MouseEvent) => {
+    if (!canvasRef.current) return;
+    
+    const canvasRect = canvasRef.current.getBoundingClientRect();
+    
     if (draggingTopic) {
-      const newX = e.clientX - dragOffset.x;
-      const newY = e.clientY - dragOffset.y;
+      // Calculate position relative to canvas, accounting for scroll
+      const newX = e.clientX - canvasRect.left - dragOffset.x + canvasRef.current.scrollLeft;
+      const newY = e.clientY - canvasRect.top - dragOffset.y + canvasRef.current.scrollTop;
       setTopicPositions({
         ...topicPositions,
         [draggingTopic]: { x: newX, y: newY },
       });
     } else if (draggingModel) {
-      const newX = e.clientX - dragOffset.x;
-      const newY = e.clientY - dragOffset.y;
+      // Calculate position relative to canvas, accounting for scroll
+      const newX = e.clientX - canvasRect.left - dragOffset.x + canvasRef.current.scrollLeft;
+      const newY = e.clientY - canvasRect.top - dragOffset.y + canvasRef.current.scrollTop;
       setModelPosition({ x: newX, y: newY });
     }
   };
@@ -502,8 +519,9 @@ export function ModelCanvasPage() {
         // With rounded corners
         let path = `M ${x1} ${y1}`;
         
+        // If vertical distance is less than twice the corner radius, 
+        // we can't fit both rounded corners, so use a direct line instead
         if (Math.abs(y2 - y1) < cornerRadius * 2) {
-          // If the vertical distance is too small for corners, use a direct line
           path += ` L ${x2} ${y2}`;
         } else {
           // Go horizontally to the midpoint minus corner radius
