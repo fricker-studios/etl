@@ -56,6 +56,7 @@ export function ModelCanvasPage() {
   );
   const [entityType, setEntityType] = useState<EntityType>("hub");
   const [entityName, setEntityName] = useState("");
+  const [isEntityNameManuallyEdited, setIsEntityNameManuallyEdited] = useState(false);
 
   // Canvas state
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
@@ -73,10 +74,18 @@ export function ModelCanvasPage() {
   const canvasRef = useRef<HTMLDivElement>(null);
   const topicColRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const modelFieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  
+  // Positions for draggable elements
+  const [topicPositions, setTopicPositions] = useState<Record<string, { x: number; y: number }>>({});
+  const [modelPosition, setModelPosition] = useState({ x: 0, y: 0 });
+  const [draggingTopic, setDraggingTopic] = useState<string | null>(null);
+  const [draggingModel, setDraggingModel] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
-  // Auto-generate entity name when model name changes
+  // Auto-generate entity name when model name or entity type changes
+  // Only auto-generate if the user hasn't manually edited the entity name
   useEffect(() => {
-    if (modelName && !entityName) {
+    if (modelName && !isEntityNameManuallyEdited) {
       const prefix =
         entityType === "hub"
           ? "Hub"
@@ -87,10 +96,11 @@ export function ModelCanvasPage() {
               : entityType === "fact"
                 ? "Fact"
                 : "Dim";
+      // Clean the name: remove whitespace and special characters, keep alphanumeric
       const cleanName = modelName.replace(/[^a-zA-Z0-9]/g, "");
       setEntityName(`${prefix}_${cleanName}`);
     }
-  }, [modelName, entityType, entityName]);
+  }, [modelName, entityType, isEntityNameManuallyEdited]);
 
   const handleSetupComplete = () => {
     if (!modelName.trim()) {
@@ -123,6 +133,12 @@ export function ModelCanvasPage() {
     if (!selectedTopics.includes(topicId)) {
       setSelectedTopics([...selectedTopics, topicId]);
       setExpandedTopics({ ...expandedTopics, [topicId]: true });
+      // Initialize position for new topic
+      const index = selectedTopics.length;
+      setTopicPositions({
+        ...topicPositions,
+        [topicId]: { x: 0, y: index * 250 },
+      });
     }
   };
 
@@ -130,6 +146,71 @@ export function ModelCanvasPage() {
     setSelectedTopics(selectedTopics.filter((id) => id !== topicId));
     // Remove mappings for this topic
     setFieldMappings(fieldMappings.filter((m) => m.topicId !== topicId));
+    // Remove position for this topic
+    const newPositions = { ...topicPositions };
+    delete newPositions[topicId];
+    setTopicPositions(newPositions);
+  };
+
+  // Topic drag handlers
+  const handleTopicMouseDown = (topicId: string, e: React.MouseEvent) => {
+    // Don't start dragging if clicking on interactive elements
+    const target = e.target as HTMLElement;
+    if (
+      target.tagName === "BUTTON" ||
+      target.tagName === "INPUT" ||
+      target.closest("button") ||
+      target.closest("[draggable]")
+    ) {
+      return;
+    }
+
+    setDraggingTopic(topicId);
+    const pos = topicPositions[topicId] || { x: 0, y: 0 };
+    setDragOffset({
+      x: e.clientX - pos.x,
+      y: e.clientY - pos.y,
+    });
+  };
+
+  // Model drag handlers
+  const handleModelMouseDown = (e: React.MouseEvent) => {
+    // Don't start dragging if clicking on interactive elements
+    const target = e.target as HTMLElement;
+    if (
+      target.tagName === "BUTTON" ||
+      target.tagName === "INPUT" ||
+      target.closest("button") ||
+      target.closest("[draggable]")
+    ) {
+      return;
+    }
+
+    setDraggingModel(true);
+    setDragOffset({
+      x: e.clientX - modelPosition.x,
+      y: e.clientY - modelPosition.y,
+    });
+  };
+
+  const handleCanvasMouseMove = (e: React.MouseEvent) => {
+    if (draggingTopic) {
+      const newX = e.clientX - dragOffset.x;
+      const newY = e.clientY - dragOffset.y;
+      setTopicPositions({
+        ...topicPositions,
+        [draggingTopic]: { x: newX, y: newY },
+      });
+    } else if (draggingModel) {
+      const newX = e.clientX - dragOffset.x;
+      const newY = e.clientY - dragOffset.y;
+      setModelPosition({ x: newX, y: newY });
+    }
+  };
+
+  const handleCanvasMouseUp = () => {
+    setDraggingTopic(null);
+    setDraggingModel(false);
   };
 
   const toggleTopicExpanded = (topicId: string) => {
@@ -388,13 +469,15 @@ export function ModelCanvasPage() {
     (t: any) => !selectedTopics.includes(String(t.id)),
   );
 
-  // Calculate connection lines
+  // Calculate connection lines with rounded right angles
   const calculateConnectionLines = () => {
-    const lines: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+    const lines: Array<{ path: string }> = [];
 
     if (!canvasRef.current) return lines;
 
     const canvasRect = canvasRef.current.getBoundingClientRect();
+    const scrollLeft = canvasRef.current.scrollLeft;
+    const scrollTop = canvasRef.current.scrollTop;
 
     fieldMappings.forEach((mapping) => {
       const colKey = `${mapping.topicId}-${mapping.topicField}`;
@@ -405,13 +488,43 @@ export function ModelCanvasPage() {
         const colRect = colElement.getBoundingClientRect();
         const fieldRect = fieldElement.getBoundingClientRect();
 
-        // Calculate relative positions within canvas
-        const x1 = colRect.right - canvasRect.left;
-        const y1 = colRect.top + colRect.height / 2 - canvasRect.top;
-        const x2 = fieldRect.left - canvasRect.left;
-        const y2 = fieldRect.top + fieldRect.height / 2 - canvasRect.top;
+        // Calculate positions relative to the canvas, accounting for scroll
+        const x1 = colRect.right - canvasRect.left + scrollLeft;
+        const y1 = colRect.top + colRect.height / 2 - canvasRect.top + scrollTop;
+        const x2 = fieldRect.left - canvasRect.left + scrollLeft;
+        const y2 = fieldRect.top + fieldRect.height / 2 - canvasRect.top + scrollTop;
 
-        lines.push({ x1, y1, x2, y2 });
+        // Create a path with rounded right angles
+        const midX = (x1 + x2) / 2;
+        const cornerRadius = 10;
+
+        // Build the path: start -> horizontal -> vertical -> horizontal -> end
+        // With rounded corners
+        let path = `M ${x1} ${y1}`;
+        
+        if (Math.abs(y2 - y1) < cornerRadius * 2) {
+          // If the vertical distance is too small for corners, use a direct line
+          path += ` L ${x2} ${y2}`;
+        } else {
+          // Go horizontally to the midpoint minus corner radius
+          path += ` L ${midX - cornerRadius} ${y1}`;
+          
+          // Add rounded corner going down or up
+          if (y2 > y1) {
+            path += ` Q ${midX} ${y1} ${midX} ${y1 + cornerRadius}`;
+            path += ` L ${midX} ${y2 - cornerRadius}`;
+            path += ` Q ${midX} ${y2} ${midX + cornerRadius} ${y2}`;
+          } else {
+            path += ` Q ${midX} ${y1} ${midX} ${y1 - cornerRadius}`;
+            path += ` L ${midX} ${y2 + cornerRadius}`;
+            path += ` Q ${midX} ${y2} ${midX + cornerRadius} ${y2}`;
+          }
+          
+          // Go horizontally to the end point
+          path += ` L ${x2} ${y2}`;
+        }
+
+        lines.push({ path });
       }
     });
 
@@ -419,7 +532,7 @@ export function ModelCanvasPage() {
   };
 
   const [connectionLines, setConnectionLines] = useState<
-    Array<{ x1: number; y1: number; x2: number; y2: number }>
+    Array<{ path: string }>
   >([]);
 
   // Update connection lines when mappings change
@@ -446,7 +559,7 @@ export function ModelCanvasPage() {
         clearTimeout(timer);
       };
     }
-  }, [fieldMappings, selectedTopics, expandedTopics, modelFields]);
+  }, [fieldMappings, selectedTopics, expandedTopics, modelFields, topicPositions, modelPosition]);
 
   return (
     <>
@@ -501,7 +614,10 @@ export function ModelCanvasPage() {
           <TextInput
             label="Entity Name (auto-generated)"
             value={entityName}
-            onChange={(e) => setEntityName(e.target.value)}
+            onChange={(e) => {
+              setEntityName(e.target.value);
+              setIsEntityNameManuallyEdited(true);
+            }}
             description="You can customize the auto-generated name"
           />
           <Button onClick={handleSetupComplete} fullWidth>
@@ -551,8 +667,12 @@ export function ModelCanvasPage() {
             borderRadius: "8px",
             overflow: "auto",
             padding: "1rem",
+            cursor: draggingTopic || draggingModel ? "grabbing" : "default",
           }}
           bg={colorScheme === "dark" ? "dark.8" : "gray.0"}
+          onMouseMove={handleCanvasMouseMove}
+          onMouseUp={handleCanvasMouseUp}
+          onMouseLeave={handleCanvasMouseUp}
         >
           {/* Add Topic Button in top left */}
           <Box style={{ position: "absolute", top: 16, left: 16, zIndex: 10 }}>
@@ -579,30 +699,38 @@ export function ModelCanvasPage() {
             </Menu>
           </Box>
 
-          {/* Canvas Content - Two column layout */}
+          {/* Canvas Content - Absolute positioned elements */}
           <Box
             style={{
-              display: "flex",
-              justifyContent: "space-between",
-              minHeight: "100%",
+              position: "relative",
+              minHeight: "1000px",
+              minWidth: "1200px",
               paddingTop: "60px",
             }}
           >
-            {/* Left side - Topics */}
-            <Stack
-              gap="md"
-              style={{
-                width: "400px",
-                paddingRight: "2rem",
-              }}
-            >
-              {selectedTopics.map((topicId) => {
-                const topic = getTopicInfo(topicId);
-                const schema = getTopicFields(topicId);
-                const expanded = expandedTopics[topicId];
+            {/* Topics - Absolute positioned */}
+            {selectedTopics.map((topicId, index) => {
+              const topic = getTopicInfo(topicId);
+              const schema = getTopicFields(topicId);
+              const expanded = expandedTopics[topicId];
+              const position = topicPositions[topicId] || { x: 50, y: 100 + index * 250 };
 
-                return (
-                  <Card key={topicId} withBorder shadow="sm" p="md">
+              return (
+                <Card
+                  key={topicId}
+                  withBorder
+                  shadow="sm"
+                  p="md"
+                  style={{
+                    position: "absolute",
+                    left: position.x,
+                    top: position.y,
+                    width: "400px",
+                    cursor: draggingTopic === topicId ? "grabbing" : "grab",
+                    zIndex: draggingTopic === topicId ? 100 : 2,
+                  }}
+                  onMouseDown={(e) => handleTopicMouseDown(topicId, e)}
+                >
                     <Group justify="space-between" mb="xs">
                       <Group gap="xs">
                         <ActionIcon
@@ -702,16 +830,22 @@ export function ModelCanvasPage() {
                   </Card>
                 );
               })}
-            </Stack>
 
-            {/* Right side - Model */}
-            <Box
+            {/* Model - Absolute positioned on the right */}
+            <Card
+              withBorder
+              shadow="lg"
+              p="md"
               style={{
+                position: "absolute",
+                left: modelPosition.x || 750,
+                top: modelPosition.y || 100,
                 width: "400px",
-                paddingLeft: "2rem",
+                cursor: draggingModel ? "grabbing" : "grab",
+                zIndex: draggingModel ? 100 : 2,
               }}
+              onMouseDown={handleModelMouseDown}
             >
-              <Card withBorder shadow="lg" p="md">
                 <Group justify="space-between" mb="md">
                   <div>
                     <Text fw={700} size="lg">
@@ -885,7 +1019,6 @@ export function ModelCanvasPage() {
                   )}
                 </Stack>
               </Card>
-            </Box>
           </Box>
 
           {/* SVG overlay for connection lines */}
@@ -900,34 +1033,30 @@ export function ModelCanvasPage() {
               zIndex: 1,
             }}
           >
-            {connectionLines.map((line, idx) => (
-              <g key={idx}>
-                {/* Draw line with arrow */}
-                <defs>
-                  <marker
-                    id={`arrowhead-${idx}`}
-                    markerWidth="10"
-                    markerHeight="10"
-                    refX="9"
-                    refY="3"
-                    orient="auto"
-                  >
-                    <polygon
-                      points="0 0, 10 3, 0 6"
-                      fill={colorScheme === "dark" ? "#4dabf7" : "#1c7ed6"}
-                    />
-                  </marker>
-                </defs>
-                <line
-                  x1={line.x1}
-                  y1={line.y1}
-                  x2={line.x2}
-                  y2={line.y2}
-                  stroke={colorScheme === "dark" ? "#4dabf7" : "#1c7ed6"}
-                  strokeWidth="2"
-                  markerEnd={`url(#arrowhead-${idx})`}
+            <defs>
+              <marker
+                id="arrowhead"
+                markerWidth="10"
+                markerHeight="10"
+                refX="9"
+                refY="3"
+                orient="auto"
+              >
+                <polygon
+                  points="0 0, 10 3, 0 6"
+                  fill={colorScheme === "dark" ? "#4dabf7" : "#1c7ed6"}
                 />
-              </g>
+              </marker>
+            </defs>
+            {connectionLines.map((line, idx) => (
+              <path
+                key={idx}
+                d={line.path}
+                stroke={colorScheme === "dark" ? "#4dabf7" : "#1c7ed6"}
+                strokeWidth="2"
+                fill="none"
+                markerEnd="url(#arrowhead)"
+              />
             ))}
           </svg>
         </Box>
