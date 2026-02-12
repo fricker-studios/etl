@@ -362,11 +362,22 @@ def _execute_api_stream(stream, run):
 @shared_task(name="core.execute_scheduled_streams")
 def execute_scheduled_streams():
     """
+    DEPRECATED: This task is no longer needed as of the latest version.
+    
     Periodic task to execute all enabled scheduled streams.
     This is called by Celery Beat on a schedule.
+    
+    NOTE: Individual Celery Beat periodic tasks are now created for each stream
+    with a schedule. This function is kept for backward compatibility but should
+    be removed in a future version.
     """
     from core.models import Stream
     from django.utils import timezone
+
+    logger.warning(
+        "DEPRECATED: execute_scheduled_streams task is deprecated. "
+        "Individual Celery Beat tasks are now created for each scheduled stream."
+    )
 
     logger.info("Running scheduled stream execution task")
 
@@ -395,6 +406,8 @@ def execute_scheduled_streams():
 
 def _should_stream_run(stream):
     """
+    DEPRECATED: This function is no longer needed as schedules are handled by Celery Beat.
+    
     Determine if a scheduled stream should run now.
     This is a simplified check - for production, use Celery Beat's cron scheduling.
 
