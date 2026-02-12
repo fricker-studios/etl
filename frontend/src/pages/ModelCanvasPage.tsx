@@ -77,7 +77,7 @@ export function ModelCanvasPage() {
   
   // Positions for draggable elements
   const [topicPositions, setTopicPositions] = useState<Record<string, { x: number; y: number }>>({});
-  const [modelPosition, setModelPosition] = useState({ x: 0, y: 0 });
+  const [modelPosition, setModelPosition] = useState({ x: 750, y: 100 });
   const [draggingTopic, setDraggingTopic] = useState<string | null>(null);
   const [draggingModel, setDraggingModel] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -137,7 +137,7 @@ export function ModelCanvasPage() {
       const index = selectedTopics.length;
       setTopicPositions({
         ...topicPositions,
-        [topicId]: { x: 0, y: index * 250 },
+        [topicId]: { x: 50, y: 100 + index * 250 },
       });
     }
   };
@@ -838,8 +838,8 @@ export function ModelCanvasPage() {
               p="md"
               style={{
                 position: "absolute",
-                left: modelPosition.x || 750,
-                top: modelPosition.y || 100,
+                left: modelPosition.x,
+                top: modelPosition.y,
                 width: "400px",
                 cursor: draggingModel ? "grabbing" : "grab",
                 zIndex: draggingModel ? 100 : 2,
