@@ -699,7 +699,7 @@ export function ModelCanvasPage() {
       </Modal>
 
       {/* Canvas Page */}
-      <Stack h="calc(100vh - 60px)" p="md" gap="md">
+      <Stack h="calc(100vh - 60px)" p="md" gap="md" style={{ position: "relative" }}>
         {/* Header */}
         <Group justify="space-between">
           <Group>
@@ -729,6 +729,65 @@ export function ModelCanvasPage() {
           </Button>
         </Group>
 
+        {/* Floating Action Button - outside canvas for proper fixed positioning */}
+        <Box style={{ position: "fixed", top: 140, left: 32, zIndex: 100 }}>
+          <Menu shadow="md" width={200} trigger="hover" openDelay={100} closeDelay={400}>
+            <Menu.Target>
+              <ActionIcon 
+                size={56} 
+                variant="filled" 
+                color="blue"
+                radius="xl"
+                style={{
+                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+                }}
+              >
+                <IconPlus size={28} />
+              </ActionIcon>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu
+                trigger="hover"
+                openDelay={100}
+                closeDelay={400}
+              >
+                <Menu.Target>
+                  <Menu.Item>
+                    Add Topic
+                  </Menu.Item>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  {availableTopics.length > 0 ? (
+                    availableTopics.map((topic: any) => (
+                      <Menu.Item
+                        key={topic.id}
+                        onClick={() => handleAddTopic(String(topic.id))}
+                      >
+                        {topic.name}
+                      </Menu.Item>
+                    ))
+                  ) : (
+                    <Menu.Item disabled>No topics available</Menu.Item>
+                  )}
+                </Menu.Dropdown>
+              </Menu>
+              <Menu.Divider />
+              <Menu.Label>Add Transformation</Menu.Label>
+              <Menu.Item
+                leftSection={<IconHash size={16} />}
+                onClick={() => {
+                  notifications.show({
+                    message: "Hash transformation selected",
+                    color: "blue",
+                  });
+                }}
+              >
+                Hash
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
+        </Box>
+
         {/* Single Canvas with SVG overlay */}
         <Box
           ref={canvasRef}
@@ -748,52 +807,6 @@ export function ModelCanvasPage() {
           onMouseLeave={handleCanvasMouseUp}
           onContextMenu={handleCanvasContextMenu}
         >
-          {/* Add Topic Button in top left - floating and always visible */}
-          <Box style={{ position: "fixed", top: 80, left: 32, zIndex: 100 }}>
-            <Menu shadow="md" width={200}>
-              <Menu.Target>
-                <ActionIcon 
-                  size={56} 
-                  variant="filled" 
-                  color="blue"
-                  radius="xl"
-                  style={{
-                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
-                  }}
-                >
-                  <IconPlus size={28} />
-                </ActionIcon>
-              </Menu.Target>
-              <Menu.Dropdown>
-                <Menu.Label>Add Topic</Menu.Label>
-                {availableTopics.length > 0 ? (
-                  availableTopics.map((topic: any) => (
-                    <Menu.Item
-                      key={topic.id}
-                      onClick={() => handleAddTopic(String(topic.id))}
-                    >
-                      {topic.name}
-                    </Menu.Item>
-                  ))
-                ) : (
-                  <Menu.Item disabled>No more topics available</Menu.Item>
-                )}
-                <Menu.Divider />
-                <Menu.Label>Add Transformation</Menu.Label>
-                <Menu.Item
-                  leftSection={<IconHash size={16} />}
-                  onClick={() => {
-                    notifications.show({
-                      message: "Hash transformation selected",
-                      color: "blue",
-                    });
-                  }}
-                >
-                  Hash
-                </Menu.Item>
-              </Menu.Dropdown>
-            </Menu>
-          </Box>
 
           {/* Context Menu */}
           {contextMenuPos && (
