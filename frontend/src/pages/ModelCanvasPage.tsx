@@ -1561,26 +1561,6 @@ export function ModelCanvasPage() {
                                 )}
                               </Group>
 
-                              {/* Hash note for Data Vault key fields */}
-                              {((entityType === "hub" &&
-                                fieldName === "business_key") ||
-                                (entityType === "link" &&
-                                  fieldName === "link_key") ||
-                                (entityType === "satellite" &&
-                                  fieldName === "parent_key")) && (
-                                <Group gap={4} mt={4}>
-                                  <IconInfoCircle
-                                    size={12}
-                                    style={{
-                                      color: "var(--mantine-color-dimmed)",
-                                    }}
-                                  />
-                                  <Text size="xs" c="dimmed" fs="italic">
-                                    Values will be hashed
-                                  </Text>
-                                </Group>
-                              )}
-
                               {mappings.length > 0 && (
                                 <Stack gap={4}>
                                   {mappings.map((mapping, idx) => {
