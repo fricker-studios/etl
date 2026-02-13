@@ -570,7 +570,7 @@ export function ModelCanvasPage() {
       return;
     }
 
-    if (fieldMappings.length === 0) {
+    if (fieldMappings.length === 0 && hashConnections.length === 0) {
       notifications.show({
         message: "Please create at least one field mapping",
         color: "red",
@@ -585,9 +585,10 @@ export function ModelCanvasPage() {
       topics: selectedTopics,
     };
 
-    // Get all mapped fields
+    // Get all mapped fields (including hash transformations)
     const mappedFields = modelFields.filter((field) =>
-      fieldMappings.some((m) => m.modelField === field),
+      fieldMappings.some((m) => m.modelField === field) ||
+      hashConnections.some((c) => c.targetType === 'model' && c.targetField === field)
     );
 
     // Convert fieldMappings to the format expected by backend
@@ -596,6 +597,33 @@ export function ModelCanvasPage() {
       topic_field: m.topicField,
       topic_id: m.topicId,
     }));
+    
+    // Convert hash connections to field mappings
+    // For each complete hash transformation chain (topic -> hash -> model), create a mapping
+    const hashBasedMappings: Array<{ model_field: string; topic_field: string; topic_id: string; transformation?: string }> = [];
+    
+    hashConnections.forEach((connection) => {
+      if (connection.sourceType === 'hash' && connection.targetType === 'model' && connection.targetField) {
+        // This is a hash -> model connection, find the corresponding topic -> hash connection
+        const inputConnection = hashConnections.find(
+          c => c.targetType === 'hash' && c.targetId === connection.sourceId
+        );
+        
+        if (inputConnection && inputConnection.sourceField) {
+          // We have a complete chain: topic -> hash -> model
+          const hashComponent = hashComponents.find(h => h.id === connection.sourceId);
+          hashBasedMappings.push({
+            model_field: connection.targetField,
+            topic_field: inputConnection.sourceField,
+            topic_id: inputConnection.sourceId,
+            transformation: hashComponent ? `hash_${hashComponent.hashMethod}` : 'hash'
+          });
+        }
+      }
+    });
+    
+    // Combine direct mappings and hash-based mappings
+    const allFormattedMappings = [...formattedFieldMappings, ...hashBasedMappings];
 
     if (modelType === "data_vault") {
       if (entityType === "hub") {
@@ -605,7 +633,7 @@ export function ModelCanvasPage() {
             topic: selectedTopics[0],
             business_key: mappedFields[0] || "id",
             fields: mappedFields,
-            field_mappings: formattedFieldMappings,
+            field_mappings: allFormattedMappings,
           },
         ];
         modelData.links = [];
@@ -618,7 +646,7 @@ export function ModelCanvasPage() {
             topic: selectedTopics[0],
             hub_references: ["Hub_1", "Hub_2"],
             fields: mappedFields,
-            field_mappings: formattedFieldMappings,
+            field_mappings: allFormattedMappings,
           },
         ];
         modelData.satellites = [];
@@ -631,7 +659,7 @@ export function ModelCanvasPage() {
             topic: selectedTopics[0],
             parent: "Hub_Parent",
             fields: mappedFields,
-            field_mappings: formattedFieldMappings,
+            field_mappings: allFormattedMappings,
           },
         ];
       }
@@ -644,7 +672,7 @@ export function ModelCanvasPage() {
             grain: "transaction",
             measures: mappedFields,
             dimension_keys: [],
-            field_mappings: formattedFieldMappings,
+            field_mappings: allFormattedMappings,
           },
         ];
         modelData.dimensions = [];
@@ -656,7 +684,7 @@ export function ModelCanvasPage() {
             topic: selectedTopics[0],
             key: mappedFields[0] || "id",
             fields: mappedFields,
-            field_mappings: formattedFieldMappings,
+            field_mappings: allFormattedMappings,
           },
         ];
       }
@@ -1778,6 +1806,19 @@ export function ModelCanvasPage() {
                   fill={colorScheme === "dark" ? "#4dabf7" : "#1c7ed6"}
                 />
               </marker>
+              <marker
+                id="arrowhead-green"
+                markerWidth="10"
+                markerHeight="10"
+                refX="9"
+                refY="3"
+                orient="auto"
+              >
+                <polygon
+                  points="0 0, 10 3, 0 6"
+                  fill={colorScheme === "dark" ? "#51cf66" : "#2f9e44"}
+                />
+              </marker>
             </defs>
             {connectionLines.map((line, idx) => (
               <g key={idx}>
@@ -1786,7 +1827,7 @@ export function ModelCanvasPage() {
                   stroke={line.color || (colorScheme === "dark" ? "#4dabf7" : "#1c7ed6")}
                   strokeWidth="2"
                   fill="none"
-                  markerEnd="url(#arrowhead)"
+                  markerEnd={line.type === 'hash-model' ? "url(#arrowhead-green)" : "url(#arrowhead)"}
                 />
                 {/* Delete button on connection line */}
                 {line.id && (
