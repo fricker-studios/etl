@@ -12,9 +12,11 @@ import {
   Modal,
   TextInput,
   Select,
+  MultiSelect,
   Menu,
   Divider,
   useMantineColorScheme,
+  Tooltip,
 } from "@mantine/core";
 import {
   IconPlus,
@@ -64,7 +66,7 @@ export function ModelCanvasPage() {
   const [expandedTopics, setExpandedTopics] = useState<Record<string, boolean>>(
     {},
   );
-  const [topicRevisions, setTopicRevisions] = useState<Record<string, string>>({});  // topicId -> revisionId
+  const [topicRevisions, setTopicRevisions] = useState<Record<string, string[]>>({});  // topicId -> revisionIds array
   const [fieldMappings, setFieldMappings] = useState<FieldMapping[]>([]);
   const [modelFields, setModelFields] = useState<string[]>([]); // Fields in the model
   const [draggedColumn, setDraggedColumn] = useState<{
@@ -182,13 +184,13 @@ export function ModelCanvasPage() {
         ...topicPositions,
         [topicId]: { x: 50, y: 100 + index * 250 },
       });
-      // Set default revision (current revision or latest)
+      // Set default revision (current revision or latest) as an array
       const topic = topics.find((t: any) => String(t.id) === topicId);
       if (topic) {
         const defaultRevisionId = topic.current_revision?.id || 
                                  topic.revisions?.[topic.revisions.length - 1]?.id;
         if (defaultRevisionId) {
-          setTopicRevisions({ ...topicRevisions, [topicId]: String(defaultRevisionId) });
+          setTopicRevisions({ ...topicRevisions, [topicId]: [String(defaultRevisionId)] });
         }
       }
     }
@@ -606,7 +608,7 @@ export function ModelCanvasPage() {
       model_field: m.modelField,
       topic_field: m.topicField,
       topic_id: m.topicId,
-      topic_revision_id: topicRevisions[m.topicId] || null,  // Include revision ID
+      topic_revision_ids: topicRevisions[m.topicId] || [],  // Include revision IDs array
     }));
     
     // Convert hash connections to field mappings
@@ -627,7 +629,7 @@ export function ModelCanvasPage() {
             model_field: connection.targetField,
             topic_field: inputConnection.sourceField,
             topic_id: inputConnection.sourceId,
-            topic_revision_id: topicRevisions[inputConnection.sourceId] || null,  // Include revision ID
+            topic_revision_ids: topicRevisions[inputConnection.sourceId] || [],  // Include revision IDs array
             transformation: hashComponent ? `hash_${hashComponent.hashMethod}` : 'hash'
           });
         }
@@ -714,12 +716,37 @@ export function ModelCanvasPage() {
     const topic = topics.find((t: any) => String(t.id) === topicId);
     if (!topic) return [];
     
-    // Use selected revision if available
-    const selectedRevisionId = topicRevisions[topicId];
-    if (selectedRevisionId) {
-      const selectedRevision = topic.revisions?.find((r: any) => String(r.id) === selectedRevisionId);
-      if (selectedRevision) {
-        return selectedRevision.schema || [];
+    // Use selected revisions if available
+    const selectedRevisionIds = topicRevisions[topicId] || [];
+    
+    if (selectedRevisionIds.length > 0) {
+      // Get all selected revisions
+      const selectedRevs = topic.revisions?.filter((r: any) =>
+        selectedRevisionIds.includes(String(r.id))
+      ) || [];
+      
+      if (selectedRevs.length > 0) {
+        // Merge schemas - collect all unique columns across revisions
+        const mergedFields = new Map();
+        selectedRevs.forEach((rev: any) => {
+          rev.schema?.forEach((col: any) => {
+            if (!mergedFields.has(col.name)) {
+              mergedFields.set(col.name, {
+                ...col,
+                revisionCount: 1,
+                revisionIds: [String(rev.id)],
+                revisionNumbers: [rev.revision_number],
+              });
+            } else {
+              const existing = mergedFields.get(col.name);
+              existing.revisionCount++;
+              existing.revisionIds.push(String(rev.id));
+              existing.revisionNumbers.push(rev.revision_number);
+            }
+          });
+        });
+        
+        return Array.from(mergedFields.values());
       }
     }
     
@@ -1385,21 +1412,22 @@ export function ModelCanvasPage() {
                     
                     {/* Revision Selector */}
                     {topic?.revisions && topic.revisions.length > 0 && (
-                      <Select
-                        label="Revision"
+                      <MultiSelect
+                        label="Revisions"
                         size="xs"
-                        value={topicRevisions[topicId] || ''}
-                        onChange={(value) => {
-                          if (value) {
-                            setTopicRevisions({ ...topicRevisions, [topicId]: value });
-                            // Clear any field mappings for this topic since schema might have changed
-                            setFieldMappings(fieldMappings.filter((m) => m.topicId !== topicId));
-                          }
+                        value={topicRevisions[topicId] || []}
+                        onChange={(values) => {
+                          setTopicRevisions({ ...topicRevisions, [topicId]: values });
+                          // Clear any field mappings for this topic since schema might have changed
+                          setFieldMappings(fieldMappings.filter((m) => m.topicId !== topicId));
                         }}
                         data={topic.revisions.map((rev: any) => ({
                           value: String(rev.id),
                           label: `Rev ${rev.revision_number}${rev.change_description ? `: ${rev.change_description}` : ''}`,
                         }))}
+                        placeholder="Select revisions..."
+                        clearable
+                        searchable
                         mb="xs"
                       />
                     )}
@@ -1423,6 +1451,7 @@ export function ModelCanvasPage() {
                               m.topicField === col.name,
                           ).length;
                           const colKey = `${topicId}-${col.name}`;
+                          const selectedRevisionIds = topicRevisions[topicId] || [];
 
                           return (
                             <Paper
@@ -1442,9 +1471,34 @@ export function ModelCanvasPage() {
                             >
                               <Group justify="space-between" wrap="nowrap">
                                 <Box style={{ flex: 1 }}>
-                                  <Text size="sm" fw={500}>
-                                    {col.name}
-                                  </Text>
+                                  <Group gap={4} wrap="nowrap">
+                                    <Text size="sm" fw={500}>
+                                      {col.name}
+                                    </Text>
+                                    {col.description && (
+                                      <Tooltip
+                                        label={col.description}
+                                        position="top"
+                                        withArrow
+                                        multiline
+                                        w={200}
+                                      >
+                                        <Box style={{ display: "flex", alignItems: "center" }}>
+                                          <IconInfoCircle size={14} style={{ color: "#228be6" }} />
+                                        </Box>
+                                      </Tooltip>
+                                    )}
+                                    {col.revisionCount && col.revisionCount < selectedRevisionIds.length && (
+                                      <Tooltip
+                                        label={`Present in revisions: ${col.revisionNumbers.join(', ')}`}
+                                        position="top"
+                                      >
+                                        <Badge size="xs" color="orange" variant="filled">
+                                          {col.revisionCount}/{selectedRevisionIds.length}
+                                        </Badge>
+                                      </Tooltip>
+                                    )}
+                                  </Group>
                                   <Text size="xs" c="dimmed">
                                     {col.data_type}
                                   </Text>
