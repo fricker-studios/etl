@@ -103,6 +103,23 @@ export function ModelCanvasPage() {
     outputString: string;
   }>>([]);
   const [draggingHash, setDraggingHash] = useState<string | null>(null);
+  
+  // Hash connection state
+  const [hashConnections, setHashConnections] = useState<Array<{
+    id: string;
+    sourceType: 'topic' | 'hash';
+    sourceId: string; // topicId or hashId
+    sourceField?: string; // for topic sources
+    targetType: 'hash' | 'model';
+    targetId?: string; // hashId (for hash targets)
+    targetField?: string; // field name (for model targets)
+  }>>([]);
+  const [draggedToHash, setDraggedToHash] = useState<{
+    topicId: string;
+    columnName: string;
+  } | null>(null);
+  const [draggedFromHash, setDraggedFromHash] = useState<string | null>(null); // hashId
+  const hashNodeRefs = useRef<Record<string, { input: HTMLDivElement | null; output: HTMLDivElement | null }>>({});
 
   // Auto-generate entity name when model name or entity type changes
   // Only auto-generate if the user hasn't manually edited the entity name
@@ -320,13 +337,115 @@ export function ModelCanvasPage() {
 
   const handleColumnDragStart = (topicId: string, columnName: string) => {
     setDraggedColumn({ topicId, columnName });
+    setDraggedToHash({ topicId, columnName }); // Also enable dragging to hash
   };
 
   const handleColumnDragEnd = () => {
     setDraggedColumn(null);
+    setDraggedToHash(null);
+  };
+  
+  // Hash connection handlers
+  const handleHashInputDrop = (hashId: string) => {
+    if (!draggedToHash) return;
+    
+    // Check if connection already exists
+    const existingConnection = hashConnections.find(
+      (c) =>
+        c.sourceType === 'topic' &&
+        c.sourceId === draggedToHash.topicId &&
+        c.sourceField === draggedToHash.columnName &&
+        c.targetType === 'hash' &&
+        c.targetId === hashId
+    );
+    
+    if (existingConnection) {
+      notifications.show({
+        message: "This connection already exists",
+        color: "orange",
+      });
+      setDraggedToHash(null);
+      return;
+    }
+    
+    // Add new connection
+    setHashConnections([
+      ...hashConnections,
+      {
+        id: `conn-${Date.now()}`,
+        sourceType: 'topic',
+        sourceId: draggedToHash.topicId,
+        sourceField: draggedToHash.columnName,
+        targetType: 'hash',
+        targetId: hashId,
+      }
+    ]);
+    
+    notifications.show({
+      message: "Connected to hash input",
+      color: "green",
+    });
+    
+    setDraggedToHash(null);
+  };
+  
+  const handleHashOutputDragStart = (hashId: string) => {
+    setDraggedFromHash(hashId);
+  };
+  
+  const handleHashOutputDragEnd = () => {
+    setDraggedFromHash(null);
+  };
+  
+  const handleModelFieldDropFromHash = (modelField: string) => {
+    if (!draggedFromHash) return;
+    
+    // Check if connection already exists
+    const existingConnection = hashConnections.find(
+      (c) =>
+        c.sourceType === 'hash' &&
+        c.sourceId === draggedFromHash &&
+        c.targetType === 'model' &&
+        c.targetField === modelField
+    );
+    
+    if (existingConnection) {
+      notifications.show({
+        message: "This connection already exists",
+        color: "orange",
+      });
+      setDraggedFromHash(null);
+      return;
+    }
+    
+    // Add new connection
+    setHashConnections([
+      ...hashConnections,
+      {
+        id: `conn-${Date.now()}`,
+        sourceType: 'hash',
+        sourceId: draggedFromHash,
+        targetType: 'model',
+        targetField: modelField,
+      }
+    ]);
+    
+    notifications.show({
+      message: "Connected hash output to model field",
+      color: "green",
+    });
+    
+    setDraggedFromHash(null);
   };
 
   const handleFieldDrop = (modelField: string) => {
+    // Handle drop from hash output
+    if (draggedFromHash) {
+      handleModelFieldDropFromHash(modelField);
+      return;
+    }
+    
+    // Handle drop from topic column
     if (!draggedColumn) return;
 
     // Check if this mapping already exists
@@ -558,7 +677,7 @@ export function ModelCanvasPage() {
 
   // Calculate connection lines with rounded right angles
   const calculateConnectionLines = () => {
-    const lines: Array<{ path: string }> = [];
+    const lines: Array<{ path: string; color?: string }> = [];
 
     if (!canvasRef.current) return lines;
 
@@ -566,6 +685,7 @@ export function ModelCanvasPage() {
     const scrollLeft = canvasRef.current.scrollLeft;
     const scrollTop = canvasRef.current.scrollTop;
 
+    // Draw Topic -> Model field connections
     fieldMappings.forEach((mapping) => {
       const colKey = `${mapping.topicId}-${mapping.topicField}`;
       const colElement = topicColRefs.current[colKey];
@@ -621,12 +741,100 @@ export function ModelCanvasPage() {
         lines.push({ path });
       }
     });
+    
+    // Draw Hash connections
+    hashConnections.forEach((connection) => {
+      if (connection.sourceType === 'topic' && connection.targetType === 'hash' && connection.targetId) {
+        // Topic field -> Hash input
+        const colKey = `${connection.sourceId}-${connection.sourceField}`;
+        const colElement = topicColRefs.current[colKey];
+        const topicCard = topicCardRefs.current[connection.sourceId];
+        const hashNodeRef = hashNodeRefs.current[connection.targetId];
+        const isTopicExpanded = expandedTopics[connection.sourceId];
+        
+        const startElement = isTopicExpanded ? colElement : topicCard;
+        
+        if (startElement && hashNodeRef?.input) {
+          const startRect = startElement.getBoundingClientRect();
+          const hashRect = hashNodeRef.input.getBoundingClientRect();
+          
+          const x1 = startRect.right - canvasRect.left + scrollLeft;
+          const y1 = startRect.top + startRect.height / 2 - canvasRect.top + scrollTop;
+          const x2 = hashRect.left + hashRect.width / 2 - canvasRect.left + scrollLeft;
+          const y2 = hashRect.top + hashRect.height / 2 - canvasRect.top + scrollTop;
+          
+          const midX = (x1 + x2) / 2;
+          const cornerRadius = 10;
+          
+          let path = `M ${x1} ${y1}`;
+          
+          if (Math.abs(y2 - y1) < cornerRadius * 2) {
+            path += ` L ${x2} ${y2}`;
+          } else {
+            path += ` L ${midX - cornerRadius} ${y1}`;
+            
+            if (y2 > y1) {
+              path += ` Q ${midX} ${y1} ${midX} ${y1 + cornerRadius}`;
+              path += ` L ${midX} ${y2 - cornerRadius}`;
+              path += ` Q ${midX} ${y2} ${midX + cornerRadius} ${y2}`;
+            } else {
+              path += ` Q ${midX} ${y1} ${midX} ${y1 - cornerRadius}`;
+              path += ` L ${midX} ${y2 + cornerRadius}`;
+              path += ` Q ${midX} ${y2} ${midX + cornerRadius} ${y2}`;
+            }
+            
+            path += ` L ${x2} ${y2}`;
+          }
+          
+          lines.push({ path, color: '#4dabf7' }); // Blue for hash input connections
+        }
+      } else if (connection.sourceType === 'hash' && connection.targetType === 'model' && connection.targetField) {
+        // Hash output -> Model field
+        const hashNodeRef = hashNodeRefs.current[connection.sourceId];
+        const fieldElement = modelFieldRefs.current[connection.targetField];
+        
+        if (hashNodeRef?.output && fieldElement) {
+          const hashRect = hashNodeRef.output.getBoundingClientRect();
+          const fieldRect = fieldElement.getBoundingClientRect();
+          
+          const x1 = hashRect.left + hashRect.width / 2 - canvasRect.left + scrollLeft;
+          const y1 = hashRect.top + hashRect.height / 2 - canvasRect.top + scrollTop;
+          const x2 = fieldRect.left - canvasRect.left + scrollLeft;
+          const y2 = fieldRect.top + fieldRect.height / 2 - canvasRect.top + scrollTop;
+          
+          const midX = (x1 + x2) / 2;
+          const cornerRadius = 10;
+          
+          let path = `M ${x1} ${y1}`;
+          
+          if (Math.abs(y2 - y1) < cornerRadius * 2) {
+            path += ` L ${x2} ${y2}`;
+          } else {
+            path += ` L ${midX - cornerRadius} ${y1}`;
+            
+            if (y2 > y1) {
+              path += ` Q ${midX} ${y1} ${midX} ${y1 + cornerRadius}`;
+              path += ` L ${midX} ${y2 - cornerRadius}`;
+              path += ` Q ${midX} ${y2} ${midX + cornerRadius} ${y2}`;
+            } else {
+              path += ` Q ${midX} ${y1} ${midX} ${y1 - cornerRadius}`;
+              path += ` L ${midX} ${y2 + cornerRadius}`;
+              path += ` Q ${midX} ${y2} ${midX + cornerRadius} ${y2}`;
+            }
+            
+            path += ` L ${x2} ${y2}`;
+          }
+          
+          lines.push({ path, color: '#51cf66' }); // Green for hash output connections
+        }
+      }
+    });
 
     return lines;
   };
 
   const [connectionLines, setConnectionLines] = useState<
-    Array<{ path: string }>
+    Array<{ path: string; color?: string }>
   >([]);
 
   // Update connection lines when mappings change
@@ -653,7 +861,7 @@ export function ModelCanvasPage() {
         clearTimeout(timer);
       };
     }
-  }, [fieldMappings, selectedTopics, expandedTopics, modelFields, topicPositions, modelPosition]);
+  }, [fieldMappings, selectedTopics, expandedTopics, modelFields, topicPositions, modelPosition, hashConnections, hashComponents]);
 
   return (
     <>
@@ -1234,8 +1442,10 @@ export function ModelCanvasPage() {
                           }
                           style={{
                             border:
-                              draggedColumn && mappings.length === 0
-                                ? "2px dashed var(--mantine-color-blue-5)"
+                              (draggedColumn || draggedFromHash) && mappings.length === 0
+                                ? draggedFromHash 
+                                  ? "2px dashed var(--mantine-color-green-5)"
+                                  : "2px dashed var(--mantine-color-blue-5)"
                                 : undefined,
                           }}
                         >
@@ -1389,6 +1599,18 @@ export function ModelCanvasPage() {
                   >
                     {/* Input Connection Node (Left) */}
                     <Box
+                      ref={(el) => {
+                        if (!hashNodeRefs.current[hashComp.id]) {
+                          hashNodeRefs.current[hashComp.id] = { input: null, output: null };
+                        }
+                        hashNodeRefs.current[hashComp.id].input = el;
+                      }}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleHashInputDrop(hashComp.id);
+                      }}
                       style={{
                         position: "absolute",
                         left: -8,
@@ -1397,16 +1619,32 @@ export function ModelCanvasPage() {
                         width: 16,
                         height: 16,
                         borderRadius: "50%",
-                        background: colorScheme === "dark" ? "#4dabf7" : "#1c7ed6",
-                        border: "2px solid white",
+                        background: draggedToHash ? "#4dabf7" : (colorScheme === "dark" ? "#4dabf7" : "#1c7ed6"),
+                        border: draggedToHash ? "3px solid #ffd43b" : "2px solid white",
                         cursor: "crosshair",
                         zIndex: 10,
+                        transition: "all 0.2s ease",
                       }}
-                      title="Input connection point"
+                      title="Drop topic field here to connect"
                     />
                     
                     {/* Output Connection Node (Right) */}
                     <Box
+                      ref={(el) => {
+                        if (!hashNodeRefs.current[hashComp.id]) {
+                          hashNodeRefs.current[hashComp.id] = { input: null, output: null };
+                        }
+                        hashNodeRefs.current[hashComp.id].output = el;
+                      }}
+                      draggable
+                      onDragStart={(e) => {
+                        e.stopPropagation();
+                        handleHashOutputDragStart(hashComp.id);
+                      }}
+                      onDragEnd={(e) => {
+                        e.stopPropagation();
+                        handleHashOutputDragEnd();
+                      }}
                       style={{
                         position: "absolute",
                         right: -8,
@@ -1417,10 +1655,10 @@ export function ModelCanvasPage() {
                         borderRadius: "50%",
                         background: colorScheme === "dark" ? "#51cf66" : "#2f9e44",
                         border: "2px solid white",
-                        cursor: "crosshair",
+                        cursor: "grab",
                         zIndex: 10,
                       }}
-                      title="Output connection point"
+                      title="Drag to model field to connect"
                     />
 
                     <Group justify="space-between" mb="xs">
@@ -1501,7 +1739,7 @@ export function ModelCanvasPage() {
               <path
                 key={idx}
                 d={line.path}
-                stroke={colorScheme === "dark" ? "#4dabf7" : "#1c7ed6"}
+                stroke={line.color || (colorScheme === "dark" ? "#4dabf7" : "#1c7ed6")}
                 strokeWidth="2"
                 fill="none"
                 markerEnd="url(#arrowhead)"
