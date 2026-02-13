@@ -767,7 +767,7 @@ export function ModelCanvasPage() {
                       </Menu.Item>
                     ))
                   ) : (
-                    <Menu.Item disabled>No topics available</Menu.Item>
+                    <Menu.Item disabled>No more topics available</Menu.Item>
                   )}
                 </Menu.Dropdown>
               </Menu>
