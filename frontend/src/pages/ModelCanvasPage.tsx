@@ -69,6 +69,7 @@ export function ModelCanvasPage() {
   const [topicRevisions, setTopicRevisions] = useState<Record<string, string[]>>({});  // topicId -> revisionIds array
   const [fieldMappings, setFieldMappings] = useState<FieldMapping[]>([]);
   const [modelFields, setModelFields] = useState<string[]>([]); // Fields in the model
+  const [modelFieldTypes, setModelFieldTypes] = useState<Record<string, string>>({}); // Data types for model fields
   const [draggedColumn, setDraggedColumn] = useState<{
     topicId: string;
     columnName: string;
@@ -158,19 +159,48 @@ export function ModelCanvasPage() {
 
     // Auto-create required fields based on entity type
     const requiredFields: string[] = [];
+    const fieldTypes: Record<string, string> = {};
+    
     if (entityType === "hub") {
-      requiredFields.push("business_key");
+      requiredFields.push("hash_key", "business_key");
+      fieldTypes["hash_key"] = "string";
+      fieldTypes["business_key"] = "string";
+      
+      // Auto-create hash component for hub
+      const hashCompId = `hash-${Date.now()}`;
+      setHashComponents([{
+        id: hashCompId,
+        position: { x: 400, y: 200 },
+        hashMethod: "SHA-256",
+        inputString: "",
+        outputString: "",
+      }]);
+      
+      // Auto-connect hash output to hash_key field
+      setHashConnections([{
+        id: `conn-${Date.now()}`,
+        sourceType: 'hash',
+        sourceId: hashCompId,
+        targetType: 'model',
+        targetField: 'hash_key',
+      }]);
     } else if (entityType === "link") {
       requiredFields.push("link_key");
+      fieldTypes["link_key"] = "string";
     } else if (entityType === "satellite") {
       requiredFields.push("parent_key", "load_date");
+      fieldTypes["parent_key"] = "string";
+      fieldTypes["load_date"] = "timestamp";
     } else if (entityType === "fact") {
       requiredFields.push("grain");
+      fieldTypes["grain"] = "string";
     } else if (entityType === "dimension") {
       requiredFields.push("dimension_key");
+      fieldTypes["dimension_key"] = "string";
     }
 
     setModelFields(requiredFields);
+    setModelFieldTypes(fieldTypes);
     closeSetup();
   };
 
@@ -339,12 +369,19 @@ export function ModelCanvasPage() {
   const handleAddModelField = () => {
     const fieldName = `field_${modelFields.length + 1}`;
     setModelFields([...modelFields, fieldName]);
+    setModelFieldTypes({ ...modelFieldTypes, [fieldName]: "string" }); // Default to string type
   };
 
   const handleRemoveModelField = (fieldName: string) => {
     setModelFields(modelFields.filter((f) => f !== fieldName));
+    // Remove field type
+    const updatedTypes = { ...modelFieldTypes };
+    delete updatedTypes[fieldName];
+    setModelFieldTypes(updatedTypes);
     // Remove any mappings to this field
     setFieldMappings(fieldMappings.filter((m) => m.modelField !== fieldName));
+    // Remove related hash connections
+    setHashConnections(hashConnections.filter((c) => c.targetField !== fieldName));
   };
 
   const handleColumnDragStart = (topicId: string, columnName: string) => {
@@ -550,12 +587,31 @@ export function ModelCanvasPage() {
       f === editingField ? trimmedValue : f,
     );
     setModelFields(updatedFields);
+    
+    // Update field type key if field was renamed
+    if (editingField && trimmedValue !== editingField) {
+      const updatedTypes = { ...modelFieldTypes };
+      if (updatedTypes[editingField]) {
+        updatedTypes[trimmedValue] = updatedTypes[editingField];
+        delete updatedTypes[editingField];
+        setModelFieldTypes(updatedTypes);
+      }
+    }
 
     // Update mappings to reflect new field name
     const updatedMappings = fieldMappings.map((m) =>
       m.modelField === editingField ? { ...m, modelField: trimmedValue } : m,
     );
     setFieldMappings(updatedMappings);
+    
+    // Update hash connections
+    setHashConnections(
+      hashConnections.map((c) =>
+        c.targetField === editingField
+          ? { ...c, targetField: trimmedValue }
+          : c,
+      ),
+    );
 
     setEditingField(null);
   };
@@ -1659,6 +1715,31 @@ export function ModelCanvasPage() {
                                   </Badge>
                                 )}
                               </Group>
+                              
+                              {/* Data Type Selector */}
+                              {!isEditing && (
+                                <Select
+                                  size="xs"
+                                  value={modelFieldTypes[fieldName] || "string"}
+                                  onChange={(value) => {
+                                    if (value) {
+                                      setModelFieldTypes({ ...modelFieldTypes, [fieldName]: value });
+                                    }
+                                  }}
+                                  data={[
+                                    { value: "string", label: "String" },
+                                    { value: "integer", label: "Integer" },
+                                    { value: "float", label: "Float" },
+                                    { value: "boolean", label: "Boolean" },
+                                    { value: "date", label: "Date" },
+                                    { value: "datetime", label: "DateTime" },
+                                    { value: "timestamp", label: "Timestamp" },
+                                    { value: "json", label: "JSON" },
+                                  ]}
+                                  placeholder="Data type"
+                                  mb="xs"
+                                />
+                              )}
 
                               {mappings.length > 0 && (
                                 <Stack gap={4}>

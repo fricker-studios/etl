@@ -22,6 +22,7 @@ interface SchemaColumn {
   position: number;
   data_type: string;
   nullable: boolean;
+  description?: string;
 }
 
 interface TopicRevisionDrawerProps {
@@ -48,7 +49,7 @@ export function TopicRevisionDrawer({
       );
     } else {
       setSchemaColumns([
-        { name: "", position: 1, data_type: "string", nullable: true },
+        { name: "", position: 1, data_type: "string", nullable: true, description: "" },
       ]);
     }
   }, [topic]);
@@ -69,7 +70,7 @@ export function TopicRevisionDrawer({
     const newPosition = schemaColumns.length + 1;
     setSchemaColumns([
       ...schemaColumns,
-      { name: "", position: newPosition, data_type: "string", nullable: true },
+      { name: "", position: newPosition, data_type: "string", nullable: true, description: "" },
     ]);
   };
 
@@ -184,9 +185,10 @@ export function TopicRevisionDrawer({
             <Table.Thead>
               <Table.Tr>
                 <Table.Th style={{ width: "5%" }}>#</Table.Th>
-                <Table.Th style={{ width: "30%" }}>Column Name</Table.Th>
-                <Table.Th style={{ width: "25%" }}>Data Type</Table.Th>
-                <Table.Th style={{ width: "20%" }}>Nullable</Table.Th>
+                <Table.Th style={{ width: "25%" }}>Column Name</Table.Th>
+                <Table.Th style={{ width: "20%" }}>Data Type</Table.Th>
+                <Table.Th style={{ width: "15%" }}>Nullable</Table.Th>
+                <Table.Th style={{ width: "25%" }}>Description</Table.Th>
                 <Table.Th style={{ width: "10%" }}></Table.Th>
               </Table.Tr>
             </Table.Thead>
@@ -229,6 +231,16 @@ export function TopicRevisionDrawer({
                         )
                       }
                       size="sm"
+                    />
+                  </Table.Td>
+                  <Table.Td>
+                    <TextInput
+                      placeholder="Optional description"
+                      value={col.description || ""}
+                      size="xs"
+                      onChange={(e) =>
+                        updateColumn(col.position, "description", e.target.value)
+                      }
                     />
                   </Table.Td>
                   <Table.Td>
