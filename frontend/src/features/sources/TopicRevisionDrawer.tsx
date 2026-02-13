@@ -49,7 +49,13 @@ export function TopicRevisionDrawer({
       );
     } else {
       setSchemaColumns([
-        { name: "", position: 1, data_type: "string", nullable: true, description: "" },
+        {
+          name: "",
+          position: 1,
+          data_type: "string",
+          nullable: true,
+          description: "",
+        },
       ]);
     }
   }, [topic]);
@@ -70,7 +76,13 @@ export function TopicRevisionDrawer({
     const newPosition = schemaColumns.length + 1;
     setSchemaColumns([
       ...schemaColumns,
-      { name: "", position: newPosition, data_type: "string", nullable: true, description: "" },
+      {
+        name: "",
+        position: newPosition,
+        data_type: "string",
+        nullable: true,
+        description: "",
+      },
     ]);
   };
 
@@ -239,7 +251,11 @@ export function TopicRevisionDrawer({
                       value={col.description || ""}
                       size="xs"
                       onChange={(e) =>
-                        updateColumn(col.position, "description", e.target.value)
+                        updateColumn(
+                          col.position,
+                          "description",
+                          e.target.value,
+                        )
                       }
                     />
                   </Table.Td>

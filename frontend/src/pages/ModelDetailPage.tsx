@@ -18,10 +18,10 @@ import {
   Loader,
   Button,
 } from "@mantine/core";
-import { 
-  IconArrowLeft, 
-  IconEdit, 
-  IconTrash, 
+import {
+  IconArrowLeft,
+  IconEdit,
+  IconTrash,
   IconHash,
   IconTable,
   IconDatabase,
@@ -50,13 +50,13 @@ export function ModelDetailPage() {
   const { colorScheme } = useMantineColorScheme();
 
   // Fetch ClickHouse status
-  const { data: clickhouseStatus } = useQuery({
+  const { data: clickhouseStatus } = useQuery<any>({
     queryKey: ["clickhouse-status"],
     queryFn: () => api.models.clickhouseStatus(),
   });
 
   // Fetch table statistics
-  const { data: tableStats, isLoading: tableStatsLoading } = useQuery({
+  const { data: tableStats, isLoading: tableStatsLoading } = useQuery<any>({
     queryKey: ["table-stats", id],
     queryFn: () => api.models.tableStats(id!),
     enabled: !!id && clickhouseStatus?.configured === true,
@@ -91,7 +91,12 @@ export function ModelDetailPage() {
       const cornerRadius = 10;
 
       // Helper to create curved path
-      const createCurvedPath = (x1: number, y1: number, x2: number, y2: number): string => {
+      const createCurvedPath = (
+        x1: number,
+        y1: number,
+        x2: number,
+        y2: number,
+      ): string => {
         const midX = (x1 + x2) / 2;
         let path = `M ${x1} ${y1}`;
         path += ` L ${midX - cornerRadius} ${y1}`;
@@ -109,8 +114,9 @@ export function ModelDetailPage() {
       };
 
       fieldMappings.forEach((mapping: any) => {
-        const hasTransformation = mapping.transformation && mapping.transformation.startsWith('hash_');
-        
+        const hasTransformation =
+          mapping.transformation && mapping.transformation.startsWith("hash_");
+
         if (hasTransformation) {
           // Hash transformation: topic -> hash -> model
           const topicFieldKey = `${mapping.topic_id}-${mapping.topic_field}`;
@@ -133,7 +139,7 @@ export function ModelDetailPage() {
               topicRect.right - containerRect.left,
               topicRect.top + topicRect.height / 2 - containerRect.top,
               hashInputRect.left - containerRect.left,
-              hashInputRect.top + hashInputRect.height / 2 - containerRect.top
+              hashInputRect.top + hashInputRect.height / 2 - containerRect.top,
             );
             lines.push({ path, color: "#4dabf7" });
           }
@@ -144,9 +150,11 @@ export function ModelDetailPage() {
             const modelRect = modelFieldEl.getBoundingClientRect();
             const path = createCurvedPath(
               hashOutputRect.right - containerRect.left,
-              hashOutputRect.top + hashOutputRect.height / 2 - containerRect.top,
+              hashOutputRect.top +
+                hashOutputRect.height / 2 -
+                containerRect.top,
               modelRect.left - containerRect.left,
-              modelRect.top + modelRect.height / 2 - containerRect.top
+              modelRect.top + modelRect.height / 2 - containerRect.top,
             );
             lines.push({ path, color: "#51cf66" });
           }
@@ -169,7 +177,7 @@ export function ModelDetailPage() {
                 topicRect.right - containerRect.left,
                 topicRect.top + topicRect.height / 2 - containerRect.top,
                 modelRect.left - containerRect.left,
-                modelRect.top + modelRect.height / 2 - containerRect.top
+                modelRect.top + modelRect.height / 2 - containerRect.top,
               );
               lines.push({ path, color: "#4dabf7" });
             }
@@ -336,9 +344,15 @@ export function ModelDetailPage() {
             // Check if ClickHouse backend is configured
             if (clickhouseStatus?.configured === false) {
               return (
-                <Alert variant="light" color="yellow" title="ClickHouse Not Configured" icon={<IconDatabase size={20} />}>
+                <Alert
+                  variant="light"
+                  color="yellow"
+                  title="ClickHouse Not Configured"
+                  icon={<IconDatabase size={20} />}
+                >
                   <Text size="sm" mb="sm">
-                    Configure a ClickHouse data warehouse connection to see table statistics.
+                    Configure a ClickHouse data warehouse connection to see
+                    table statistics.
                   </Text>
                   <Button
                     component={Link}
@@ -358,27 +372,28 @@ export function ModelDetailPage() {
               return (
                 <Group justify="center" p="md">
                   <Loader size="sm" />
-                  <Text size="sm" c="dimmed">Loading table statistics...</Text>
+                  <Text size="sm" c="dimmed">
+                    Loading table statistics...
+                  </Text>
                 </Group>
               );
             }
 
             // Show error or not created state
             if (!tableStats || tableStats.exists === false) {
-              const statusColors = {
-                not_created: "gray",
-                error: "red",
-              };
               const status = tableStats?.status || "not_created";
-              
+
               return (
-                <Alert 
-                  variant="light" 
+                <Alert
+                  variant="light"
                   color={status === "error" ? "red" : "gray"}
-                  title={status === "error" ? "Table Error" : "Table Not Created"}
+                  title={
+                    status === "error" ? "Table Error" : "Table Not Created"
+                  }
                 >
                   <Text size="sm">
-                    {tableStats?.message || `Table ${tableStats?.table_name || "for this model"} does not exist yet.`}
+                    {tableStats?.message ||
+                      `Table ${tableStats?.table_name || "for this model"} does not exist yet.`}
                   </Text>
                   {tableStats?.table_name && (
                     <Text size="xs" ff="monospace" c="dimmed" mt="xs">
@@ -404,8 +419,11 @@ export function ModelDetailPage() {
               error: "Error",
             };
 
-            const lastSyncTime = tableStats.last_updated 
-              ? Math.floor((Date.now() - new Date(tableStats.last_updated).getTime()) / 60000)
+            const lastSyncTime = tableStats.last_updated
+              ? Math.floor(
+                  (Date.now() - new Date(tableStats.last_updated).getTime()) /
+                    60000,
+                )
               : null;
 
             return (
@@ -415,8 +433,19 @@ export function ModelDetailPage() {
                     <Text size="sm" c="dimmed" fw={600}>
                       External Table
                     </Text>
-                    <Badge color={statusColors[tableStats.status as keyof typeof statusColors]} size="sm">
-                      {statusLabels[tableStats.status as keyof typeof statusLabels]}
+                    <Badge
+                      color={
+                        statusColors[
+                          tableStats.status as keyof typeof statusColors
+                        ]
+                      }
+                      size="sm"
+                    >
+                      {
+                        statusLabels[
+                          tableStats.status as keyof typeof statusLabels
+                        ]
+                      }
                     </Badge>
                   </Group>
                   <Text size="sm" ff="monospace" c="dimmed">
@@ -473,7 +502,7 @@ export function ModelDetailPage() {
                       </Text>
                     </Group>
                     <Text size="sm" fw={600}>
-                      {tableStats.last_updated 
+                      {tableStats.last_updated
                         ? new Date(tableStats.last_updated).toLocaleString()
                         : "N/A"}
                     </Text>
@@ -489,7 +518,9 @@ export function ModelDetailPage() {
                         </Text>
                       </Group>
                       <Text size="sm" fw={600}>
-                        {lastSyncTime < 1 ? "Just now" : `${lastSyncTime} min ago`}
+                        {lastSyncTime < 1
+                          ? "Just now"
+                          : `${lastSyncTime} min ago`}
                       </Text>
                     </div>
                   )}
@@ -564,7 +595,11 @@ export function ModelDetailPage() {
                 stroke={line.color}
                 strokeWidth="2"
                 fill="none"
-                markerEnd={line.color === "#51cf66" ? "url(#arrowhead-green)" : "url(#arrowhead-blue)"}
+                markerEnd={
+                  line.color === "#51cf66"
+                    ? "url(#arrowhead-green)"
+                    : "url(#arrowhead-blue)"
+                }
               />
             ))}
           </svg>
@@ -583,44 +618,51 @@ export function ModelDetailPage() {
                   topicGroups[m.topic_id].push(m);
                 });
 
-                return Object.entries(topicGroups).map(([topicId, mappings]) => {
-                  const topicData = topics.find((t: any) => String(t.id) === String(topicId));
-                  const topicName = topicData?.name || "Unknown Topic";
-                  
-                  return (
-                    <Card key={topicId} withBorder shadow="sm" p="md">
-                      <Stack gap="sm">
-                        <Badge variant="dot" size="sm">
-                          {topicName}
-                        </Badge>
-                        <Divider />
-                        <Stack gap="xs">
-                          {mappings.map((mapping: any) => {
-                            const fieldKey = `${mapping.topic_id}-${mapping.topic_field}`;
-                            return (
-                              <Box
-                                key={fieldKey}
-                                ref={(el) => {
-                                  topicFieldRefs.current[fieldKey] = el;
-                                }}
-                                p="xs"
-                                style={{
-                                  borderRadius: "4px",
-                                  border: `1px solid ${colorScheme === "dark" ? "#373A40" : "#dee2e6"}`,
-                                  backgroundColor: colorScheme === "dark" ? "#25262b" : "#f8f9fa",
-                                }}
-                              >
-                                <Text size="sm" fw={500}>
-                                  {mapping.topic_field}
-                                </Text>
-                              </Box>
-                            );
-                          })}
+                return Object.entries(topicGroups).map(
+                  ([topicId, mappings]) => {
+                    const topicData = topics.find(
+                      (t: any) => String(t.id) === String(topicId),
+                    );
+                    const topicName = topicData?.name || "Unknown Topic";
+
+                    return (
+                      <Card key={topicId} withBorder shadow="sm" p="md">
+                        <Stack gap="sm">
+                          <Badge variant="dot" size="sm">
+                            {topicName}
+                          </Badge>
+                          <Divider />
+                          <Stack gap="xs">
+                            {mappings.map((mapping: any) => {
+                              const fieldKey = `${mapping.topic_id}-${mapping.topic_field}`;
+                              return (
+                                <Box
+                                  key={fieldKey}
+                                  ref={(el) => {
+                                    topicFieldRefs.current[fieldKey] = el;
+                                  }}
+                                  p="xs"
+                                  style={{
+                                    borderRadius: "4px",
+                                    border: `1px solid ${colorScheme === "dark" ? "#373A40" : "#dee2e6"}`,
+                                    backgroundColor:
+                                      colorScheme === "dark"
+                                        ? "#25262b"
+                                        : "#f8f9fa",
+                                  }}
+                                >
+                                  <Text size="sm" fw={500}>
+                                    {mapping.topic_field}
+                                  </Text>
+                                </Box>
+                              );
+                            })}
+                          </Stack>
                         </Stack>
-                      </Stack>
-                    </Card>
-                  );
-                });
+                      </Card>
+                    );
+                  },
+                );
               })()}
             </Stack>
           </Box>
@@ -631,8 +673,9 @@ export function ModelDetailPage() {
               <Title order={5}>Transformations</Title>
               {(() => {
                 // Find all hash transformations
-                const hashTransformations = fieldMappings.filter((m: any) => 
-                  m.transformation && m.transformation.startsWith('hash_')
+                const hashTransformations = fieldMappings.filter(
+                  (m: any) =>
+                    m.transformation && m.transformation.startsWith("hash_"),
                 );
 
                 if (hashTransformations.length === 0) {
@@ -645,8 +688,11 @@ export function ModelDetailPage() {
 
                 return hashTransformations.map((mapping: any) => {
                   const hashKey = `${mapping.topic_id}-${mapping.topic_field}-${mapping.model_field}`;
-                  const hashMethod = mapping.transformation.replace('hash_', '');
-                  
+                  const hashMethod = mapping.transformation.replace(
+                    "hash_",
+                    "",
+                  );
+
                   return (
                     <Box
                       key={hashKey}
@@ -676,13 +722,14 @@ export function ModelDetailPage() {
                             width: 16,
                             height: 16,
                             borderRadius: "50%",
-                            background: colorScheme === "dark" ? "#4dabf7" : "#1c7ed6",
+                            background:
+                              colorScheme === "dark" ? "#4dabf7" : "#1c7ed6",
                             border: "2px solid white",
                             zIndex: 10,
                           }}
                           title="Input connection point"
                         />
-                        
+
                         {/* Output Connection Node (Right) - Green */}
                         <Box
                           ref={(el) => {
@@ -696,7 +743,8 @@ export function ModelDetailPage() {
                             width: 16,
                             height: 16,
                             borderRadius: "50%",
-                            background: colorScheme === "dark" ? "#51cf66" : "#2f9e44",
+                            background:
+                              colorScheme === "dark" ? "#51cf66" : "#2f9e44",
                             border: "2px solid white",
                             zIndex: 10,
                           }}
@@ -761,10 +809,14 @@ export function ModelDetailPage() {
                             p="xs"
                             style={{
                               borderRadius: "4px",
-                              border: `1px solid ${isMapped ? (colorScheme === "dark" ? "#1864ab" : "#4dabf7") : (colorScheme === "dark" ? "#373A40" : "#dee2e6")}`,
+                              border: `1px solid ${isMapped ? (colorScheme === "dark" ? "#1864ab" : "#4dabf7") : colorScheme === "dark" ? "#373A40" : "#dee2e6"}`,
                               backgroundColor: isMapped
-                                ? (colorScheme === "dark" ? "#1971c2" : "#e7f5ff")
-                                : (colorScheme === "dark" ? "#25262b" : "#f8f9fa"),
+                                ? colorScheme === "dark"
+                                  ? "#1971c2"
+                                  : "#e7f5ff"
+                                : colorScheme === "dark"
+                                  ? "#25262b"
+                                  : "#f8f9fa",
                             }}
                           >
                             <Text size="sm" fw={500}>
@@ -773,18 +825,25 @@ export function ModelDetailPage() {
                             {mappingsForField.length > 0 && (
                               <Group gap={4} mt={4}>
                                 {mappingsForField.map((m: any, idx: number) => {
-                                  const hasTransformation = m.transformation && m.transformation.startsWith('hash_');
-                                  const transformationType = hasTransformation ? m.transformation.replace('hash_', '') : null;
-                                  
+                                  const hasTransformation =
+                                    m.transformation &&
+                                    m.transformation.startsWith("hash_");
+                                  const transformationType = hasTransformation
+                                    ? m.transformation.replace("hash_", "")
+                                    : null;
+
                                   return (
                                     <Badge
                                       key={idx}
                                       size="xs"
                                       variant="light"
-                                      color={hasTransformation ? "green" : "blue"}
+                                      color={
+                                        hasTransformation ? "green" : "blue"
+                                      }
                                     >
                                       ← {m.topic_field}
-                                      {hasTransformation && ` [${transformationType}]`}
+                                      {hasTransformation &&
+                                        ` [${transformationType}]`}
                                     </Badge>
                                   );
                                 })}
@@ -808,12 +867,11 @@ export function ModelDetailPage() {
         {/* Show message if no mappings available */}
         {!hasFieldMappings && (
           <Text c="dimmed" ta="center" mt="md" size="sm">
-            No field mappings available. Create mappings in the Data Model Canvas.
+            No field mappings available. Create mappings in the Data Model
+            Canvas.
           </Text>
         )}
       </Card>
-
-
 
       {/* Edit Modal - Note: This is a placeholder. Full edit functionality would require enhancing ModelWizard */}
       {editModalOpen && (

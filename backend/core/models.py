@@ -315,12 +315,14 @@ class Stream(models.Model):
 
         # Create or update Celery Beat periodic task for this stream
         from core.celery_utils import create_or_update_stream_task
+
         create_or_update_stream_task(self)
 
     def delete(self, *args, **kwargs):
         """Override delete to clean up any scheduled tasks."""
         # Delete the associated Celery Beat periodic task
         from core.celery_utils import delete_stream_task
+
         delete_stream_task(self)
         super().delete(*args, **kwargs)
 
