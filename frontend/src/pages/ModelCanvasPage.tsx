@@ -748,12 +748,20 @@ export function ModelCanvasPage() {
           onMouseLeave={handleCanvasMouseUp}
           onContextMenu={handleCanvasContextMenu}
         >
-          {/* Add Topic Button in top left */}
-          <Box style={{ position: "absolute", top: 16, left: 16, zIndex: 10 }}>
+          {/* Add Topic Button in top left - floating and always visible */}
+          <Box style={{ position: "fixed", top: 80, left: 32, zIndex: 100 }}>
             <Menu shadow="md" width={200}>
               <Menu.Target>
-                <ActionIcon size="lg" variant="filled" color="blue">
-                  <IconPlus size={20} />
+                <ActionIcon 
+                  size={56} 
+                  variant="filled" 
+                  color="blue"
+                  radius="xl"
+                  style={{
+                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+                  }}
+                >
+                  <IconPlus size={28} />
                 </ActionIcon>
               </Menu.Target>
               <Menu.Dropdown>
