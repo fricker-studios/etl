@@ -399,21 +399,25 @@ export function ModelDetailPage() {
                           <Text size="sm" fw={500}>
                             {field}
                           </Text>
-                          {mappingsForField.length > 0 && (
+                           {mappingsForField.length > 0 && (
                             <Group gap={4} mt={4}>
                               {mappingsForField.map((m: any, idx: number) => {
                                 const sourceTopic = topics.find(
                                   (t: any) =>
                                     String(t.id) === String(m.topic_id),
                                 );
+                                const hasTransformation = m.transformation && m.transformation.startsWith('hash_');
+                                const transformationType = hasTransformation ? m.transformation.replace('hash_', '') : null;
+                                
                                 return (
                                   <Badge
                                     key={idx}
                                     size="xs"
                                     variant="light"
-                                    color="blue"
+                                    color={hasTransformation ? "green" : "blue"}
                                   >
                                     ← {m.topic_field}
+                                    {hasTransformation && ` [${transformationType}]`}
                                     {sourceTopic && ` (${sourceTopic.name})`}
                                   </Badge>
                                 );

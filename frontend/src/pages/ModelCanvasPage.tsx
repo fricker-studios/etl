@@ -1480,6 +1480,10 @@ export function ModelCanvasPage() {
                       const mappings = fieldMappings.filter(
                         (m) => m.modelField === fieldName,
                       );
+                      // Also check if field has hash connections
+                      const hasHashConnection = hashConnections.some(
+                        (c) => c.targetType === 'model' && c.targetField === fieldName
+                      );
                       const isEditing = editingField === fieldName;
 
                       return (
@@ -1493,7 +1497,7 @@ export function ModelCanvasPage() {
                           onDragOver={(e) => e.preventDefault()}
                           onDrop={() => handleFieldDrop(fieldName)}
                           bg={
-                            mappings.length > 0
+                            (mappings.length > 0 || hasHashConnection)
                               ? colorScheme === "dark"
                                 ? "blue.9"
                                 : "blue.0"
@@ -1501,7 +1505,7 @@ export function ModelCanvasPage() {
                           }
                           style={{
                             border:
-                              (draggedColumn || draggedFromHash) && mappings.length === 0
+                              (draggedColumn || draggedFromHash) && mappings.length === 0 && !hasHashConnection
                                 ? draggedFromHash 
                                   ? "2px dashed var(--mantine-color-green-5)"
                                   : "2px dashed var(--mantine-color-blue-5)"
@@ -1546,7 +1550,7 @@ export function ModelCanvasPage() {
                                     </ActionIcon>
                                   </>
                                 )}
-                                {mappings.length === 0 && !isEditing && (
+                                {mappings.length === 0 && !hasHashConnection && !isEditing && (
                                   <Badge
                                     size="xs"
                                     color="gray"
