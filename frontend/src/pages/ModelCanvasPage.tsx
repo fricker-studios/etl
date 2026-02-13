@@ -26,6 +26,7 @@ import {
   IconGripVertical,
   IconEdit,
   IconInfoCircle,
+  IconHash,
 } from "@tabler/icons-react";
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -82,6 +83,14 @@ export function ModelCanvasPage() {
   const [draggingTopic, setDraggingTopic] = useState<string | null>(null);
   const [draggingModel, setDraggingModel] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  
+  // Canvas panning state
+  const [isPanningCanvas, setIsPanningCanvas] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [scrollStart, setScrollStart] = useState({ left: 0, top: 0 });
+  
+  // Context menu state
+  const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
 
   // Auto-generate entity name when model name or entity type changes
   // Only auto-generate if the user hasn't manually edited the entity name
@@ -205,6 +214,23 @@ export function ModelCanvasPage() {
     });
   };
 
+  // Canvas panning handlers
+  const handleCanvasMouseDown = (e: React.MouseEvent) => {
+    // Only start panning if clicking on the canvas background (not on cards or other elements)
+    if (e.target !== e.currentTarget && e.target !== canvasRef.current?.querySelector('[data-canvas-content]')) {
+      return;
+    }
+    
+    if (!canvasRef.current) return;
+    
+    setIsPanningCanvas(true);
+    setPanStart({ x: e.clientX, y: e.clientY });
+    setScrollStart({ 
+      left: canvasRef.current.scrollLeft, 
+      top: canvasRef.current.scrollTop 
+    });
+  };
+
   const handleCanvasMouseMove = (e: React.MouseEvent) => {
     if (!canvasRef.current) return;
     
@@ -223,12 +249,29 @@ export function ModelCanvasPage() {
       const newX = e.clientX - canvasRect.left - dragOffset.x + canvasRef.current.scrollLeft;
       const newY = e.clientY - canvasRect.top - dragOffset.y + canvasRef.current.scrollTop;
       setModelPosition({ x: newX, y: newY });
+    } else if (isPanningCanvas) {
+      // Pan the canvas by adjusting scroll position
+      const deltaX = e.clientX - panStart.x;
+      const deltaY = e.clientY - panStart.y;
+      canvasRef.current.scrollLeft = scrollStart.left - deltaX;
+      canvasRef.current.scrollTop = scrollStart.top - deltaY;
     }
   };
 
   const handleCanvasMouseUp = () => {
     setDraggingTopic(null);
     setDraggingModel(false);
+    setIsPanningCanvas(false);
+  };
+  
+  // Context menu handlers
+  const handleCanvasContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenuPos({ x: e.clientX, y: e.clientY });
+  };
+  
+  const closeContextMenu = () => {
+    setContextMenuPos(null);
   };
 
   const toggleTopicExpanded = (topicId: string) => {
@@ -692,22 +735,25 @@ export function ModelCanvasPage() {
             borderRadius: "8px",
             overflow: "auto",
             padding: "1rem",
-            cursor: draggingTopic || draggingModel ? "grabbing" : "default",
+            cursor: draggingTopic || draggingModel ? "grabbing" : isPanningCanvas ? "grabbing" : "default",
           }}
           bg={colorScheme === "dark" ? "dark.8" : "gray.0"}
+          onMouseDown={handleCanvasMouseDown}
           onMouseMove={handleCanvasMouseMove}
           onMouseUp={handleCanvasMouseUp}
           onMouseLeave={handleCanvasMouseUp}
+          onContextMenu={handleCanvasContextMenu}
         >
           {/* Add Topic Button in top left */}
           <Box style={{ position: "absolute", top: 16, left: 16, zIndex: 10 }}>
             <Menu shadow="md" width={200}>
               <Menu.Target>
-                <Button leftSection={<IconPlus size={16} />} size="sm">
-                  Add Topic
-                </Button>
+                <ActionIcon size="lg" variant="filled" color="blue">
+                  <IconPlus size={20} />
+                </ActionIcon>
               </Menu.Target>
               <Menu.Dropdown>
+                <Menu.Label>Add Topic</Menu.Label>
                 {availableTopics.length > 0 ? (
                   availableTopics.map((topic: any) => (
                     <Menu.Item
@@ -720,12 +766,127 @@ export function ModelCanvasPage() {
                 ) : (
                   <Menu.Item disabled>No more topics available</Menu.Item>
                 )}
+                <Menu.Divider />
+                <Menu.Label>Add Transformation</Menu.Label>
+                <Menu.Item
+                  leftSection={<IconHash size={16} />}
+                  onClick={() => {
+                    notifications.show({
+                      message: "Hash transformation selected",
+                      color: "blue",
+                    });
+                  }}
+                >
+                  Hash
+                </Menu.Item>
               </Menu.Dropdown>
             </Menu>
           </Box>
 
+          {/* Context Menu */}
+          {contextMenuPos && (
+            <>
+              <Box
+                style={{
+                  position: "fixed",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  zIndex: 99,
+                }}
+                onClick={closeContextMenu}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  closeContextMenu();
+                }}
+              />
+              <Paper
+                shadow="md"
+                p={0}
+                style={{
+                  position: "fixed",
+                  top: contextMenuPos.y,
+                  left: contextMenuPos.x,
+                  zIndex: 100,
+                  minWidth: 200,
+                }}
+              >
+                <Stack gap={0}>
+                  <Box p="xs" style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}>
+                    <Text size="xs" fw={600} c="dimmed">
+                      Add Topic
+                    </Text>
+                  </Box>
+                  {availableTopics.length > 0 ? (
+                    availableTopics.map((topic: any) => (
+                      <Box
+                        key={topic.id}
+                        p="xs"
+                        style={{
+                          cursor: "pointer",
+                          "&:hover": {
+                            backgroundColor: colorScheme === "dark" ? "var(--mantine-color-dark-6)" : "var(--mantine-color-gray-0)",
+                          },
+                        }}
+                        onClick={() => {
+                          handleAddTopic(String(topic.id));
+                          closeContextMenu();
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = colorScheme === "dark" ? "var(--mantine-color-dark-6)" : "var(--mantine-color-gray-0)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "transparent";
+                        }}
+                      >
+                        <Text size="sm">{topic.name}</Text>
+                      </Box>
+                    ))
+                  ) : (
+                    <Box p="xs">
+                      <Text size="sm" c="dimmed">No more topics available</Text>
+                    </Box>
+                  )}
+                  <Divider />
+                  <Box p="xs" style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}>
+                    <Text size="xs" fw={600} c="dimmed">
+                      Add Transformation
+                    </Text>
+                  </Box>
+                  <Box
+                    p="xs"
+                    style={{
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}
+                    onClick={() => {
+                      notifications.show({
+                        message: "Hash transformation selected",
+                        color: "blue",
+                      });
+                      closeContextMenu();
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = colorScheme === "dark" ? "var(--mantine-color-dark-6)" : "var(--mantine-color-gray-0)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                    }}
+                  >
+                    <IconHash size={16} />
+                    <Text size="sm">Hash</Text>
+                  </Box>
+                </Stack>
+              </Paper>
+            </>
+          )}
+
           {/* Canvas Content - Absolute positioned elements */}
           <Box
+            data-canvas-content
             style={{
               position: "relative",
               minHeight: "1000px",
