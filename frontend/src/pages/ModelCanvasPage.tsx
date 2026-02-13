@@ -93,6 +93,16 @@ export function ModelCanvasPage() {
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [showTopicSubmenu, setShowTopicSubmenu] = useState(false);
   const [showTransformSubmenu, setShowTransformSubmenu] = useState(false);
+  
+  // Hash components state
+  const [hashComponents, setHashComponents] = useState<Array<{
+    id: string;
+    position: { x: number; y: number };
+    hashMethod: string;
+    inputString: string;
+    outputString: string;
+  }>>([]);
+  const [draggingHash, setDraggingHash] = useState<string | null>(null);
 
   // Auto-generate entity name when model name or entity type changes
   // Only auto-generate if the user hasn't manually edited the entity name
@@ -255,6 +265,13 @@ export function ModelCanvasPage() {
       const newX = e.clientX - canvasRect.left - dragOffset.x + canvasRef.current.scrollLeft;
       const newY = e.clientY - canvasRect.top - dragOffset.y + canvasRef.current.scrollTop;
       setModelPosition({ x: newX, y: newY });
+    } else if (draggingHash) {
+      // Calculate position relative to canvas, accounting for scroll
+      const newX = e.clientX - canvasRect.left - dragOffset.x + canvasRef.current.scrollLeft;
+      const newY = e.clientY - canvasRect.top - dragOffset.y + canvasRef.current.scrollTop;
+      setHashComponents(hashComponents.map(h => 
+        h.id === draggingHash ? { ...h, position: { x: newX, y: newY } } : h
+      ));
     } else if (isPanningCanvas) {
       // Pan the canvas by adjusting scroll position
       const deltaX = e.clientX - panStart.x;
@@ -267,6 +284,7 @@ export function ModelCanvasPage() {
   const handleCanvasMouseUp = () => {
     setDraggingTopic(null);
     setDraggingModel(false);
+    setDraggingHash(null);
     setIsPanningCanvas(false);
   };
   
@@ -743,7 +761,7 @@ export function ModelCanvasPage() {
             borderRadius: "8px",
             overflow: "auto",
             padding: "1rem",
-            cursor: draggingTopic || draggingModel ? "grabbing" : isPanningCanvas ? "grabbing" : "default",
+            cursor: draggingTopic || draggingModel || draggingHash ? "grabbing" : isPanningCanvas ? "grabbing" : "default",
           }}
           bg={colorScheme === "dark" ? "dark.8" : "gray.0"}
           onMouseDown={handleCanvasMouseDown}
@@ -773,6 +791,8 @@ export function ModelCanvasPage() {
                   trigger="hover"
                   openDelay={100}
                   closeDelay={400}
+                  position="right"
+                  offset={0}
                 >
                   <Menu.Target>
                     <Menu.Item rightSection={<IconChevronRight size={14} />}>
@@ -799,6 +819,8 @@ export function ModelCanvasPage() {
                   trigger="hover"
                   openDelay={100}
                   closeDelay={400}
+                  position="right"
+                  offset={0}
                 >
                   <Menu.Target>
                     <Menu.Item rightSection={<IconChevronRight size={14} />}>
@@ -809,8 +831,17 @@ export function ModelCanvasPage() {
                     <Menu.Item
                       leftSection={<IconHash size={16} />}
                       onClick={() => {
+                        // Add hash component to canvas
+                        const newHashComponent = {
+                          id: `hash-${Date.now()}`,
+                          position: { x: 300, y: 300 },
+                          hashMethod: "MD5",
+                          inputString: "",
+                          outputString: "",
+                        };
+                        setHashComponents([...hashComponents, newHashComponent]);
                         notifications.show({
-                          message: "Hash transformation selected",
+                          message: "Hash component added to canvas",
                           color: "blue",
                         });
                       }}
@@ -966,8 +997,17 @@ export function ModelCanvasPage() {
                               gap: "8px",
                             }}
                             onClick={() => {
+                              // Add hash component to canvas
+                              const newHashComponent = {
+                                id: `hash-${Date.now()}`,
+                                position: { x: 300, y: 300 },
+                                hashMethod: "MD5",
+                                inputString: "",
+                                outputString: "",
+                              };
+                              setHashComponents([...hashComponents, newHashComponent]);
                               notifications.show({
-                                message: "Hash transformation selected",
+                                message: "Hash component added to canvas",
                                 color: "blue",
                               });
                               closeContextMenu();
@@ -1315,6 +1355,115 @@ export function ModelCanvasPage() {
                   )}
                 </Stack>
               </Card>
+              
+            {/* Hash Components - Absolute positioned */}
+            {hashComponents.map((hashComp) => {
+              const computeHash = (input: string, method: string): string => {
+                if (!input) return "";
+                // Simple hash implementation (in production, use crypto library)
+                if (method === "MD5" || method === "SHA-1" || method === "SHA-256") {
+                  // Placeholder - in real app, use crypto.subtle or a library
+                  let hash = 0;
+                  for (let i = 0; i < input.length; i++) {
+                    const char = input.charCodeAt(i);
+                    hash = ((hash << 5) - hash) + char;
+                    hash = hash & hash;
+                  }
+                  return Math.abs(hash).toString(16).padStart(method === "MD5" ? 32 : method === "SHA-1" ? 40 : 64, '0');
+                }
+                return "";
+              };
+
+              return (
+                <Card
+                  key={hashComp.id}
+                  withBorder
+                  shadow="md"
+                  p="md"
+                  style={{
+                    position: "absolute",
+                    left: hashComp.position.x,
+                    top: hashComp.position.y,
+                    width: "350px",
+                    cursor: draggingHash === hashComp.id ? "grabbing" : "grab",
+                    zIndex: draggingHash === hashComp.id ? 100 : 3,
+                  }}
+                  onMouseDown={(e) => {
+                    if (!canvasRef.current) return;
+                    const canvasRect = canvasRef.current.getBoundingClientRect();
+                    setDraggingHash(hashComp.id);
+                    setDragOffset({
+                      x: e.clientX - canvasRect.left - hashComp.position.x + canvasRef.current.scrollLeft,
+                      y: e.clientY - canvasRect.top - hashComp.position.y + canvasRef.current.scrollTop,
+                    });
+                  }}
+                >
+                  <Group justify="space-between" mb="md">
+                    <Group gap="xs">
+                      <IconHash size={20} />
+                      <Text fw={700} size="lg">
+                        Hash String
+                      </Text>
+                    </Group>
+                    <ActionIcon
+                      size="sm"
+                      color="red"
+                      variant="subtle"
+                      onClick={() => {
+                        setHashComponents(hashComponents.filter(h => h.id !== hashComp.id));
+                      }}
+                    >
+                      <IconX size={16} />
+                    </ActionIcon>
+                  </Group>
+
+                  <Stack gap="md">
+                    <Select
+                      label="Hash Method"
+                      value={hashComp.hashMethod}
+                      onChange={(value) => {
+                        setHashComponents(hashComponents.map(h =>
+                          h.id === hashComp.id
+                            ? { ...h, hashMethod: value || "MD5", outputString: computeHash(h.inputString, value || "MD5") }
+                            : h
+                        ));
+                      }}
+                      data={[
+                        { value: "MD5", label: "MD5" },
+                        { value: "SHA-1", label: "SHA-1" },
+                        { value: "SHA-256", label: "SHA-256" },
+                      ]}
+                    />
+
+                    <TextInput
+                      label="Input String"
+                      placeholder="Enter string to hash"
+                      value={hashComp.inputString}
+                      onChange={(e) => {
+                        const newInput = e.target.value;
+                        setHashComponents(hashComponents.map(h =>
+                          h.id === hashComp.id
+                            ? { ...h, inputString: newInput, outputString: computeHash(newInput, h.hashMethod) }
+                            : h
+                        ));
+                      }}
+                    />
+
+                    <TextInput
+                      label="Output Hash"
+                      value={computeHash(hashComp.inputString, hashComp.hashMethod)}
+                      readOnly
+                      styles={{
+                        input: {
+                          fontFamily: "monospace",
+                          fontSize: "0.85rem",
+                        },
+                      }}
+                    />
+                  </Stack>
+                </Card>
+              );
+            })}
           </Box>
 
           {/* SVG overlay for connection lines */}
