@@ -1358,73 +1358,98 @@ export function ModelCanvasPage() {
               
             {/* Hash Components - Absolute positioned */}
             {hashComponents.map((hashComp) => {
-              const computeHash = (input: string, method: string): string => {
-                if (!input) return "";
-                // Simple hash implementation (in production, use crypto library)
-                if (method === "MD5" || method === "SHA-1" || method === "SHA-256") {
-                  // Placeholder - in real app, use crypto.subtle or a library
-                  let hash = 0;
-                  for (let i = 0; i < input.length; i++) {
-                    const char = input.charCodeAt(i);
-                    hash = ((hash << 5) - hash) + char;
-                    hash = hash & hash;
-                  }
-                  return Math.abs(hash).toString(16).padStart(method === "MD5" ? 32 : method === "SHA-1" ? 40 : 64, '0');
-                }
-                return "";
-              };
-
               return (
-                <Card
+                <Box
                   key={hashComp.id}
-                  withBorder
-                  shadow="md"
-                  p="md"
                   style={{
                     position: "absolute",
                     left: hashComp.position.x,
                     top: hashComp.position.y,
-                    width: "350px",
-                    cursor: draggingHash === hashComp.id ? "grabbing" : "grab",
+                    width: "200px",
                     zIndex: draggingHash === hashComp.id ? 100 : 3,
                   }}
-                  onMouseDown={(e) => {
-                    if (!canvasRef.current) return;
-                    const canvasRect = canvasRef.current.getBoundingClientRect();
-                    setDraggingHash(hashComp.id);
-                    setDragOffset({
-                      x: e.clientX - canvasRect.left - hashComp.position.x + canvasRef.current.scrollLeft,
-                      y: e.clientY - canvasRect.top - hashComp.position.y + canvasRef.current.scrollTop,
-                    });
-                  }}
                 >
-                  <Group justify="space-between" mb="md">
-                    <Group gap="xs">
-                      <IconHash size={20} />
-                      <Text fw={700} size="lg">
-                        Hash String
-                      </Text>
-                    </Group>
-                    <ActionIcon
-                      size="sm"
-                      color="red"
-                      variant="subtle"
-                      onClick={() => {
-                        setHashComponents(hashComponents.filter(h => h.id !== hashComp.id));
+                  <Card
+                    withBorder
+                    shadow="md"
+                    p="xs"
+                    style={{
+                      cursor: draggingHash === hashComp.id ? "grabbing" : "grab",
+                      position: "relative",
+                    }}
+                    onMouseDown={(e) => {
+                      if (!canvasRef.current) return;
+                      const canvasRect = canvasRef.current.getBoundingClientRect();
+                      setDraggingHash(hashComp.id);
+                      setDragOffset({
+                        x: e.clientX - canvasRect.left - hashComp.position.x + canvasRef.current.scrollLeft,
+                        y: e.clientY - canvasRect.top - hashComp.position.y + canvasRef.current.scrollTop,
+                      });
+                    }}
+                  >
+                    {/* Input Connection Node (Left) */}
+                    <Box
+                      style={{
+                        position: "absolute",
+                        left: -8,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        width: 16,
+                        height: 16,
+                        borderRadius: "50%",
+                        background: colorScheme === "dark" ? "#4dabf7" : "#1c7ed6",
+                        border: "2px solid white",
+                        cursor: "crosshair",
+                        zIndex: 10,
                       }}
-                    >
-                      <IconX size={16} />
-                    </ActionIcon>
-                  </Group>
+                      title="Input connection point"
+                    />
+                    
+                    {/* Output Connection Node (Right) */}
+                    <Box
+                      style={{
+                        position: "absolute",
+                        right: -8,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        width: 16,
+                        height: 16,
+                        borderRadius: "50%",
+                        background: colorScheme === "dark" ? "#51cf66" : "#2f9e44",
+                        border: "2px solid white",
+                        cursor: "crosshair",
+                        zIndex: 10,
+                      }}
+                      title="Output connection point"
+                    />
 
-                  <Stack gap="md">
+                    <Group justify="space-between" mb="xs">
+                      <Group gap="xs">
+                        <IconHash size={16} />
+                        <Text fw={600} size="sm">
+                          Hash
+                        </Text>
+                      </Group>
+                      <ActionIcon
+                        size="xs"
+                        color="red"
+                        variant="subtle"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setHashComponents(hashComponents.filter(h => h.id !== hashComp.id));
+                        }}
+                      >
+                        <IconX size={12} />
+                      </ActionIcon>
+                    </Group>
+
                     <Select
-                      label="Hash Method"
+                      size="xs"
                       value={hashComp.hashMethod}
                       onChange={(value) => {
                         setHashComponents(hashComponents.map(h =>
                           h.id === hashComp.id
-                            ? { ...h, hashMethod: value || "MD5", outputString: computeHash(h.inputString, value || "MD5") }
+                            ? { ...h, hashMethod: value || "MD5" }
                             : h
                         ));
                       }}
@@ -1433,35 +1458,14 @@ export function ModelCanvasPage() {
                         { value: "SHA-1", label: "SHA-1" },
                         { value: "SHA-256", label: "SHA-256" },
                       ]}
-                    />
-
-                    <TextInput
-                      label="Input String"
-                      placeholder="Enter string to hash"
-                      value={hashComp.inputString}
-                      onChange={(e) => {
-                        const newInput = e.target.value;
-                        setHashComponents(hashComponents.map(h =>
-                          h.id === hashComp.id
-                            ? { ...h, inputString: newInput, outputString: computeHash(newInput, h.hashMethod) }
-                            : h
-                        ));
-                      }}
-                    />
-
-                    <TextInput
-                      label="Output Hash"
-                      value={computeHash(hashComp.inputString, hashComp.hashMethod)}
-                      readOnly
                       styles={{
                         input: {
-                          fontFamily: "monospace",
-                          fontSize: "0.85rem",
+                          minHeight: "28px",
                         },
                       }}
                     />
-                  </Stack>
-                </Card>
+                  </Card>
+                </Box>
               );
             })}
           </Box>
