@@ -12,6 +12,7 @@ import {
   Box,
   useMantineColorScheme,
   Title,
+  Select,
 } from "@mantine/core";
 import { IconArrowLeft, IconEdit, IconTrash, IconHash } from "@tabler/icons-react";
 import { useParams, useNavigate, Link } from "react-router-dom";
@@ -450,42 +451,87 @@ export function ModelDetailPage() {
                   const hashMethod = mapping.transformation.replace('hash_', '');
                   
                   return (
-                    <Card key={hashKey} withBorder shadow="sm" p="md">
-                      <Stack gap="sm">
-                        <Group gap="xs">
-                          <IconHash size={16} />
-                          <Text size="sm" fw={600}>Hash</Text>
-                        </Group>
-                        <Divider />
+                    <Box
+                      key={hashKey}
+                      style={{
+                        width: "200px",
+                        margin: "0 auto",
+                      }}
+                    >
+                      <Card
+                        withBorder
+                        shadow="md"
+                        p="xs"
+                        style={{
+                          position: "relative",
+                        }}
+                      >
+                        {/* Input Connection Node (Left) - Blue */}
                         <Box
                           ref={(el) => {
                             hashInputRefs.current[hashKey] = el;
                           }}
-                          p="xs"
                           style={{
-                            borderRadius: "4px",
-                            border: `2px solid ${colorScheme === "dark" ? "#4dabf7" : "#1c7ed6"}`,
-                            backgroundColor: colorScheme === "dark" ? "#1a1b1e" : "#fff",
+                            position: "absolute",
+                            left: -8,
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            width: 16,
+                            height: 16,
+                            borderRadius: "50%",
+                            background: colorScheme === "dark" ? "#4dabf7" : "#1c7ed6",
+                            border: "2px solid white",
+                            zIndex: 10,
                           }}
-                        >
-                          <Text size="xs" c="dimmed">Method:</Text>
-                          <Text size="sm" fw={500}>{hashMethod}</Text>
-                        </Box>
+                          title="Input connection point"
+                        />
+                        
+                        {/* Output Connection Node (Right) - Green */}
                         <Box
                           ref={(el) => {
                             hashOutputRefs.current[hashKey] = el;
                           }}
-                          p="xs"
                           style={{
-                            borderRadius: "4px",
-                            border: `2px solid ${colorScheme === "dark" ? "#51cf66" : "#2f9e44"}`,
-                            backgroundColor: colorScheme === "dark" ? "#1a1b1e" : "#fff",
+                            position: "absolute",
+                            right: -8,
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            width: 16,
+                            height: 16,
+                            borderRadius: "50%",
+                            background: colorScheme === "dark" ? "#51cf66" : "#2f9e44",
+                            border: "2px solid white",
+                            zIndex: 10,
                           }}
-                        >
-                          <Text size="xs" c="dimmed">Output</Text>
-                        </Box>
-                      </Stack>
-                    </Card>
+                          title="Output connection point"
+                        />
+
+                        <Group justify="space-between" mb="xs">
+                          <Group gap="xs">
+                            <IconHash size={16} />
+                            <Text fw={600} size="sm">
+                              Hash
+                            </Text>
+                          </Group>
+                        </Group>
+
+                        <Select
+                          size="xs"
+                          value={hashMethod}
+                          disabled
+                          data={[
+                            { value: "MD5", label: "MD5" },
+                            { value: "SHA-1", label: "SHA-1" },
+                            { value: "SHA-256", label: "SHA-256" },
+                          ]}
+                          styles={{
+                            input: {
+                              minHeight: "28px",
+                            },
+                          }}
+                        />
+                      </Card>
+                    </Box>
                   );
                 });
               })()}
