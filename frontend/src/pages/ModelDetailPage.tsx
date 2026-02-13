@@ -11,8 +11,9 @@ import {
   Tooltip,
   Box,
   useMantineColorScheme,
+  Title,
 } from "@mantine/core";
-import { IconArrowLeft, IconEdit, IconTrash } from "@tabler/icons-react";
+import { IconArrowLeft, IconEdit, IconTrash, IconHash } from "@tabler/icons-react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useModel, useDeleteModel } from "../hooks/useModels";
 import { PageHeader } from "../components/common/PageHeader";
@@ -33,12 +34,12 @@ export function ModelDetailPage() {
   // Refs for DAG visualization
   const topicFieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const modelFieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const hashInputRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const hashOutputRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [connectionLines, setConnectionLines] = useState<
     Array<{
-      x1: number;
-      y1: number;
-      x2: number;
-      y2: number;
+      path: string;
+      color: string;
     }>
   >([]);
 
@@ -55,29 +56,92 @@ export function ModelDetailPage() {
     if (!hasFieldMappings || !entityDetails) return;
 
     const calculateLines = () => {
-      const lines: Array<{ x1: number; y1: number; x2: number; y2: number }> =
-        [];
+      const lines: Array<{ path: string; color: string }> = [];
+      const cornerRadius = 10;
+
+      // Helper to create curved path
+      const createCurvedPath = (x1: number, y1: number, x2: number, y2: number): string => {
+        const midX = (x1 + x2) / 2;
+        let path = `M ${x1} ${y1}`;
+        path += ` L ${midX - cornerRadius} ${y1}`;
+        if (y2 > y1) {
+          path += ` Q ${midX} ${y1} ${midX} ${y1 + cornerRadius}`;
+          path += ` L ${midX} ${y2 - cornerRadius}`;
+          path += ` Q ${midX} ${y2} ${midX + cornerRadius} ${y2}`;
+        } else {
+          path += ` Q ${midX} ${y1} ${midX} ${y1 - cornerRadius}`;
+          path += ` L ${midX} ${y2 + cornerRadius}`;
+          path += ` Q ${midX} ${y2} ${midX + cornerRadius} ${y2}`;
+        }
+        path += ` L ${x2} ${y2}`;
+        return path;
+      };
 
       fieldMappings.forEach((mapping: any) => {
-        const topicFieldKey = `${mapping.topic_id}-${mapping.topic_field}`;
-        const modelFieldKey = mapping.model_field;
+        const hasTransformation = mapping.transformation && mapping.transformation.startsWith('hash_');
+        
+        if (hasTransformation) {
+          // Hash transformation: topic -> hash -> model
+          const topicFieldKey = `${mapping.topic_id}-${mapping.topic_field}`;
+          const hashKey = `${mapping.topic_id}-${mapping.topic_field}-${mapping.model_field}`;
+          const modelFieldKey = mapping.model_field;
 
-        const topicFieldEl = topicFieldRefs.current[topicFieldKey];
-        const modelFieldEl = modelFieldRefs.current[modelFieldKey];
+          const topicFieldEl = topicFieldRefs.current[topicFieldKey];
+          const hashInputEl = hashInputRefs.current[hashKey];
+          const hashOutputEl = hashOutputRefs.current[hashKey];
+          const modelFieldEl = modelFieldRefs.current[modelFieldKey];
 
-        if (topicFieldEl && modelFieldEl) {
-          const topicRect = topicFieldEl.getBoundingClientRect();
-          const modelRect = modelFieldEl.getBoundingClientRect();
-          const container = topicFieldEl.closest(".dag-container");
+          const container = topicFieldEl?.closest(".dag-container");
           const containerRect = container?.getBoundingClientRect();
 
-          if (containerRect) {
-            lines.push({
-              x1: topicRect.right - containerRect.left,
-              y1: topicRect.top + topicRect.height / 2 - containerRect.top,
-              x2: modelRect.left - containerRect.left,
-              y2: modelRect.top + modelRect.height / 2 - containerRect.top,
-            });
+          // Topic -> Hash (blue line)
+          if (topicFieldEl && hashInputEl && containerRect) {
+            const topicRect = topicFieldEl.getBoundingClientRect();
+            const hashInputRect = hashInputEl.getBoundingClientRect();
+            const path = createCurvedPath(
+              topicRect.right - containerRect.left,
+              topicRect.top + topicRect.height / 2 - containerRect.top,
+              hashInputRect.left - containerRect.left,
+              hashInputRect.top + hashInputRect.height / 2 - containerRect.top
+            );
+            lines.push({ path, color: "#4dabf7" });
+          }
+
+          // Hash -> Model (green line)
+          if (hashOutputEl && modelFieldEl && containerRect) {
+            const hashOutputRect = hashOutputEl.getBoundingClientRect();
+            const modelRect = modelFieldEl.getBoundingClientRect();
+            const path = createCurvedPath(
+              hashOutputRect.right - containerRect.left,
+              hashOutputRect.top + hashOutputRect.height / 2 - containerRect.top,
+              modelRect.left - containerRect.left,
+              modelRect.top + modelRect.height / 2 - containerRect.top
+            );
+            lines.push({ path, color: "#51cf66" });
+          }
+        } else {
+          // Direct mapping: topic -> model (blue line)
+          const topicFieldKey = `${mapping.topic_id}-${mapping.topic_field}`;
+          const modelFieldKey = mapping.model_field;
+
+          const topicFieldEl = topicFieldRefs.current[topicFieldKey];
+          const modelFieldEl = modelFieldRefs.current[modelFieldKey];
+
+          if (topicFieldEl && modelFieldEl) {
+            const topicRect = topicFieldEl.getBoundingClientRect();
+            const modelRect = modelFieldEl.getBoundingClientRect();
+            const container = topicFieldEl.closest(".dag-container");
+            const containerRect = container?.getBoundingClientRect();
+
+            if (containerRect) {
+              const path = createCurvedPath(
+                topicRect.right - containerRect.left,
+                topicRect.top + topicRect.height / 2 - containerRect.top,
+                modelRect.left - containerRect.left,
+                modelRect.top + modelRect.height / 2 - containerRect.top
+              );
+              lines.push({ path, color: "#4dabf7" });
+            }
           }
         }
       });
@@ -235,17 +299,6 @@ export function ModelDetailPage() {
             </Text>
             <Text fw={500}>{entityName}</Text>
           </div>
-
-          {topic && (
-            <div>
-              <Text size="sm" c="dimmed" mb={4}>
-                Source Topic
-              </Text>
-              <Badge variant="dot" size="lg">
-                {topic.name}
-              </Badge>
-            </div>
-          )}
         </Stack>
       </Card>
 
@@ -262,7 +315,7 @@ export function ModelDetailPage() {
             minHeight: "400px",
             display: "flex",
             justifyContent: "space-between",
-            gap: "60px",
+            gap: "40px",
             padding: "20px",
           }}
         >
@@ -280,7 +333,7 @@ export function ModelDetailPage() {
           >
             <defs>
               <marker
-                id="arrowhead-detail"
+                id="arrowhead-blue"
                 markerWidth="10"
                 markerHeight="10"
                 refX="9"
@@ -292,157 +345,231 @@ export function ModelDetailPage() {
                   fill={colorScheme === "dark" ? "#4dabf7" : "#1c7ed6"}
                 />
               </marker>
+              <marker
+                id="arrowhead-green"
+                markerWidth="10"
+                markerHeight="10"
+                refX="9"
+                refY="3"
+                orient="auto"
+              >
+                <polygon
+                  points="0 0, 10 3, 0 6"
+                  fill={colorScheme === "dark" ? "#51cf66" : "#2f9e44"}
+                />
+              </marker>
             </defs>
             {connectionLines.map((line, idx) => (
-              <line
+              <path
                 key={idx}
-                x1={line.x1}
-                y1={line.y1}
-                x2={line.x2}
-                y2={line.y2}
-                stroke={colorScheme === "dark" ? "#4dabf7" : "#1c7ed6"}
+                d={line.path}
+                stroke={line.color}
                 strokeWidth="2"
-                markerEnd="url(#arrowhead-detail)"
+                fill="none"
+                markerEnd={line.color === "#51cf66" ? "url(#arrowhead-green)" : "url(#arrowhead-blue)"}
               />
             ))}
           </svg>
 
           {/* Left side: Topic Fields */}
-          <Box style={{ flex: "0 0 40%", zIndex: 2 }}>
-            <Card withBorder shadow="sm" p="md">
-              <Stack gap="sm">
-                <Group justify="space-between">
-                  <Text fw={600} size="sm">
-                    Source Topic
-                  </Text>
-                  <Badge variant="dot" size="sm">
-                    {topic?.name || "Unknown"}
-                  </Badge>
-                </Group>
-                <Divider />
-                {topicSchema.length > 0 ? (
-                  <Stack gap="xs">
-                    {topicSchema.map((field: any) => {
-                      const isMapped = fieldMappings.some(
-                        (m: any) => m.topic_field === field.name,
-                      );
-                      const fieldKey = `${entityDetails.topic}-${field.name}`;
-                      return (
+          <Box style={{ flex: "0 0 30%", zIndex: 2 }}>
+            <Stack gap="md">
+              <Title order={5}>Source Topics</Title>
+              {(() => {
+                // Group mappings by topic
+                const topicGroups: Record<string, any[]> = {};
+                fieldMappings.forEach((m: any) => {
+                  if (!topicGroups[m.topic_id]) {
+                    topicGroups[m.topic_id] = [];
+                  }
+                  topicGroups[m.topic_id].push(m);
+                });
+
+                return Object.entries(topicGroups).map(([topicId, mappings]) => {
+                  const topicData = topics.find((t: any) => String(t.id) === String(topicId));
+                  const topicName = topicData?.name || "Unknown Topic";
+                  
+                  return (
+                    <Card key={topicId} withBorder shadow="sm" p="md">
+                      <Stack gap="sm">
+                        <Badge variant="dot" size="sm">
+                          {topicName}
+                        </Badge>
+                        <Divider />
+                        <Stack gap="xs">
+                          {mappings.map((mapping: any) => {
+                            const fieldKey = `${mapping.topic_id}-${mapping.topic_field}`;
+                            return (
+                              <Box
+                                key={fieldKey}
+                                ref={(el) => {
+                                  topicFieldRefs.current[fieldKey] = el;
+                                }}
+                                p="xs"
+                                style={{
+                                  borderRadius: "4px",
+                                  border: `1px solid ${colorScheme === "dark" ? "#373A40" : "#dee2e6"}`,
+                                  backgroundColor: colorScheme === "dark" ? "#25262b" : "#f8f9fa",
+                                }}
+                              >
+                                <Text size="sm" fw={500}>
+                                  {mapping.topic_field}
+                                </Text>
+                              </Box>
+                            );
+                          })}
+                        </Stack>
+                      </Stack>
+                    </Card>
+                  );
+                });
+              })()}
+            </Stack>
+          </Box>
+
+          {/* Middle: Hash Components */}
+          <Box style={{ flex: "0 0 30%", zIndex: 2 }}>
+            <Stack gap="md">
+              <Title order={5}>Transformations</Title>
+              {(() => {
+                // Find all hash transformations
+                const hashTransformations = fieldMappings.filter((m: any) => 
+                  m.transformation && m.transformation.startsWith('hash_')
+                );
+
+                if (hashTransformations.length === 0) {
+                  return (
+                    <Text c="dimmed" size="sm" ta="center" py="xl">
+                      No transformations
+                    </Text>
+                  );
+                }
+
+                return hashTransformations.map((mapping: any) => {
+                  const hashKey = `${mapping.topic_id}-${mapping.topic_field}-${mapping.model_field}`;
+                  const hashMethod = mapping.transformation.replace('hash_', '');
+                  
+                  return (
+                    <Card key={hashKey} withBorder shadow="sm" p="md">
+                      <Stack gap="sm">
+                        <Group gap="xs">
+                          <IconHash size={16} />
+                          <Text size="sm" fw={600}>Hash</Text>
+                        </Group>
+                        <Divider />
                         <Box
-                          key={field.name}
                           ref={(el) => {
-                            topicFieldRefs.current[fieldKey] = el;
+                            hashInputRefs.current[hashKey] = el;
                           }}
                           p="xs"
                           style={{
                             borderRadius: "4px",
-                            border: `1px solid ${isMapped ? (colorScheme === "dark" ? "#2f9e44" : "#37b24d") : colorScheme === "dark" ? "#373A40" : "#dee2e6"}`,
-                            backgroundColor: isMapped
-                              ? colorScheme === "dark"
-                                ? "#2b8a3e"
-                                : "#d3f9d8"
-                              : undefined,
+                            border: `2px solid ${colorScheme === "dark" ? "#4dabf7" : "#1c7ed6"}`,
+                            backgroundColor: colorScheme === "dark" ? "#1a1b1e" : "#fff",
                           }}
                         >
-                          <Text size="sm" fw={500}>
-                            {field.name}
-                          </Text>
-                          <Text size="xs" c="dimmed">
-                            {field.type}
-                          </Text>
+                          <Text size="xs" c="dimmed">Method:</Text>
+                          <Text size="sm" fw={500}>{hashMethod}</Text>
                         </Box>
-                      );
-                    })}
-                  </Stack>
-                ) : (
-                  <Text c="dimmed" size="sm" ta="center" py="md">
-                    No topic information available
-                  </Text>
-                )}
-              </Stack>
-            </Card>
+                        <Box
+                          ref={(el) => {
+                            hashOutputRefs.current[hashKey] = el;
+                          }}
+                          p="xs"
+                          style={{
+                            borderRadius: "4px",
+                            border: `2px solid ${colorScheme === "dark" ? "#51cf66" : "#2f9e44"}`,
+                            backgroundColor: colorScheme === "dark" ? "#1a1b1e" : "#fff",
+                          }}
+                        >
+                          <Text size="xs" c="dimmed">Output</Text>
+                        </Box>
+                      </Stack>
+                    </Card>
+                  );
+                });
+              })()}
+            </Stack>
           </Box>
 
           {/* Right side: Model Fields */}
-          <Box style={{ flex: "0 0 40%", zIndex: 2 }}>
-            <Card withBorder shadow="sm" p="md">
-              <Stack gap="sm">
-                <Group justify="space-between">
-                  <Text fw={600} size="sm">
-                    Model Fields
-                  </Text>
+          <Box style={{ flex: "0 0 30%", zIndex: 2 }}>
+            <Stack gap="md">
+              <Title order={5}>Model Fields</Title>
+              <Card withBorder shadow="sm" p="md">
+                <Stack gap="sm">
                   <Badge variant="outline" size="sm">
                     {entityType}
                   </Badge>
-                </Group>
-                <Divider />
-                {entityDetails.fields && entityDetails.fields.length > 0 ? (
-                  <Stack gap="xs">
-                    {entityDetails.fields.map((field: string) => {
-                      const mappingsForField = fieldMappings.filter(
-                        (m: any) => m.model_field === field,
-                      );
-                      return (
-                        <Box
-                          key={field}
-                          ref={(el) => {
-                            modelFieldRefs.current[field] = el;
-                          }}
-                          p="xs"
-                          style={{
-                            borderRadius: "4px",
-                            border: `1px solid ${colorScheme === "dark" ? "#1864ab" : "#4dabf7"}`,
-                            backgroundColor:
-                              colorScheme === "dark" ? "#1971c2" : "#e7f5ff",
-                          }}
-                        >
-                          <Text size="sm" fw={500}>
-                            {field}
-                          </Text>
-                           {mappingsForField.length > 0 && (
-                            <Group gap={4} mt={4}>
-                              {mappingsForField.map((m: any, idx: number) => {
-                                const sourceTopic = topics.find(
-                                  (t: any) =>
-                                    String(t.id) === String(m.topic_id),
-                                );
-                                const hasTransformation = m.transformation && m.transformation.startsWith('hash_');
-                                const transformationType = hasTransformation ? m.transformation.replace('hash_', '') : null;
-                                
-                                return (
-                                  <Badge
-                                    key={idx}
-                                    size="xs"
-                                    variant="light"
-                                    color={hasTransformation ? "green" : "blue"}
-                                  >
-                                    ← {m.topic_field}
-                                    {hasTransformation && ` [${transformationType}]`}
-                                    {sourceTopic && ` (${sourceTopic.name})`}
-                                  </Badge>
-                                );
-                              })}
-                            </Group>
-                          )}
-                        </Box>
-                      );
-                    })}
-                  </Stack>
-                ) : (
-                  <Text c="dimmed" size="sm" ta="center" py="md">
-                    No model fields defined
-                  </Text>
-                )}
-              </Stack>
-            </Card>
+                  <Divider />
+                  {entityDetails.fields && entityDetails.fields.length > 0 ? (
+                    <Stack gap="xs">
+                      {entityDetails.fields.map((field: string) => {
+                        const mappingsForField = fieldMappings.filter(
+                          (m: any) => m.model_field === field,
+                        );
+                        const isMapped = mappingsForField.length > 0;
+                        return (
+                          <Box
+                            key={field}
+                            ref={(el) => {
+                              modelFieldRefs.current[field] = el;
+                            }}
+                            p="xs"
+                            style={{
+                              borderRadius: "4px",
+                              border: `1px solid ${isMapped ? (colorScheme === "dark" ? "#1864ab" : "#4dabf7") : (colorScheme === "dark" ? "#373A40" : "#dee2e6")}`,
+                              backgroundColor: isMapped
+                                ? (colorScheme === "dark" ? "#1971c2" : "#e7f5ff")
+                                : (colorScheme === "dark" ? "#25262b" : "#f8f9fa"),
+                            }}
+                          >
+                            <Text size="sm" fw={500}>
+                              {field}
+                            </Text>
+                            {mappingsForField.length > 0 && (
+                              <Group gap={4} mt={4}>
+                                {mappingsForField.map((m: any, idx: number) => {
+                                  const sourceTopic = topics.find(
+                                    (t: any) =>
+                                      String(t.id) === String(m.topic_id),
+                                  );
+                                  const hasTransformation = m.transformation && m.transformation.startsWith('hash_');
+                                  const transformationType = hasTransformation ? m.transformation.replace('hash_', '') : null;
+                                  
+                                  return (
+                                    <Badge
+                                      key={idx}
+                                      size="xs"
+                                      variant="light"
+                                      color={hasTransformation ? "green" : "blue"}
+                                    >
+                                      ← {m.topic_field}
+                                      {hasTransformation && ` [${transformationType}]`}
+                                    </Badge>
+                                  );
+                                })}
+                              </Group>
+                            )}
+                          </Box>
+                        );
+                      })}
+                    </Stack>
+                  ) : (
+                    <Text c="dimmed" size="sm" ta="center" py="md">
+                      No model fields defined
+                    </Text>
+                  )}
+                </Stack>
+              </Card>
+            </Stack>
           </Box>
         </Box>
 
         {/* Show message if no mappings available */}
         {!hasFieldMappings && (
           <Text c="dimmed" ta="center" mt="md" size="sm">
-            Mapping information not available for this model. Models created
-            with the new canvas will show connection lines here.
+            No field mappings available. Create mappings in the Data Model Canvas.
           </Text>
         )}
       </Card>
