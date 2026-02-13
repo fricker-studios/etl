@@ -494,6 +494,14 @@ export function ModelCanvasPage() {
       ),
     );
   };
+  
+  const handleRemoveHashConnection = (connectionId: string) => {
+    setHashConnections(hashConnections.filter((c) => c.id !== connectionId));
+    notifications.show({
+      message: "Connection removed",
+      color: "blue",
+    });
+  };
 
   const handleStartEditField = (fieldName: string) => {
     setEditingField(fieldName);
@@ -677,7 +685,14 @@ export function ModelCanvasPage() {
 
   // Calculate connection lines with rounded right angles
   const calculateConnectionLines = () => {
-    const lines: Array<{ path: string; color?: string }> = [];
+    const lines: Array<{ 
+      path: string; 
+      color?: string; 
+      id?: string; 
+      type: 'topic-model' | 'topic-hash' | 'hash-model';
+      midX: number;
+      midY: number;
+    }> = [];
 
     if (!canvasRef.current) return lines;
 
@@ -709,36 +724,37 @@ export function ModelCanvasPage() {
 
         // Create a path with rounded right angles
         const midX = (x1 + x2) / 2;
+        const midY = (y1 + y2) / 2;
         const cornerRadius = 10;
 
         // Build the path: start -> horizontal -> vertical -> horizontal -> end
-        // With rounded corners
+        // With rounded corners (always use curved path)
         let path = `M ${x1} ${y1}`;
         
-        // If vertical distance is less than twice the corner radius, 
-        // we can't fit both rounded corners, so use a direct line instead
-        if (Math.abs(y2 - y1) < cornerRadius * 2) {
-          path += ` L ${x2} ${y2}`;
+        // Go horizontally to the midpoint minus corner radius
+        path += ` L ${midX - cornerRadius} ${y1}`;
+        
+        // Add rounded corner going down or up
+        if (y2 > y1) {
+          path += ` Q ${midX} ${y1} ${midX} ${y1 + cornerRadius}`;
+          path += ` L ${midX} ${y2 - cornerRadius}`;
+          path += ` Q ${midX} ${y2} ${midX + cornerRadius} ${y2}`;
         } else {
-          // Go horizontally to the midpoint minus corner radius
-          path += ` L ${midX - cornerRadius} ${y1}`;
-          
-          // Add rounded corner going down or up
-          if (y2 > y1) {
-            path += ` Q ${midX} ${y1} ${midX} ${y1 + cornerRadius}`;
-            path += ` L ${midX} ${y2 - cornerRadius}`;
-            path += ` Q ${midX} ${y2} ${midX + cornerRadius} ${y2}`;
-          } else {
-            path += ` Q ${midX} ${y1} ${midX} ${y1 - cornerRadius}`;
-            path += ` L ${midX} ${y2 + cornerRadius}`;
-            path += ` Q ${midX} ${y2} ${midX + cornerRadius} ${y2}`;
-          }
-          
-          // Go horizontally to the end point
-          path += ` L ${x2} ${y2}`;
+          path += ` Q ${midX} ${y1} ${midX} ${y1 - cornerRadius}`;
+          path += ` L ${midX} ${y2 + cornerRadius}`;
+          path += ` Q ${midX} ${y2} ${midX + cornerRadius} ${y2}`;
         }
+        
+        // Go horizontally to the end point
+        path += ` L ${x2} ${y2}`;
 
-        lines.push({ path });
+        lines.push({ 
+          path, 
+          type: 'topic-model',
+          id: `${mapping.topicId}-${mapping.topicField}-${mapping.modelField}`,
+          midX,
+          midY
+        });
       }
     });
     
@@ -764,29 +780,33 @@ export function ModelCanvasPage() {
           const y2 = hashRect.top + hashRect.height / 2 - canvasRect.top + scrollTop;
           
           const midX = (x1 + x2) / 2;
+          const midY = (y1 + y2) / 2;
           const cornerRadius = 10;
           
           let path = `M ${x1} ${y1}`;
           
-          if (Math.abs(y2 - y1) < cornerRadius * 2) {
-            path += ` L ${x2} ${y2}`;
+          path += ` L ${midX - cornerRadius} ${y1}`;
+          
+          if (y2 > y1) {
+            path += ` Q ${midX} ${y1} ${midX} ${y1 + cornerRadius}`;
+            path += ` L ${midX} ${y2 - cornerRadius}`;
+            path += ` Q ${midX} ${y2} ${midX + cornerRadius} ${y2}`;
           } else {
-            path += ` L ${midX - cornerRadius} ${y1}`;
-            
-            if (y2 > y1) {
-              path += ` Q ${midX} ${y1} ${midX} ${y1 + cornerRadius}`;
-              path += ` L ${midX} ${y2 - cornerRadius}`;
-              path += ` Q ${midX} ${y2} ${midX + cornerRadius} ${y2}`;
-            } else {
-              path += ` Q ${midX} ${y1} ${midX} ${y1 - cornerRadius}`;
-              path += ` L ${midX} ${y2 + cornerRadius}`;
-              path += ` Q ${midX} ${y2} ${midX + cornerRadius} ${y2}`;
-            }
-            
-            path += ` L ${x2} ${y2}`;
+            path += ` Q ${midX} ${y1} ${midX} ${y1 - cornerRadius}`;
+            path += ` L ${midX} ${y2 + cornerRadius}`;
+            path += ` Q ${midX} ${y2} ${midX + cornerRadius} ${y2}`;
           }
           
-          lines.push({ path, color: '#4dabf7' }); // Blue for hash input connections
+          path += ` L ${x2} ${y2}`;
+          
+          lines.push({ 
+            path, 
+            color: '#4dabf7',
+            type: 'topic-hash',
+            id: connection.id,
+            midX,
+            midY
+          }); // Blue for hash input connections
         }
       } else if (connection.sourceType === 'hash' && connection.targetType === 'model' && connection.targetField) {
         // Hash output -> Model field
@@ -803,29 +823,33 @@ export function ModelCanvasPage() {
           const y2 = fieldRect.top + fieldRect.height / 2 - canvasRect.top + scrollTop;
           
           const midX = (x1 + x2) / 2;
+          const midY = (y1 + y2) / 2;
           const cornerRadius = 10;
           
           let path = `M ${x1} ${y1}`;
           
-          if (Math.abs(y2 - y1) < cornerRadius * 2) {
-            path += ` L ${x2} ${y2}`;
+          path += ` L ${midX - cornerRadius} ${y1}`;
+          
+          if (y2 > y1) {
+            path += ` Q ${midX} ${y1} ${midX} ${y1 + cornerRadius}`;
+            path += ` L ${midX} ${y2 - cornerRadius}`;
+            path += ` Q ${midX} ${y2} ${midX + cornerRadius} ${y2}`;
           } else {
-            path += ` L ${midX - cornerRadius} ${y1}`;
-            
-            if (y2 > y1) {
-              path += ` Q ${midX} ${y1} ${midX} ${y1 + cornerRadius}`;
-              path += ` L ${midX} ${y2 - cornerRadius}`;
-              path += ` Q ${midX} ${y2} ${midX + cornerRadius} ${y2}`;
-            } else {
-              path += ` Q ${midX} ${y1} ${midX} ${y1 - cornerRadius}`;
-              path += ` L ${midX} ${y2 + cornerRadius}`;
-              path += ` Q ${midX} ${y2} ${midX + cornerRadius} ${y2}`;
-            }
-            
-            path += ` L ${x2} ${y2}`;
+            path += ` Q ${midX} ${y1} ${midX} ${y1 - cornerRadius}`;
+            path += ` L ${midX} ${y2 + cornerRadius}`;
+            path += ` Q ${midX} ${y2} ${midX + cornerRadius} ${y2}`;
           }
           
-          lines.push({ path, color: '#51cf66' }); // Green for hash output connections
+          path += ` L ${x2} ${y2}`;
+          
+          lines.push({ 
+            path, 
+            color: '#51cf66',
+            type: 'hash-model',
+            id: connection.id,
+            midX,
+            midY
+          }); // Green for hash output connections
         }
       }
     });
@@ -834,7 +858,14 @@ export function ModelCanvasPage() {
   };
 
   const [connectionLines, setConnectionLines] = useState<
-    Array<{ path: string; color?: string }>
+    Array<{ 
+      path: string; 
+      color?: string;
+      id?: string;
+      type: 'topic-model' | 'topic-hash' | 'hash-model';
+      midX: number;
+      midY: number;
+    }>
   >([]);
 
   // Update connection lines when mappings change
@@ -1588,6 +1619,11 @@ export function ModelCanvasPage() {
                       position: "relative",
                     }}
                     onMouseDown={(e) => {
+                      // Don't start dragging if clicking on a connection node
+                      const target = e.target as HTMLElement;
+                      if (target.hasAttribute('data-connection-node')) {
+                        return;
+                      }
                       if (!canvasRef.current) return;
                       const canvasRect = canvasRef.current.getBoundingClientRect();
                       setDraggingHash(hashComp.id);
@@ -1611,6 +1647,9 @@ export function ModelCanvasPage() {
                         e.stopPropagation();
                         handleHashInputDrop(hashComp.id);
                       }}
+                      onMouseDown={(e) => {
+                        e.stopPropagation(); // Prevent card drag when clicking input node
+                      }}
                       style={{
                         position: "absolute",
                         left: -8,
@@ -1625,6 +1664,7 @@ export function ModelCanvasPage() {
                         zIndex: 10,
                         transition: "all 0.2s ease",
                       }}
+                      data-connection-node="true"
                       title="Drop topic field here to connect"
                     />
                     
@@ -1645,6 +1685,9 @@ export function ModelCanvasPage() {
                         e.stopPropagation();
                         handleHashOutputDragEnd();
                       }}
+                      onMouseDown={(e) => {
+                        e.stopPropagation(); // Prevent card drag when clicking output node
+                      }}
                       style={{
                         position: "absolute",
                         right: -8,
@@ -1658,6 +1701,7 @@ export function ModelCanvasPage() {
                         cursor: "grab",
                         zIndex: 10,
                       }}
+                      data-connection-node="true"
                       title="Drag to model field to connect"
                     />
 
@@ -1736,14 +1780,63 @@ export function ModelCanvasPage() {
               </marker>
             </defs>
             {connectionLines.map((line, idx) => (
-              <path
-                key={idx}
-                d={line.path}
-                stroke={line.color || (colorScheme === "dark" ? "#4dabf7" : "#1c7ed6")}
-                strokeWidth="2"
-                fill="none"
-                markerEnd="url(#arrowhead)"
-              />
+              <g key={idx}>
+                <path
+                  d={line.path}
+                  stroke={line.color || (colorScheme === "dark" ? "#4dabf7" : "#1c7ed6")}
+                  strokeWidth="2"
+                  fill="none"
+                  markerEnd="url(#arrowhead)"
+                />
+                {/* Delete button on connection line */}
+                {line.id && (
+                  <g
+                    style={{ pointerEvents: "all", cursor: "pointer" }}
+                    onClick={() => {
+                      if (!line.id) return;
+                      if (line.type === 'topic-model') {
+                        // Extract mapping info from id
+                        const [topicId, topicField, modelField] = line.id.split('-');
+                        const mapping = fieldMappings.find(
+                          m => m.topicId === topicId && 
+                               m.topicField === topicField && 
+                               m.modelField === modelField
+                        );
+                        if (mapping) handleRemoveMapping(mapping);
+                      } else if (line.type === 'topic-hash' || line.type === 'hash-model') {
+                        handleRemoveHashConnection(line.id);
+                      }
+                    }}
+                  >
+                    <circle
+                      cx={line.midX}
+                      cy={line.midY}
+                      r="10"
+                      fill={colorScheme === "dark" ? "#2c2e33" : "#ffffff"}
+                      stroke={line.color || (colorScheme === "dark" ? "#4dabf7" : "#1c7ed6")}
+                      strokeWidth="2"
+                    />
+                    <line
+                      x1={line.midX - 4}
+                      y1={line.midY - 4}
+                      x2={line.midX + 4}
+                      y2={line.midY + 4}
+                      stroke="#fa5252"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                    <line
+                      x1={line.midX + 4}
+                      y1={line.midY - 4}
+                      x2={line.midX - 4}
+                      y2={line.midY + 4}
+                      stroke="#fa5252"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                  </g>
+                )}
+              </g>
             ))}
           </svg>
         </Box>
