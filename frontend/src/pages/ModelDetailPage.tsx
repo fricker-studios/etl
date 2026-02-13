@@ -222,11 +222,6 @@ export function ModelDetailPage() {
     }
   }
 
-  const topic = topics.find((t: any) => String(t.id) === entityDetails?.topic);
-
-  // Get topic schema for displaying fields
-  const topicSchema = topic?.current_revision?.schema || [];
-
   return (
     <Stack>
       <Group justify="space-between" align="flex-start">
@@ -576,10 +571,6 @@ export function ModelDetailPage() {
                             {mappingsForField.length > 0 && (
                               <Group gap={4} mt={4}>
                                 {mappingsForField.map((m: any, idx: number) => {
-                                  const sourceTopic = topics.find(
-                                    (t: any) =>
-                                      String(t.id) === String(m.topic_id),
-                                  );
                                   const hasTransformation = m.transformation && m.transformation.startsWith('hash_');
                                   const transformationType = hasTransformation ? m.transformation.replace('hash_', '') : null;
                                   
