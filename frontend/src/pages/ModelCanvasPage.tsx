@@ -217,7 +217,11 @@ export function ModelCanvasPage() {
   // Canvas panning handlers
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
     // Only start panning if clicking on the canvas background (not on cards or other elements)
-    if (e.target !== e.currentTarget && e.target !== canvasRef.current?.querySelector('[data-canvas-content]')) {
+    // Check if the target is the canvas container itself or the canvas content div
+    const target = e.target as HTMLElement;
+    const isCanvasBackground = e.target === e.currentTarget || target.hasAttribute('data-canvas-content');
+    
+    if (!isCanvasBackground) {
       return;
     }
     
@@ -787,6 +791,8 @@ export function ModelCanvasPage() {
           {contextMenuPos && (
             <>
               <Box
+                role="button"
+                tabIndex={0}
                 style={{
                   position: "fixed",
                   top: 0,
@@ -800,6 +806,12 @@ export function ModelCanvasPage() {
                   e.preventDefault();
                   closeContextMenu();
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    closeContextMenu();
+                  }
+                }}
+                aria-label="Close context menu"
               />
               <Paper
                 shadow="md"
@@ -825,9 +837,6 @@ export function ModelCanvasPage() {
                         p="xs"
                         style={{
                           cursor: "pointer",
-                          "&:hover": {
-                            backgroundColor: colorScheme === "dark" ? "var(--mantine-color-dark-6)" : "var(--mantine-color-gray-0)",
-                          },
                         }}
                         onClick={() => {
                           handleAddTopic(String(topic.id));
