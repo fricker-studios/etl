@@ -13,8 +13,22 @@ import {
   useMantineColorScheme,
   Title,
   Select,
+  Alert,
+  Paper,
+  SimpleGrid,
 } from "@mantine/core";
-import { IconArrowLeft, IconEdit, IconTrash, IconHash } from "@tabler/icons-react";
+import { 
+  IconArrowLeft, 
+  IconEdit, 
+  IconTrash, 
+  IconHash,
+  IconTable,
+  IconDatabase,
+  IconColumns,
+  IconCalendar,
+  IconClockHour4,
+  IconRefresh,
+} from "@tabler/icons-react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useModel, useDeleteModel } from "../hooks/useModels";
 import { PageHeader } from "../components/common/PageHeader";
@@ -609,6 +623,158 @@ export function ModelDetailPage() {
             No field mappings available. Create mappings in the Data Model Canvas.
           </Text>
         )}
+      </Card>
+
+      {/* External Table Section */}
+      <Card withBorder shadow="sm" mt="md">
+        <Title order={3} mb="md">
+          External Table
+        </Title>
+
+        {(() => {
+          // Placeholder - check if backend is configured
+          const backendConfigured = true; // This will be replaced with actual API call
+
+          if (!backendConfigured) {
+            return (
+              <Alert variant="light" color="yellow" title="Backend Not Configured">
+                The external database backend is not configured. Configure a data
+                warehouse connection to see table statistics.
+              </Alert>
+            );
+          }
+
+          // Placeholder data - will be fetched from backend
+          const externalTableData = {
+            tableName: `data_vault.${model.entity_type?.toLowerCase()}_${model.name?.toLowerCase().replace(/\s+/g, "")}`,
+            status: "created" as "created" | "not_created" | "updating" | "error",
+            rowCount: 1234567,
+            tableSizeMB: 245.8,
+            columnCount: 12,
+            lastUpdated: new Date("2024-02-13T14:30:45"),
+            createdDate: new Date("2024-01-15T09:22:10"),
+            lastSyncMinutesAgo: 5,
+          };
+
+          const statusColors = {
+            created: "green",
+            updating: "blue",
+            not_created: "gray",
+            error: "red",
+          };
+
+          const statusLabels = {
+            created: "Created",
+            updating: "Updating",
+            not_created: "Not Created",
+            error: "Error",
+          };
+
+          return (
+            <>
+              <Group justify="space-between" mb="md">
+                <Text size="sm" c="dimmed" ff="monospace">
+                  {externalTableData.tableName}
+                </Text>
+                <Badge color={statusColors[externalTableData.status]} size="lg">
+                  {statusLabels[externalTableData.status]}
+                </Badge>
+              </Group>
+
+              <SimpleGrid cols={2} spacing="md">
+                {/* Row Count */}
+                <Paper withBorder p="md" style={{ cursor: "default" }}>
+                  <Stack gap="xs">
+                    <Group gap="xs">
+                      <IconTable size={20} style={{ color: "#228be6" }} />
+                      <Text size="xs" c="dimmed" fw={600}>
+                        Rows
+                      </Text>
+                    </Group>
+                    <Text size="xl" fw={700}>
+                      {externalTableData.rowCount.toLocaleString()}
+                    </Text>
+                  </Stack>
+                </Paper>
+
+                {/* Table Size */}
+                <Paper withBorder p="md" style={{ cursor: "default" }}>
+                  <Stack gap="xs">
+                    <Group gap="xs">
+                      <IconDatabase size={20} style={{ color: "#228be6" }} />
+                      <Text size="xs" c="dimmed" fw={600}>
+                        Size
+                      </Text>
+                    </Group>
+                    <Text size="xl" fw={700}>
+                      {externalTableData.tableSizeMB} MB
+                    </Text>
+                  </Stack>
+                </Paper>
+
+                {/* Column Count */}
+                <Paper withBorder p="md" style={{ cursor: "default" }}>
+                  <Stack gap="xs">
+                    <Group gap="xs">
+                      <IconColumns size={20} style={{ color: "#228be6" }} />
+                      <Text size="xs" c="dimmed" fw={600}>
+                        Columns
+                      </Text>
+                    </Group>
+                    <Text size="xl" fw={700}>
+                      {externalTableData.columnCount}
+                    </Text>
+                  </Stack>
+                </Paper>
+
+                {/* Last Updated */}
+                <Paper withBorder p="md" style={{ cursor: "default" }}>
+                  <Stack gap="xs">
+                    <Group gap="xs">
+                      <IconCalendar size={20} style={{ color: "#228be6" }} />
+                      <Text size="xs" c="dimmed" fw={600}>
+                        Last Updated
+                      </Text>
+                    </Group>
+                    <Text size="sm" fw={600}>
+                      {externalTableData.lastUpdated.toLocaleString()}
+                    </Text>
+                  </Stack>
+                </Paper>
+
+                {/* Created Date */}
+                <Paper withBorder p="md" style={{ cursor: "default" }}>
+                  <Stack gap="xs">
+                    <Group gap="xs">
+                      <IconClockHour4 size={20} style={{ color: "#228be6" }} />
+                      <Text size="xs" c="dimmed" fw={600}>
+                        Created
+                      </Text>
+                    </Group>
+                    <Text size="sm" fw={600}>
+                      {externalTableData.createdDate.toLocaleString()}
+                    </Text>
+                  </Stack>
+                </Paper>
+
+                {/* Last Sync */}
+                <Paper withBorder p="md" style={{ cursor: "default" }}>
+                  <Stack gap="xs">
+                    <Group gap="xs">
+                      <IconRefresh size={20} style={{ color: "#228be6" }} />
+                      <Text size="xs" c="dimmed" fw={600}>
+                        Last Sync
+                      </Text>
+                    </Group>
+                    <Text size="sm" fw={600}>
+                      {externalTableData.lastSyncMinutesAgo} minutes ago
+                    </Text>
+                  </Stack>
+                </Paper>
+              </SimpleGrid>
+            </>
+          );
+        })()}
       </Card>
 
       {/* Edit Modal - Note: This is a placeholder. Full edit functionality would require enhancing ModelWizard */}
