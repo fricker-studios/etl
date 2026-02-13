@@ -15,6 +15,8 @@ import {
   Select,
   Alert,
   SimpleGrid,
+  Loader,
+  Button,
 } from "@mantine/core";
 import { 
   IconArrowLeft, 
@@ -26,6 +28,7 @@ import {
   IconColumns,
   IconCalendar,
   IconRefresh,
+  IconSettings,
 } from "@tabler/icons-react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useModel, useDeleteModel } from "../hooks/useModels";
@@ -34,6 +37,8 @@ import { modals } from "@mantine/modals";
 import { useDisclosure } from "@mantine/hooks";
 import { useTopics } from "../hooks/useTopics";
 import { useRef, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "../utils/api";
 
 export function ModelDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -43,6 +48,19 @@ export function ModelDetailPage() {
   const { data: topics = [] } = useTopics();
   const [editModalOpen, { open: openEditModal }] = useDisclosure(false);
   const { colorScheme } = useMantineColorScheme();
+
+  // Fetch ClickHouse status
+  const { data: clickhouseStatus } = useQuery({
+    queryKey: ["clickhouse-status"],
+    queryFn: () => api.models.clickhouseStatus(),
+  });
+
+  // Fetch table statistics
+  const { data: tableStats, isLoading: tableStatsLoading } = useQuery({
+    queryKey: ["table-stats", id],
+    queryFn: () => api.models.tableStats(id!),
+    enabled: !!id && clickhouseStatus?.configured === true,
+  });
 
   // Refs for DAG visualization
   const topicFieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -315,38 +333,63 @@ export function ModelDetailPage() {
 
           {/* External Table Information */}
           {(() => {
-            // Placeholder - check if backend is configured
-            const backendConfigured = true; // This will be replaced with actual API call
-
-            if (!backendConfigured) {
+            // Check if ClickHouse backend is configured
+            if (clickhouseStatus?.configured === false) {
               return (
-                <Alert variant="light" color="yellow" title="External Database Not Configured">
-                  Configure a data warehouse connection to see table statistics.
+                <Alert variant="light" color="yellow" title="ClickHouse Not Configured" icon={<IconDatabase size={20} />}>
+                  <Text size="sm" mb="sm">
+                    Configure a ClickHouse data warehouse connection to see table statistics.
+                  </Text>
+                  <Button
+                    component={Link}
+                    to="/settings"
+                    size="xs"
+                    variant="light"
+                    leftSection={<IconSettings size={16} />}
+                  >
+                    Go to Settings
+                  </Button>
                 </Alert>
               );
             }
 
-            // Placeholder data - will be fetched from backend
-            // Determine entity type from model structure
-            const tableEntityType = model.type === "data_vault"
-              ? (model.hubs && model.hubs.length > 0 ? "hub"
-                : model.links && model.links.length > 0 ? "link"
-                : model.satellites && model.satellites.length > 0 ? "satellite"
-                : "entity")
-              : (model.facts && model.facts.length > 0 ? "fact"
-                : model.dimensions && model.dimensions.length > 0 ? "dimension"
-                : "entity");
-            
-            const externalTableData = {
-              tableName: `data_vault.${tableEntityType}_${model.name?.toLowerCase().replace(/\s+/g, "")}`,
-              status: "created" as "created" | "not_created" | "updating" | "error",
-              rowCount: 1234567,
-              tableSizeMB: 245.8,
-              columnCount: 12,
-              lastUpdated: new Date("2024-02-13T14:30:45"),
-              lastSyncMinutesAgo: 5,
-            };
+            // Show loading state
+            if (tableStatsLoading) {
+              return (
+                <Group justify="center" p="md">
+                  <Loader size="sm" />
+                  <Text size="sm" c="dimmed">Loading table statistics...</Text>
+                </Group>
+              );
+            }
 
+            // Show error or not created state
+            if (!tableStats || tableStats.exists === false) {
+              const statusColors = {
+                not_created: "gray",
+                error: "red",
+              };
+              const status = tableStats?.status || "not_created";
+              
+              return (
+                <Alert 
+                  variant="light" 
+                  color={status === "error" ? "red" : "gray"}
+                  title={status === "error" ? "Table Error" : "Table Not Created"}
+                >
+                  <Text size="sm">
+                    {tableStats?.message || `Table ${tableStats?.table_name || "for this model"} does not exist yet.`}
+                  </Text>
+                  {tableStats?.table_name && (
+                    <Text size="xs" ff="monospace" c="dimmed" mt="xs">
+                      {tableStats.table_name}
+                    </Text>
+                  )}
+                </Alert>
+              );
+            }
+
+            // Show table statistics
             const statusColors = {
               created: "green",
               updating: "blue",
@@ -361,6 +404,10 @@ export function ModelDetailPage() {
               error: "Error",
             };
 
+            const lastSyncTime = tableStats.last_updated 
+              ? Math.floor((Date.now() - new Date(tableStats.last_updated).getTime()) / 60000)
+              : null;
+
             return (
               <>
                 <div>
@@ -368,12 +415,12 @@ export function ModelDetailPage() {
                     <Text size="sm" c="dimmed" fw={600}>
                       External Table
                     </Text>
-                    <Badge color={statusColors[externalTableData.status]} size="sm">
-                      {statusLabels[externalTableData.status]}
+                    <Badge color={statusColors[tableStats.status as keyof typeof statusColors]} size="sm">
+                      {statusLabels[tableStats.status as keyof typeof statusLabels]}
                     </Badge>
                   </Group>
                   <Text size="sm" ff="monospace" c="dimmed">
-                    {externalTableData.tableName}
+                    {tableStats.table_name}
                   </Text>
                 </div>
 
@@ -387,7 +434,7 @@ export function ModelDetailPage() {
                       </Text>
                     </Group>
                     <Text size="lg" fw={700}>
-                      {externalTableData.rowCount.toLocaleString()}
+                      {tableStats.row_count?.toLocaleString() || "0"}
                     </Text>
                   </div>
 
@@ -400,7 +447,7 @@ export function ModelDetailPage() {
                       </Text>
                     </Group>
                     <Text size="lg" fw={700}>
-                      {externalTableData.tableSizeMB} MB
+                      {tableStats.size_mb} MB
                     </Text>
                   </div>
 
@@ -413,7 +460,7 @@ export function ModelDetailPage() {
                       </Text>
                     </Group>
                     <Text size="lg" fw={700}>
-                      {externalTableData.columnCount}
+                      {tableStats.column_count}
                     </Text>
                   </div>
 
@@ -426,22 +473,26 @@ export function ModelDetailPage() {
                       </Text>
                     </Group>
                     <Text size="sm" fw={600}>
-                      {externalTableData.lastUpdated.toLocaleString()}
+                      {tableStats.last_updated 
+                        ? new Date(tableStats.last_updated).toLocaleString()
+                        : "N/A"}
                     </Text>
                   </div>
 
                   {/* Last Sync */}
-                  <div>
-                    <Group gap={6} mb={4}>
-                      <IconRefresh size={16} style={{ color: "#228be6" }} />
-                      <Text size="xs" c="dimmed" fw={600}>
-                        Last Sync
+                  {lastSyncTime !== null && (
+                    <div>
+                      <Group gap={6} mb={4}>
+                        <IconRefresh size={16} style={{ color: "#228be6" }} />
+                        <Text size="xs" c="dimmed" fw={600}>
+                          Last Sync
+                        </Text>
+                      </Group>
+                      <Text size="sm" fw={600}>
+                        {lastSyncTime < 1 ? "Just now" : `${lastSyncTime} min ago`}
                       </Text>
-                    </Group>
-                    <Text size="sm" fw={600}>
-                      {externalTableData.lastSyncMinutesAgo} min ago
-                    </Text>
-                  </div>
+                    </div>
+                  )}
                 </SimpleGrid>
               </>
             );

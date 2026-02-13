@@ -171,6 +171,8 @@ export const api = {
       request(`/models/${id}/`, {
         method: "DELETE",
       }),
+    clickhouseStatus: () => request("/models/clickhouse_status/"),
+    tableStats: (id: string) => request(`/models/${id}/table_stats/`),
   },
 
   // Topics
