@@ -92,6 +92,7 @@ export function ModelCanvasPage() {
   // Context menu state
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [showTopicSubmenu, setShowTopicSubmenu] = useState(false);
+  const [showTransformSubmenu, setShowTransformSubmenu] = useState(false);
 
   // Auto-generate entity name when model name or entity type changes
   // Only auto-generate if the user hasn't manually edited the entity name
@@ -278,6 +279,7 @@ export function ModelCanvasPage() {
   const closeContextMenu = () => {
     setContextMenuPos(null);
     setShowTopicSubmenu(false);
+    setShowTransformSubmenu(false);
   };
 
   const toggleTopicExpanded = (topicId: string) => {
@@ -731,65 +733,6 @@ export function ModelCanvasPage() {
           </Button>
         </Group>
 
-        {/* Floating Action Button - outside canvas for proper fixed positioning */}
-        <Box style={{ position: "fixed", top: 140, left: 32, zIndex: 1000 }}>
-          <Menu shadow="md" width={200}>
-            <Menu.Target>
-              <ActionIcon 
-                size={56} 
-                variant="filled" 
-                color="blue"
-                radius="xl"
-                style={{
-                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
-                }}
-              >
-                <IconPlus size={28} />
-              </ActionIcon>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu
-                trigger="hover"
-                openDelay={100}
-                closeDelay={400}
-              >
-                <Menu.Target>
-                  <Menu.Item rightSection={<IconChevronRight size={14} />}>
-                    Add Topic
-                  </Menu.Item>
-                </Menu.Target>
-                <Menu.Dropdown style={{ maxHeight: "400px", overflowY: "auto" }}>
-                  {availableTopics.length > 0 ? (
-                    availableTopics.map((topic: any) => (
-                      <Menu.Item
-                        key={topic.id}
-                        onClick={() => handleAddTopic(String(topic.id))}
-                      >
-                        {topic.name}
-                      </Menu.Item>
-                    ))
-                  ) : (
-                    <Menu.Item disabled>No more topics available</Menu.Item>
-                  )}
-                </Menu.Dropdown>
-              </Menu>
-              <Menu.Divider />
-              <Menu.Label>Add Transformation</Menu.Label>
-              <Menu.Item
-                leftSection={<IconHash size={16} />}
-                onClick={() => {
-                  notifications.show({
-                    message: "Hash transformation selected",
-                    color: "blue",
-                  });
-                }}
-              >
-                Hash
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
-        </Box>
-
         {/* Single Canvas with SVG overlay */}
         <Box
           ref={canvasRef}
@@ -809,6 +752,76 @@ export function ModelCanvasPage() {
           onMouseLeave={handleCanvasMouseUp}
           onContextMenu={handleCanvasContextMenu}
         >
+          {/* Floating Action Button - positioned inside canvas */}
+          <Box style={{ position: "absolute", top: 16, left: 16, zIndex: 10 }}>
+            <Menu shadow="md" width={200}>
+              <Menu.Target>
+                <ActionIcon 
+                  size={56} 
+                  variant="filled" 
+                  color="blue"
+                  radius="xl"
+                  style={{
+                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+                  }}
+                >
+                  <IconPlus size={28} />
+                </ActionIcon>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu
+                  trigger="hover"
+                  openDelay={100}
+                  closeDelay={400}
+                >
+                  <Menu.Target>
+                    <Menu.Item rightSection={<IconChevronRight size={14} />}>
+                      Add Topic
+                    </Menu.Item>
+                  </Menu.Target>
+                  <Menu.Dropdown style={{ maxHeight: "400px", overflowY: "auto" }}>
+                    {availableTopics.length > 0 ? (
+                      availableTopics.map((topic: any) => (
+                        <Menu.Item
+                          key={topic.id}
+                          onClick={() => handleAddTopic(String(topic.id))}
+                        >
+                          {topic.name}
+                        </Menu.Item>
+                      ))
+                    ) : (
+                      <Menu.Item disabled>No more topics available</Menu.Item>
+                    )}
+                  </Menu.Dropdown>
+                </Menu>
+                <Menu.Divider />
+                <Menu
+                  trigger="hover"
+                  openDelay={100}
+                  closeDelay={400}
+                >
+                  <Menu.Target>
+                    <Menu.Item rightSection={<IconChevronRight size={14} />}>
+                      Add Transformation
+                    </Menu.Item>
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    <Menu.Item
+                      leftSection={<IconHash size={16} />}
+                      onClick={() => {
+                        notifications.show({
+                          message: "Hash transformation selected",
+                          color: "blue",
+                        });
+                      }}
+                    >
+                      Hash
+                    </Menu.Item>
+                  </Menu.Dropdown>
+                </Menu>
+              </Menu.Dropdown>
+            </Menu>
+          </Box>
 
           {/* Context Menu */}
           {contextMenuPos && (
@@ -913,35 +926,65 @@ export function ModelCanvasPage() {
                     )}
                   </Box>
                   <Divider />
-                  <Box p="xs" style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}>
-                    <Text size="xs" fw={600} c="dimmed">
-                      Add Transformation
-                    </Text>
-                  </Box>
                   <Box
                     p="xs"
                     style={{
                       cursor: "pointer",
                       display: "flex",
                       alignItems: "center",
-                      gap: "8px",
+                      justifyContent: "space-between",
+                      position: "relative",
                     }}
-                    onClick={() => {
-                      notifications.show({
-                        message: "Hash transformation selected",
-                        color: "blue",
-                      });
-                      closeContextMenu();
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = colorScheme === "dark" ? "var(--mantine-color-dark-6)" : "var(--mantine-color-gray-0)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "transparent";
-                    }}
+                    onMouseEnter={() => setShowTransformSubmenu(true)}
+                    onMouseLeave={() => setShowTransformSubmenu(false)}
                   >
-                    <IconHash size={16} />
-                    <Text size="sm">Hash</Text>
+                    <Text size="sm">Add Transformation</Text>
+                    <IconChevronRight size={14} />
+                    
+                    {/* Transformation Submenu */}
+                    {showTransformSubmenu && (
+                      <Paper
+                        shadow="md"
+                        p={0}
+                        style={{
+                          position: "absolute",
+                          left: "100%",
+                          top: 0,
+                          minWidth: 200,
+                          zIndex: 1001,
+                        }}
+                        onMouseEnter={() => setShowTransformSubmenu(true)}
+                        onMouseLeave={() => setShowTransformSubmenu(false)}
+                      >
+                        <Stack gap={0}>
+                          <Box
+                            p="xs"
+                            style={{
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                            }}
+                            onClick={() => {
+                              notifications.show({
+                                message: "Hash transformation selected",
+                                color: "blue",
+                              });
+                              closeContextMenu();
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = colorScheme === "dark" ? "var(--mantine-color-dark-6)" : "var(--mantine-color-gray-0)";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = "transparent";
+                            }}
+                          >
+                            <IconHash size={16} />
+                            <Text size="sm">Hash</Text>
+                          </Box>
+                        </Stack>
+                      </Paper>
+                    )}
                   </Box>
                 </Stack>
               </Paper>
