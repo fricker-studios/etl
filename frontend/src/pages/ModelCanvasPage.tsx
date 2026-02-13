@@ -760,7 +760,7 @@ export function ModelCanvasPage() {
                 </Menu.Target>
                 <Menu.Dropdown style={{ maxHeight: "400px", overflowY: "auto" }}>
                   {availableTopics.length > 0 ? (
-                    availableTopics.slice(0, 10).map((topic: any) => (
+                    availableTopics.map((topic: any) => (
                       <Menu.Item
                         key={topic.id}
                         onClick={() => handleAddTopic(String(topic.id))}
@@ -770,11 +770,6 @@ export function ModelCanvasPage() {
                     ))
                   ) : (
                     <Menu.Item disabled>No more topics available</Menu.Item>
-                  )}
-                  {availableTopics.length > 10 && (
-                    <Menu.Item disabled>
-                      <Text size="xs" c="dimmed">Scroll for more...</Text>
-                    </Menu.Item>
                   )}
                 </Menu.Dropdown>
               </Menu>
@@ -887,7 +882,7 @@ export function ModelCanvasPage() {
                       >
                         <Stack gap={0}>
                           {availableTopics.length > 0 ? (
-                            availableTopics.slice(0, 10).map((topic: any) => (
+                            availableTopics.map((topic: any) => (
                               <Box
                                 key={topic.id}
                                 p="xs"
@@ -911,11 +906,6 @@ export function ModelCanvasPage() {
                           ) : (
                             <Box p="xs">
                               <Text size="sm" c="dimmed">No more topics available</Text>
-                            </Box>
-                          )}
-                          {availableTopics.length > 10 && (
-                            <Box p="xs">
-                              <Text size="xs" c="dimmed">Scroll for more...</Text>
                             </Box>
                           )}
                         </Stack>
