@@ -645,8 +645,18 @@ export function ModelDetailPage() {
           }
 
           // Placeholder data - will be fetched from backend
+          // Determine entity type from model structure
+          const entityType = model.type === "data_vault"
+            ? (model.hubs && model.hubs.length > 0 ? "hub"
+              : model.links && model.links.length > 0 ? "link"
+              : model.satellites && model.satellites.length > 0 ? "satellite"
+              : "entity")
+            : (model.facts && model.facts.length > 0 ? "fact"
+              : model.dimensions && model.dimensions.length > 0 ? "dimension"
+              : "entity");
+          
           const externalTableData = {
-            tableName: `data_vault.${model.entity_type?.toLowerCase()}_${model.name?.toLowerCase().replace(/\s+/g, "")}`,
+            tableName: `data_vault.${entityType}_${model.name?.toLowerCase().replace(/\s+/g, "")}`,
             status: "created" as "created" | "not_created" | "updating" | "error",
             rowCount: 1234567,
             tableSizeMB: 245.8,
