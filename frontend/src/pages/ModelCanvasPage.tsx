@@ -608,7 +608,7 @@ export function ModelCanvasPage() {
       model_field: m.modelField,
       topic_field: m.topicField,
       topic_id: m.topicId,
-      topic_revision_ids: topicRevisions[m.topicId] || [],  // Include revision IDs array
+      topic_revision_id: JSON.stringify(topicRevisions[m.topicId] || []),  // Serialize revision IDs array as JSON string
     }));
     
     // Convert hash connections to field mappings
@@ -629,7 +629,7 @@ export function ModelCanvasPage() {
             model_field: connection.targetField,
             topic_field: inputConnection.sourceField,
             topic_id: inputConnection.sourceId,
-            topic_revision_ids: topicRevisions[inputConnection.sourceId] || [],  // Include revision IDs array
+            topic_revision_id: JSON.stringify(topicRevisions[inputConnection.sourceId] || []),  // Serialize revision IDs array as JSON string
             transformation: hashComponent ? `hash_${hashComponent.hashMethod}` : 'hash'
           });
         }
