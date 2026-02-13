@@ -91,6 +91,7 @@ export function ModelCanvasPage() {
   
   // Context menu state
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
+  const [showTopicSubmenu, setShowTopicSubmenu] = useState(false);
 
   // Auto-generate entity name when model name or entity type changes
   // Only auto-generate if the user hasn't manually edited the entity name
@@ -276,6 +277,7 @@ export function ModelCanvasPage() {
   
   const closeContextMenu = () => {
     setContextMenuPos(null);
+    setShowTopicSubmenu(false);
   };
 
   const toggleTopicExpanded = (topicId: string) => {
@@ -730,8 +732,8 @@ export function ModelCanvasPage() {
         </Group>
 
         {/* Floating Action Button - outside canvas for proper fixed positioning */}
-        <Box style={{ position: "fixed", top: 140, left: 32, zIndex: 100 }}>
-          <Menu shadow="md" width={200} trigger="hover" openDelay={100} closeDelay={400}>
+        <Box style={{ position: "fixed", top: 140, left: 32, zIndex: 1000 }}>
+          <Menu shadow="md" width={200}>
             <Menu.Target>
               <ActionIcon 
                 size={56} 
@@ -752,13 +754,13 @@ export function ModelCanvasPage() {
                 closeDelay={400}
               >
                 <Menu.Target>
-                  <Menu.Item>
+                  <Menu.Item rightSection={<IconChevronRight size={14} />}>
                     Add Topic
                   </Menu.Item>
                 </Menu.Target>
-                <Menu.Dropdown>
+                <Menu.Dropdown style={{ maxHeight: "400px", overflowY: "auto" }}>
                   {availableTopics.length > 0 ? (
-                    availableTopics.map((topic: any) => (
+                    availableTopics.slice(0, 10).map((topic: any) => (
                       <Menu.Item
                         key={topic.id}
                         onClick={() => handleAddTopic(String(topic.id))}
@@ -768,6 +770,11 @@ export function ModelCanvasPage() {
                     ))
                   ) : (
                     <Menu.Item disabled>No more topics available</Menu.Item>
+                  )}
+                  {availableTopics.length > 10 && (
+                    <Menu.Item disabled>
+                      <Text size="xs" c="dimmed">Scroll for more...</Text>
+                    </Menu.Item>
                   )}
                 </Menu.Dropdown>
               </Menu>
@@ -820,7 +827,7 @@ export function ModelCanvasPage() {
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  zIndex: 99,
+                  zIndex: 999,
                 }}
                 onClick={closeContextMenu}
                 onContextMenu={(e) => {
@@ -841,43 +848,80 @@ export function ModelCanvasPage() {
                   position: "fixed",
                   top: contextMenuPos.y,
                   left: contextMenuPos.x,
-                  zIndex: 100,
+                  zIndex: 1000,
                   minWidth: 200,
                 }}
               >
                 <Stack gap={0}>
-                  <Box p="xs" style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}>
-                    <Text size="xs" fw={600} c="dimmed">
-                      Add Topic
-                    </Text>
-                  </Box>
-                  {availableTopics.length > 0 ? (
-                    availableTopics.map((topic: any) => (
-                      <Box
-                        key={topic.id}
-                        p="xs"
+                  <Box
+                    p="xs"
+                    style={{
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      position: "relative",
+                    }}
+                    onMouseEnter={() => setShowTopicSubmenu(true)}
+                    onMouseLeave={() => setShowTopicSubmenu(false)}
+                  >
+                    <Text size="sm">Add Topic</Text>
+                    <IconChevronRight size={14} />
+                    
+                    {/* Topic Submenu */}
+                    {showTopicSubmenu && (
+                      <Paper
+                        shadow="md"
+                        p={0}
                         style={{
-                          cursor: "pointer",
+                          position: "absolute",
+                          left: "100%",
+                          top: 0,
+                          minWidth: 200,
+                          maxHeight: "400px",
+                          overflowY: "auto",
+                          zIndex: 1001,
                         }}
-                        onClick={() => {
-                          handleAddTopic(String(topic.id));
-                          closeContextMenu();
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = colorScheme === "dark" ? "var(--mantine-color-dark-6)" : "var(--mantine-color-gray-0)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = "transparent";
-                        }}
+                        onMouseEnter={() => setShowTopicSubmenu(true)}
+                        onMouseLeave={() => setShowTopicSubmenu(false)}
                       >
-                        <Text size="sm">{topic.name}</Text>
-                      </Box>
-                    ))
-                  ) : (
-                    <Box p="xs">
-                      <Text size="sm" c="dimmed">No more topics available</Text>
-                    </Box>
-                  )}
+                        <Stack gap={0}>
+                          {availableTopics.length > 0 ? (
+                            availableTopics.slice(0, 10).map((topic: any) => (
+                              <Box
+                                key={topic.id}
+                                p="xs"
+                                style={{
+                                  cursor: "pointer",
+                                }}
+                                onClick={() => {
+                                  handleAddTopic(String(topic.id));
+                                  closeContextMenu();
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor = colorScheme === "dark" ? "var(--mantine-color-dark-6)" : "var(--mantine-color-gray-0)";
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = "transparent";
+                                }}
+                              >
+                                <Text size="sm">{topic.name}</Text>
+                              </Box>
+                            ))
+                          ) : (
+                            <Box p="xs">
+                              <Text size="sm" c="dimmed">No more topics available</Text>
+                            </Box>
+                          )}
+                          {availableTopics.length > 10 && (
+                            <Box p="xs">
+                              <Text size="xs" c="dimmed">Scroll for more...</Text>
+                            </Box>
+                          )}
+                        </Stack>
+                      </Paper>
+                    )}
+                  </Box>
                   <Divider />
                   <Box p="xs" style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}>
                     <Text size="xs" fw={600} c="dimmed">
