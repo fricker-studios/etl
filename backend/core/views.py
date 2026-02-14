@@ -1285,6 +1285,55 @@ class ModelViewSet(viewsets.ModelViewSet):
                 {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @action(detail=True, methods=["get"])
+    def verification_queries(self, request, pk=None):
+        """
+        Generate SQL queries to verify table structure and deduplication status.
+        
+        These queries help diagnose issues with cluster setup, sharding, and deduplication.
+        Users can run these queries in ClickHouse to verify their table is set up correctly.
+        """
+        try:
+            model_instance = self.get_object()
+            
+            # Check if table is created
+            if not model_instance.table_created:
+                return Response(
+                    {"error": "Table not created yet"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            
+            # Get the ClickHouse backend
+            clickhouse_backend = model_instance.clickhouse_backend
+            if not clickhouse_backend:
+                return Response(
+                    {"error": "No ClickHouse backend configured for this model"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            
+            # Import the utility function
+            from core.clickhouse_utils import get_table_verification_queries
+            
+            # Get the queries
+            queries = get_table_verification_queries(model_instance, clickhouse_backend)
+            
+            return Response(
+                {
+                    "model_name": model_instance.name,
+                    "table_name": model_instance.table_name,
+                    "database": clickhouse_backend.database or "default",
+                    "queries": queries,
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"Error generating verification queries for model {pk}: {str(e)}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     @action(detail=True, methods=["post"])
     def rerun_failed(self, request, pk=None):
         """Re-run all failed jobs for this model"""

@@ -417,10 +417,12 @@ def create_data_vault_hub_table(
         client.command(local_ddl)
         
         # Create distributed table that shards across local tables
-        # Using rand() for random sharding based on all data
+        # Using sipHash64 of the hash_key to ensure same keys go to same shard
+        # This is CRITICAL for ReplacingMergeTree deduplication to work properly
+        # Without this, duplicates will exist across shards even after OPTIMIZE
         distributed_ddl = f"""
         CREATE TABLE IF NOT EXISTS {database}.{table_name} ON CLUSTER '{cluster_name}' AS {database}.{local_table_name}
-        ENGINE = Distributed('{cluster_name}', {database}, {local_table_name}, rand())
+        ENGINE = Distributed('{cluster_name}', {database}, {local_table_name}, sipHash64({hash_key_field}))
         """
         
         logger.info(f"Creating distributed hub table with DDL: {distributed_ddl}")
@@ -539,6 +541,8 @@ def optimize_table_for_deduplication(model: 'Model', backend: 'StorageBackend'):
     ReplacingMergeTree only removes duplicates during merge operations, so we force
     a final merge to ensure all duplicates are removed.
     
+    For cluster mode, this runs OPTIMIZE on the local table across all nodes using ON CLUSTER.
+    
     Args:
         model: Model instance
         backend: ClickHouse StorageBackend
@@ -561,11 +565,32 @@ def optimize_table_for_deduplication(model: 'Model', backend: 'StorageBackend'):
         
         if use_cluster and cluster_name:
             # For cluster mode, optimize the local table on each node
+            # ON CLUSTER ensures it runs on ALL nodes in the cluster
             local_table_name = f"{table_name}_local"
             optimize_sql = f"OPTIMIZE TABLE {database}.{local_table_name} ON CLUSTER '{cluster_name}' FINAL"
             logger.info(f"Optimizing cluster table for deduplication: {optimize_sql}")
+            
+            # Execute OPTIMIZE on cluster
             client.command(optimize_sql)
-            logger.info(f"Successfully optimized local table {local_table_name} on cluster")
+            logger.info(f"Successfully optimized local table {local_table_name} on all nodes in cluster '{cluster_name}'")
+            
+            # Verify optimization by checking parts on each node
+            try:
+                verify_query = f"""
+                SELECT 
+                    hostName() as host,
+                    count() as num_parts,
+                    sum(rows) as total_rows
+                FROM system.parts
+                WHERE database = '{database}' 
+                    AND table = '{local_table_name}'
+                    AND active
+                GROUP BY host
+                """
+                result = client.query(verify_query)
+                logger.info(f"Post-optimization state: {result.result_rows}")
+            except Exception as verify_err:
+                logger.warning(f"Could not verify optimization: {verify_err}")
         else:
             # Single node mode - optimize single table
             optimize_sql = f"OPTIMIZE TABLE {database}.{table_name} FINAL"
@@ -576,6 +601,147 @@ def optimize_table_for_deduplication(model: 'Model', backend: 'StorageBackend'):
     except Exception as e:
         logger.error(f"Error optimizing table for model {model.name}: {str(e)}")
         # Don't raise - optimization failure shouldn't break the loading process
+
+
+def get_table_verification_queries(model: 'Model', backend: 'StorageBackend') -> dict:
+    """
+    Generate SQL queries to verify table structure and deduplication status.
+    
+    These queries help diagnose issues with cluster setup, sharding, and deduplication.
+    
+    Args:
+        model: Model instance
+        backend: ClickHouse StorageBackend
+        
+    Returns:
+        Dictionary of query descriptions and SQL statements
+    """
+    database = backend.database or "default"
+    table_name = model.table_name
+    use_cluster = backend.is_cluster or (backend.mode == "cluster" and backend.cluster_name)
+    
+    queries = {}
+    
+    if use_cluster:
+        local_table_name = f"{table_name}_local"
+        
+        queries["distributed_table_structure"] = {
+            "description": "Show distributed table definition",
+            "sql": f"SHOW CREATE TABLE {database}.{table_name}"
+        }
+        
+        queries["local_table_structure"] = {
+            "description": "Show local table definition (should be ReplicatedReplacingMergeTree)",
+            "sql": f"SHOW CREATE TABLE {database}.{local_table_name}"
+        }
+        
+        queries["sharding_key"] = {
+            "description": "Verify sharding key (should be sipHash64 of hash_key, not rand())",
+            "sql": f"""
+            SELECT 
+                engine,
+                engine_full,
+                sharding_key
+            FROM system.tables
+            WHERE database = '{database}' 
+                AND name = '{table_name}'
+            """
+        }
+        
+        queries["data_distribution"] = {
+            "description": "Check how data is distributed across shards",
+            "sql": f"""
+            SELECT 
+                hostName() as host,
+                count() as row_count
+            FROM {database}.{local_table_name}
+            GROUP BY host
+            ORDER BY host
+            """
+        }
+        
+        queries["duplicates_check"] = {
+            "description": "Check for duplicate hash keys (should be 0 after OPTIMIZE)",
+            "sql": f"""
+            SELECT 
+                hostName() as host,
+                hash_key,
+                count() as duplicate_count
+            FROM {database}.{local_table_name}
+            GROUP BY host, hash_key
+            HAVING count() > 1
+            ORDER BY duplicate_count DESC
+            LIMIT 100
+            """
+        }
+        
+        queries["parts_status"] = {
+            "description": "Check merge status of table parts on each node",
+            "sql": f"""
+            SELECT 
+                hostName() as host,
+                count() as num_parts,
+                sum(rows) as total_rows,
+                formatReadableSize(sum(bytes_on_disk)) as disk_size
+            FROM system.parts
+            WHERE database = '{database}' 
+                AND table = '{local_table_name}'
+                AND active
+            GROUP BY host
+            ORDER BY host
+            """
+        }
+        
+        queries["cluster_info"] = {
+            "description": "Show cluster topology",
+            "sql": f"""
+            SELECT 
+                cluster,
+                shard_num,
+                replica_num,
+                host_name,
+                port
+            FROM system.clusters
+            WHERE cluster = '{backend.detected_cluster_name or backend.cluster_name}'
+            ORDER BY shard_num, replica_num
+            """
+        }
+    else:
+        queries["table_structure"] = {
+            "description": "Show table definition (should be ReplacingMergeTree)",
+            "sql": f"SHOW CREATE TABLE {database}.{table_name}"
+        }
+        
+        queries["duplicates_check"] = {
+            "description": "Check for duplicate hash keys (should be 0 after OPTIMIZE)",
+            "sql": f"""
+            SELECT 
+                hash_key,
+                count() as duplicate_count
+            FROM {database}.{table_name}
+            GROUP BY hash_key
+            HAVING count() > 1
+            ORDER BY duplicate_count DESC
+            LIMIT 100
+            """
+        }
+        
+        queries["parts_status"] = {
+            "description": "Check merge status of table parts",
+            "sql": f"""
+            SELECT 
+                count() as num_parts,
+                sum(rows) as total_rows,
+                formatReadableSize(sum(bytes_on_disk)) as disk_size
+            FROM system.parts
+            WHERE database = '{database}' 
+                AND table = '{table_name}'
+                AND active
+            """
+        }
+    
+    return queries
+
 
 
 def get_s3_table_function(
