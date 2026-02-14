@@ -198,9 +198,11 @@ def create_data_vault_hub_table(
     database: str,
     hub_definition: Dict[str, Any],
     topic_revision: TopicRevision,
+    backend: StorageBackend = None,
 ) -> None:
     """
     Create a Data Vault Hub table in ClickHouse.
+    For cluster mode, creates both local and distributed tables.
     
     Args:
         client: ClickHouse client
@@ -208,6 +210,7 @@ def create_data_vault_hub_table(
         database: Database name
         hub_definition: Hub definition from Model
         topic_revision: TopicRevision for schema
+        backend: StorageBackend instance (optional, for cluster support)
     """
     # Get business key field
     business_key = hub_definition.get("business_key")
@@ -285,16 +288,49 @@ def create_data_vault_hub_table(
     
     # Create the table DDL
     columns_sql = ",\n    ".join(columns)
-    ddl = f"""
-    CREATE TABLE IF NOT EXISTS {database}.{table_name} (
-        {columns_sql}
-    )
-    ENGINE = MergeTree()
-    ORDER BY ({hash_key_field})
-    """
     
-    logger.info(f"Creating hub table with DDL: {ddl}")
-    client.command(ddl)
+    # Check if we're in cluster mode
+    is_cluster = backend and backend.mode == "cluster" and backend.cluster_name
+    
+    if is_cluster:
+        # Create local table on each node (with _local suffix)
+        local_table_name = f"{table_name}_local"
+        cluster_name = backend.cluster_name
+        
+        # For cluster mode, use ReplicatedMergeTree for replication
+        local_ddl = f"""
+        CREATE TABLE IF NOT EXISTS {database}.{local_table_name} ON CLUSTER '{cluster_name}' (
+            {columns_sql}
+        )
+        ENGINE = ReplicatedMergeTree('/clickhouse/tables/{{shard}}/{database}/{local_table_name}', '{{replica}}')
+        ORDER BY ({hash_key_field})
+        """
+        
+        logger.info(f"Creating local hub table with DDL: {local_ddl}")
+        client.command(local_ddl)
+        
+        # Create distributed table that shards across local tables
+        # Using rand() for random sharding based on all data
+        distributed_ddl = f"""
+        CREATE TABLE IF NOT EXISTS {database}.{table_name} ON CLUSTER '{cluster_name}' AS {database}.{local_table_name}
+        ENGINE = Distributed('{cluster_name}', {database}, {local_table_name}, rand())
+        """
+        
+        logger.info(f"Creating distributed hub table with DDL: {distributed_ddl}")
+        client.command(distributed_ddl)
+    else:
+        # Single node mode - create standard MergeTree table
+        ddl = f"""
+        CREATE TABLE IF NOT EXISTS {database}.{table_name} (
+            {columns_sql}
+        )
+        ENGINE = MergeTree()
+        ORDER BY ({hash_key_field})
+        """
+        
+        logger.info(f"Creating hub table with DDL: {ddl}")
+        client.command(ddl)
+
 
 
 def create_table_from_model(model: Model, backend: StorageBackend) -> str:
@@ -323,7 +359,7 @@ def create_table_from_model(model: Model, backend: StorageBackend) -> str:
     if model.type == "data_vault":
         if model.hubs:
             create_data_vault_hub_table(
-                client, table_name, database, model.hubs[0], topic_revision
+                client, table_name, database, model.hubs[0], topic_revision, backend
             )
         elif model.links:
             # TODO: Implement link table creation

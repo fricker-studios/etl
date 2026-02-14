@@ -35,6 +35,12 @@ class StorageBackend(models.Model):
 
     # ClickHouse fields
     mode = models.CharField(max_length=20, choices=MODE_CHOICES, blank=True, null=True)
+    cluster_name = models.CharField(
+        max_length=255, 
+        blank=True, 
+        null=True,
+        help_text="ClickHouse cluster name (required for cluster mode)"
+    )
     hosts = models.JSONField(
         default=list, blank=True
     )  # [{"host": "localhost", "port": 9000}]
