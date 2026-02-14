@@ -907,15 +907,15 @@ class ModelViewSet(viewsets.ModelViewSet):
                         "configured": False,
                         "message": "No ClickHouse backend configured",
                     },
-                    status=status.HTTP_404,
+                    status=status.HTTP_404_NOT_FOUND,
                 )
 
             # Import ClickHouse client
             try:
-                from clickhouse_driver import Client
+                import clickhouse_connect
             except ImportError:
                 return Response(
-                    {"error": "ClickHouse driver not installed"},
+                    {"error": "clickhouse-connect not installed"},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
 
@@ -941,7 +941,7 @@ class ModelViewSet(viewsets.ModelViewSet):
             database = clickhouse_backend.database or "default"
             table_name = f"{entity_type}_{model_name}"
 
-            # Connect to ClickHouse
+            # Connect to ClickHouse using clickhouse-connect
             hosts = clickhouse_backend.hosts
             if not hosts or not isinstance(hosts, list) or len(hosts) == 0:
                 return Response(
@@ -950,11 +950,11 @@ class ModelViewSet(viewsets.ModelViewSet):
                 )
 
             host_config = hosts[0]
-            client = Client(
+            client = clickhouse_connect.get_client(
                 host=host_config.get("host", "localhost"),
-                port=host_config.get("port", 9000),
+                port=host_config.get("port", 8123),  # HTTP port for clickhouse-connect
                 database=database,
-                user=clickhouse_backend.username or "default",
+                username=clickhouse_backend.username or "default",
                 password=clickhouse_backend.get_decrypted_password() or "",
                 secure=clickhouse_backend.secure,
             )
@@ -964,8 +964,8 @@ class ModelViewSet(viewsets.ModelViewSet):
                 SELECT count() FROM system.tables 
                 WHERE database = '{database}' AND name = '{table_name}'
             """
-            exists_result = client.execute(table_exists_query)
-            table_exists = exists_result[0][0] > 0
+            exists_result = client.query(table_exists_query)
+            table_exists = exists_result.result_rows[0][0] > 0
 
             if not table_exists:
                 return Response(
@@ -980,24 +980,24 @@ class ModelViewSet(viewsets.ModelViewSet):
 
             # Get row count
             row_count_query = f"SELECT count() FROM {database}.{table_name}"
-            row_count_result = client.execute(row_count_query)
-            row_count = row_count_result[0][0]
+            row_count_result = client.query(row_count_query)
+            row_count = row_count_result.result_rows[0][0]
 
             # Get column count
             column_count_query = f"""
                 SELECT count() FROM system.columns 
                 WHERE database = '{database}' AND table = '{table_name}'
             """
-            column_count_result = client.execute(column_count_query)
-            column_count = column_count_result[0][0]
+            column_count_result = client.query(column_count_query)
+            column_count = column_count_result.result_rows[0][0]
 
             # Get table size (in bytes)
             size_query = f"""
                 SELECT sum(bytes) FROM system.parts 
                 WHERE database = '{database}' AND table = '{table_name}' AND active
             """
-            size_result = client.execute(size_query)
-            size_bytes = size_result[0][0] if size_result[0][0] else 0
+            size_result = client.query(size_query)
+            size_bytes = size_result.result_rows[0][0] if size_result.result_rows[0][0] else 0
             size_mb = size_bytes / (1024 * 1024)
 
             # Get last update time (modification time of any part)
@@ -1005,9 +1005,9 @@ class ModelViewSet(viewsets.ModelViewSet):
                 SELECT max(modification_time) FROM system.parts 
                 WHERE database = '{database}' AND table = '{table_name}' AND active
             """
-            last_update_result = client.execute(last_update_query)
+            last_update_result = client.query(last_update_query)
             last_updated = (
-                last_update_result[0][0] if last_update_result[0][0] else None
+                last_update_result.result_rows[0][0] if last_update_result.result_rows[0][0] else None
             )
 
             # Get table creation time
@@ -1015,8 +1015,8 @@ class ModelViewSet(viewsets.ModelViewSet):
                 SELECT metadata_modification_time FROM system.tables 
                 WHERE database = '{database}' AND name = '{table_name}'
             """
-            create_time_result = client.execute(create_time_query)
-            created_at = create_time_result[0][0] if create_time_result[0][0] else None
+            create_time_result = client.query(create_time_query)
+            created_at = create_time_result.result_rows[0][0] if create_time_result.result_rows[0][0] else None
 
             return Response(
                 {

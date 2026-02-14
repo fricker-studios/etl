@@ -736,34 +736,35 @@ export function ModelCanvasPage() {
       transformation?: string;
     }> = [];
 
-    hashConnections.forEach((connection) => {
-      if (
-        connection.sourceType === "hash" &&
-        connection.targetType === "model" &&
-        connection.targetField
-      ) {
-        // This is a hash -> model connection, find the corresponding topic -> hash connection
-        const inputConnection = hashConnections.find(
-          (c) => c.targetType === "hash" && c.targetId === connection.sourceId,
+    // Changed approach: iterate over INPUT connections (topic -> hash)
+    // For each input, find ALL output connections and create complete paths
+    hashConnections.forEach((conn) => {
+      if (conn.sourceType === "topic" && conn.targetType === "hash") {
+        // This is a topic -> hash input connection
+        // Find ALL output connections from this hash to model fields
+        const outputConnections = hashConnections.filter(
+          (c) =>
+            c.sourceType === "hash" &&
+            c.sourceId === conn.targetId &&
+            c.targetType === "model" &&
+            c.targetField,
         );
 
-        if (inputConnection && inputConnection.sourceField) {
-          // We have a complete chain: topic -> hash -> model
-          const hashComponent = hashComponents.find(
-            (h) => h.id === connection.sourceId,
-          );
-          hashBasedMappings.push({
-            model_field: connection.targetField,
-            topic_field: inputConnection.sourceField,
-            topic_id: inputConnection.sourceId,
-            topic_revision_id: JSON.stringify(
-              topicRevisions[inputConnection.sourceId] || [],
-            ), // Serialize revision IDs array as JSON string
-            transformation: hashComponent
-              ? `hash_${hashComponent.hashMethod}`
-              : "hash",
-          });
-        }
+        // Create a mapping for each complete path: topic -> hash -> model
+        outputConnections.forEach((outputConn) => {
+          const hashComponent = hashComponents.find((h) => h.id === conn.targetId);
+          if (hashComponent && conn.sourceField) {
+            hashBasedMappings.push({
+              model_field: outputConn.targetField!,
+              topic_field: conn.sourceField,
+              topic_id: conn.sourceId,
+              topic_revision_id: JSON.stringify(
+                topicRevisions[conn.sourceId] || [],
+              ),
+              transformation: `hash_${hashComponent.hashMethod}`,
+            });
+          }
+        });
       }
     });
 
