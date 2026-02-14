@@ -363,10 +363,10 @@ def _execute_api_stream(stream, run):
 def execute_scheduled_streams():
     """
     DEPRECATED: This task is no longer needed as of the latest version.
-    
+
     Periodic task to execute all enabled scheduled streams.
     This is called by Celery Beat on a schedule.
-    
+
     NOTE: Individual Celery Beat periodic tasks are now created for each stream
     with a schedule. This function is kept for backward compatibility but should
     be removed in a future version.
@@ -407,7 +407,7 @@ def execute_scheduled_streams():
 def _should_stream_run(stream):
     """
     DEPRECATED: This function is no longer needed as schedules are handled by Celery Beat.
-    
+
     Determine if a scheduled stream should run now.
     This is a simplified check - for production, use Celery Beat's cron scheduling.
 

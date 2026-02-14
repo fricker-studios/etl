@@ -863,6 +863,187 @@ class ModelViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+    @action(detail=False, methods=["get"])
+    def clickhouse_status(self, request):
+        """Check if ClickHouse backend is configured for the current user"""
+        try:
+            clickhouse_backend = StorageBackend.objects.filter(
+                user=request.user, kind="clickhouse"
+            ).first()
+
+            if not clickhouse_backend:
+                return Response(
+                    {"configured": False, "message": "No ClickHouse backend configured"}
+                )
+
+            return Response(
+                {
+                    "configured": True,
+                    "backend_id": clickhouse_backend.id,
+                    "backend_name": clickhouse_backend.name,
+                    "database": clickhouse_backend.database,
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error checking ClickHouse status: {str(e)}")
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=["get"])
+    def table_stats(self, request, pk=None):
+        """Get statistics for the external table associated with this model"""
+        try:
+            model_instance = self.get_object()
+
+            # Check if ClickHouse backend is configured
+            clickhouse_backend = StorageBackend.objects.filter(
+                user=request.user, kind="clickhouse"
+            ).first()
+
+            if not clickhouse_backend:
+                return Response(
+                    {
+                        "configured": False,
+                        "message": "No ClickHouse backend configured",
+                    },
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Import ClickHouse client
+            try:
+                import clickhouse_connect
+            except ImportError:
+                return Response(
+                    {"error": "clickhouse-connect not installed"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+            # Determine entity type from model structure
+            entity_type = "entity"
+            model_data = model_instance.definition
+            if isinstance(model_data, dict):
+                if model_data.get("type") == "data_vault":
+                    if model_data.get("hubs"):
+                        entity_type = "hub"
+                    elif model_data.get("links"):
+                        entity_type = "link"
+                    elif model_data.get("satellites"):
+                        entity_type = "satellite"
+                else:
+                    if model_data.get("facts"):
+                        entity_type = "fact"
+                    elif model_data.get("dimensions"):
+                        entity_type = "dimension"
+
+            # Generate table name
+            model_name = model_instance.name.lower().replace(" ", "")
+            database = clickhouse_backend.database or "default"
+            table_name = f"{entity_type}_{model_name}"
+
+            # Connect to ClickHouse using clickhouse-connect
+            hosts = clickhouse_backend.hosts
+            if not hosts or not isinstance(hosts, list) or len(hosts) == 0:
+                return Response(
+                    {"error": "ClickHouse hosts not configured"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+            host_config = hosts[0]
+            client = clickhouse_connect.get_client(
+                host=host_config.get("host", "localhost"),
+                port=host_config.get("port", 8123),  # HTTP port for clickhouse-connect
+                database=database,
+                username=clickhouse_backend.username or "default",
+                password=clickhouse_backend.get_decrypted_password() or "",
+                secure=clickhouse_backend.secure,
+            )
+
+            # Check if table exists
+            table_exists_query = f"""
+                SELECT count() FROM system.tables 
+                WHERE database = '{database}' AND name = '{table_name}'
+            """
+            exists_result = client.query(table_exists_query)
+            table_exists = exists_result.result_rows[0][0] > 0
+
+            if not table_exists:
+                return Response(
+                    {
+                        "configured": True,
+                        "exists": False,
+                        "table_name": f"{database}.{table_name}",
+                        "status": "not_created",
+                        "message": f"Table {database}.{table_name} does not exist",
+                    }
+                )
+
+            # Get row count
+            row_count_query = f"SELECT count() FROM {database}.{table_name}"
+            row_count_result = client.query(row_count_query)
+            row_count = row_count_result.result_rows[0][0]
+
+            # Get column count
+            column_count_query = f"""
+                SELECT count() FROM system.columns 
+                WHERE database = '{database}' AND table = '{table_name}'
+            """
+            column_count_result = client.query(column_count_query)
+            column_count = column_count_result.result_rows[0][0]
+
+            # Get table size (in bytes)
+            size_query = f"""
+                SELECT sum(bytes) FROM system.parts 
+                WHERE database = '{database}' AND table = '{table_name}' AND active
+            """
+            size_result = client.query(size_query)
+            size_bytes = size_result.result_rows[0][0] if size_result.result_rows[0][0] else 0
+            size_mb = size_bytes / (1024 * 1024)
+
+            # Get last update time (modification time of any part)
+            last_update_query = f"""
+                SELECT max(modification_time) FROM system.parts 
+                WHERE database = '{database}' AND table = '{table_name}' AND active
+            """
+            last_update_result = client.query(last_update_query)
+            last_updated = (
+                last_update_result.result_rows[0][0] if last_update_result.result_rows[0][0] else None
+            )
+
+            # Get table creation time
+            create_time_query = f"""
+                SELECT metadata_modification_time FROM system.tables 
+                WHERE database = '{database}' AND name = '{table_name}'
+            """
+            create_time_result = client.query(create_time_query)
+            created_at = create_time_result.result_rows[0][0] if create_time_result.result_rows[0][0] else None
+
+            return Response(
+                {
+                    "configured": True,
+                    "exists": True,
+                    "table_name": f"{database}.{table_name}",
+                    "status": "created",
+                    "row_count": row_count,
+                    "column_count": column_count,
+                    "size_mb": round(size_mb, 2),
+                    "last_updated": last_updated.isoformat() if last_updated else None,
+                    "created_at": created_at.isoformat() if created_at else None,
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Error fetching table stats: {str(e)}")
+            return Response(
+                {
+                    "error": str(e),
+                    "configured": True,
+                    "exists": False,
+                    "status": "error",
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
 
 class RunViewSet(viewsets.ModelViewSet):
     serializer_class = RunSerializer
