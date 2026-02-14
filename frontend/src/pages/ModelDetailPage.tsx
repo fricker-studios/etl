@@ -17,6 +17,8 @@ import {
   SimpleGrid,
   Loader,
   Button,
+  Progress,
+  Table,
 } from "@mantine/core";
 import {
   IconArrowLeft,
@@ -29,6 +31,8 @@ import {
   IconCalendar,
   IconRefresh,
   IconSettings,
+  IconPlayerPlay,
+  IconPlus,
 } from "@tabler/icons-react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useModel, useDeleteModel } from "../hooks/useModels";
@@ -37,8 +41,9 @@ import { modals } from "@mantine/modals";
 import { useDisclosure } from "@mantine/hooks";
 import { useTopics } from "../hooks/useTopics";
 import { useRef, useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../utils/api";
+import { notifications } from "@mantine/notifications";
 
 export function ModelDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -56,10 +61,63 @@ export function ModelDetailPage() {
   });
 
   // Fetch table statistics
-  const { data: tableStats, isLoading: tableStatsLoading } = useQuery<any>({
+  const { data: tableStats, isLoading: tableStatsLoading, refetch: refetchTableStats } = useQuery<any>({
     queryKey: ["table-stats", id],
     queryFn: () => api.models.tableStats(id!),
     enabled: !!id && clickhouseStatus?.configured === true,
+  });
+
+  // Fetch loading progress
+  const { data: loadingProgress, refetch: refetchLoadingProgress } = useQuery<any>({
+    queryKey: ["loading-progress", id],
+    queryFn: () => api.models.loadingProgress(id!),
+    enabled: !!id && model?.table_created === true,
+    refetchInterval: 5000, // Poll every 5 seconds when table is created
+  });
+
+  const queryClient = useQueryClient();
+
+  // Mutation for creating table
+  const createTableMutation = useMutation({
+    mutationFn: () => api.models.createTable(id!),
+    onSuccess: (data) => {
+      notifications.show({
+        title: "Table Created",
+        message: `Table ${data.table_name} created successfully`,
+        color: "green",
+      });
+      // Refetch model and table stats
+      queryClient.invalidateQueries({ queryKey: ["models", id] });
+      refetchTableStats();
+    },
+    onError: (error: any) => {
+      notifications.show({
+        title: "Error Creating Table",
+        message: error.message || "Failed to create table",
+        color: "red",
+      });
+    },
+  });
+
+  // Mutation for loading data
+  const loadDataMutation = useMutation({
+    mutationFn: () => api.models.loadData(id!),
+    onSuccess: (data) => {
+      notifications.show({
+        title: "Data Loading Started",
+        message: `Queued ${data.packages_queued} data packages for loading`,
+        color: "blue",
+      });
+      // Refetch loading progress
+      refetchLoadingProgress();
+    },
+    onError: (error: any) => {
+      notifications.show({
+        title: "Error Loading Data",
+        message: error.message || "Failed to start data loading",
+        color: "red",
+      });
+    },
   });
 
   // Refs for DAG visualization
@@ -391,14 +449,24 @@ export function ModelDetailPage() {
                     status === "error" ? "Table Error" : "Table Not Created"
                   }
                 >
-                  <Text size="sm">
+                  <Text size="sm" mb="sm">
                     {tableStats?.message ||
                       `Table ${tableStats?.table_name || "for this model"} does not exist yet.`}
                   </Text>
                   {tableStats?.table_name && (
-                    <Text size="xs" ff="monospace" c="dimmed" mt="xs">
+                    <Text size="xs" ff="monospace" c="dimmed" mt="xs" mb="sm">
                       {tableStats.table_name}
                     </Text>
+                  )}
+                  {!model.table_created && (
+                    <Button
+                      leftSection={<IconPlus size={16} />}
+                      size="sm"
+                      onClick={() => createTableMutation.mutate()}
+                      loading={createTableMutation.isPending}
+                    >
+                      Create Table
+                    </Button>
                   )}
                 </Alert>
               );
@@ -530,6 +598,158 @@ export function ModelDetailPage() {
           })()}
         </Stack>
       </Card>
+
+      {/* Data Loading Section */}
+      {model.table_created && (
+        <Card withBorder>
+          <Stack gap="md">
+            <Group justify="space-between">
+              <Text size="lg" fw={600}>
+                Data Loading
+              </Text>
+              <Button
+                leftSection={<IconPlayerPlay size={16} />}
+                onClick={() => loadDataMutation.mutate()}
+                loading={loadDataMutation.isPending}
+              >
+                Load Data
+              </Button>
+            </Group>
+            <Divider />
+
+            {loadingProgress && (
+              <>
+                {/* Progress Summary */}
+                <SimpleGrid cols={4} spacing="md">
+                  <div>
+                    <Text size="xs" c="dimmed" mb={4}>
+                      Total Runs
+                    </Text>
+                    <Text size="xl" fw={700}>
+                      {loadingProgress.total_runs}
+                    </Text>
+                  </div>
+                  <div>
+                    <Text size="xs" c="dimmed" mb={4}>
+                      Completed
+                    </Text>
+                    <Text size="xl" fw={700} c="green">
+                      {loadingProgress.completed_runs}
+                    </Text>
+                  </div>
+                  <div>
+                    <Text size="xs" c="dimmed" mb={4}>
+                      Running
+                    </Text>
+                    <Text size="xl" fw={700} c="blue">
+                      {loadingProgress.running_runs}
+                    </Text>
+                  </div>
+                  <div>
+                    <Text size="xs" c="dimmed" mb={4}>
+                      Failed
+                    </Text>
+                    <Text size="xl" fw={700} c="red">
+                      {loadingProgress.failed_runs}
+                    </Text>
+                  </div>
+                </SimpleGrid>
+
+                {/* Progress Bar */}
+                {loadingProgress.total_runs > 0 && (
+                  <div>
+                    <Text size="sm" c="dimmed" mb="xs">
+                      Overall Progress
+                    </Text>
+                    <Progress
+                      value={
+                        (loadingProgress.completed_runs /
+                          loadingProgress.total_runs) *
+                        100
+                      }
+                      color="green"
+                      size="lg"
+                      animated={loadingProgress.running_runs > 0}
+                    />
+                  </div>
+                )}
+
+                {/* Recent Runs Table */}
+                {loadingProgress.runs && loadingProgress.runs.length > 0 && (
+                  <div>
+                    <Text size="sm" fw={600} mb="xs">
+                      Recent Runs
+                    </Text>
+                    <Table striped highlightOnHover>
+                      <Table.Thead>
+                        <Table.Tr>
+                          <Table.Th>Package</Table.Th>
+                          <Table.Th>Status</Table.Th>
+                          <Table.Th>Rows</Table.Th>
+                          <Table.Th>Duration</Table.Th>
+                          <Table.Th>Started</Table.Th>
+                        </Table.Tr>
+                      </Table.Thead>
+                      <Table.Tbody>
+                        {loadingProgress.runs.slice(0, 10).map((run: any) => (
+                          <Table.Tr key={run.id}>
+                            <Table.Td>
+                              <Text size="sm" lineClamp={1}>
+                                {run.name}
+                              </Text>
+                            </Table.Td>
+                            <Table.Td>
+                              <Badge
+                                color={
+                                  run.status === "success"
+                                    ? "green"
+                                    : run.status === "failed"
+                                      ? "red"
+                                      : run.status === "running"
+                                        ? "blue"
+                                        : "gray"
+                                }
+                                size="sm"
+                              >
+                                {run.status}
+                              </Badge>
+                            </Table.Td>
+                            <Table.Td>
+                              <Text size="sm">
+                                {run.rows_processed?.toLocaleString() || "-"}
+                              </Text>
+                            </Table.Td>
+                            <Table.Td>
+                              <Text size="sm">
+                                {run.duration_seconds
+                                  ? `${run.duration_seconds}s`
+                                  : "-"}
+                              </Text>
+                            </Table.Td>
+                            <Table.Td>
+                              <Text size="sm" c="dimmed">
+                                {run.started_at
+                                  ? new Date(run.started_at).toLocaleString()
+                                  : "-"}
+                              </Text>
+                            </Table.Td>
+                          </Table.Tr>
+                        ))}
+                      </Table.Tbody>
+                    </Table>
+                  </div>
+                )}
+              </>
+            )}
+
+            {!loadingProgress && (
+              <Text size="sm" c="dimmed" ta="center" py="md">
+                No data loading runs yet. Click "Load Data" to start.
+              </Text>
+            )}
+          </Stack>
+        </Card>
+      )}
 
       <Card withBorder>
         <Text size="lg" fw={600} mb="md">

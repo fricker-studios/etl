@@ -9,11 +9,13 @@ import {
   MultiSelect,
   Divider,
   Text,
+  Checkbox,
 } from "@mantine/core";
 import { useState } from "react";
 import { notifications } from "@mantine/notifications";
 import { useTopics } from "../../hooks/useTopics";
 import { useCreateModel } from "../../hooks/useModels";
+import { api } from "../../utils/api";
 
 // Entity types
 type EntityType = "hub" | "link" | "satellite" | "fact" | "dimension";
@@ -34,6 +36,7 @@ export function ModelWizard({
   const [entityType, setEntityType] = useState<EntityType>("hub");
   const [entityName, setEntityName] = useState("");
   const [topic, setTopic] = useState("");
+  const [createTable, setCreateTable] = useState(false);
 
   // Field mappings
   const [businessKey, setBusinessKey] = useState("");
@@ -81,6 +84,7 @@ export function ModelWizard({
     setEntityType("hub");
     setEntityName("");
     setTopic("");
+    setCreateTable(false);
     setBusinessKey("");
     setAttributes([]);
     setHubReferences([]);
@@ -221,7 +225,24 @@ export function ModelWizard({
     }
 
     try {
-      await createModel.mutateAsync(modelData);
+      const createdModel = await createModel.mutateAsync(modelData);
+      
+      // If "Create table on save" is checked, create the table
+      if (createTable && createdModel?.id) {
+        try {
+          await api.models.createTable(String(createdModel.id));
+          notifications.show({
+            message: "Model and table created successfully",
+            color: "green",
+          });
+        } catch (tableError: any) {
+          notifications.show({
+            message: `Model created, but table creation failed: ${tableError.message || "Unknown error"}`,
+            color: "yellow",
+          });
+        }
+      }
+      
       resetForm();
       onClose();
     } catch (error) {
@@ -534,6 +555,14 @@ export function ModelWizard({
                 </Text>
               </>
             )}
+
+            <Divider label="Options" mt="md" />
+            <Checkbox
+              label="Create table in ClickHouse on save"
+              description="Automatically create the database table after the model is saved"
+              checked={createTable}
+              onChange={(e) => setCreateTable(e.currentTarget.checked)}
+            />
 
             <Group justify="space-between" mt="md">
               <Button variant="light" onClick={() => setActive(1)}>

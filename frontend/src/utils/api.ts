@@ -173,6 +173,15 @@ export const api = {
       }),
     clickhouseStatus: () => request("/models/clickhouse_status/"),
     tableStats: (id: string) => request(`/models/${id}/table_stats/`),
+    createTable: (id: string) =>
+      request(`/models/${id}/create_table/`, {
+        method: "POST",
+      }),
+    loadData: (id: string) =>
+      request(`/models/${id}/load_data/`, {
+        method: "POST",
+      }),
+    loadingProgress: (id: string) => request(`/models/${id}/loading_progress/`),
   },
 
   // Topics
