@@ -1211,9 +1211,27 @@ class ModelViewSet(viewsets.ModelViewSet):
         try:
             model_instance = self.get_object()
             
-            # Get pagination parameters
-            page = int(request.query_params.get('page', 1))
-            per_page = int(request.query_params.get('per_page', 10))
+            # Get pagination parameters with validation
+            try:
+                page = int(request.query_params.get('page', 1))
+                per_page = int(request.query_params.get('per_page', 10))
+            except (ValueError, TypeError):
+                return Response(
+                    {"error": "Invalid pagination parameters. page and per_page must be integers."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            
+            # Validate pagination parameters
+            if page < 1:
+                return Response(
+                    {"error": "page must be greater than 0"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if per_page < 1 or per_page > 100:
+                return Response(
+                    {"error": "per_page must be between 1 and 100"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             
             # Get all runs for this model
             runs = Run.objects.filter(model=model_instance).order_by("-created_at")
@@ -1232,8 +1250,8 @@ class ModelViewSet(viewsets.ModelViewSet):
             # Serialize the runs
             run_serializer = RunSerializer(paginated_runs, many=True)
             
-            # Calculate total pages
-            total_pages = (total_runs + per_page - 1) // per_page
+            # Calculate total pages (handle zero case)
+            total_pages = max(1, (total_runs + per_page - 1) // per_page) if total_runs > 0 else 1
             
             return Response(
                 {

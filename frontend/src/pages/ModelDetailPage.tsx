@@ -57,10 +57,10 @@ export function ModelDetailPage() {
   const [editModalOpen, { open: openEditModal }] = useDisclosure(false);
   const { colorScheme } = useMantineColorScheme();
   
-  // State for runs table
+  // State for runs table - use Set for O(1) lookup performance
   const [currentPage, setCurrentPage] = useState(1);
   const [perPage] = useState(10);
-  const [selectedRuns, setSelectedRuns] = useState<string[]>([]);
+  const [selectedRunsSet, setSelectedRunsSet] = useState<Set<string>>(new Set());
 
   // Fetch ClickHouse status
   const { data: clickhouseStatus } = useQuery<any>({
@@ -138,7 +138,7 @@ export function ModelDetailPage() {
         color: "blue",
       });
       refetchLoadingProgress();
-      setSelectedRuns([]);
+      setSelectedRunsSet(new Set());
     },
     onError: (error: any) => {
       notifications.show({
@@ -159,7 +159,7 @@ export function ModelDetailPage() {
         color: "blue",
       });
       refetchLoadingProgress();
-      setSelectedRuns([]);
+      setSelectedRunsSet(new Set());
     },
     onError: (error: any) => {
       notifications.show({
@@ -744,16 +744,16 @@ export function ModelDetailPage() {
                             Re-run Failed
                           </Button>
                         )}
-                        {selectedRuns.length > 0 && (
+                        {selectedRunsSet.size > 0 && (
                           <Button
                             size="xs"
                             variant="filled"
                             color="blue"
                             leftSection={<IconRotateClockwise size={14} />}
-                            onClick={() => rerunSelectedMutation.mutate(selectedRuns)}
+                            onClick={() => rerunSelectedMutation.mutate(Array.from(selectedRunsSet))}
                             loading={rerunSelectedMutation.isPending}
                           >
-                            Re-run Selected ({selectedRuns.length})
+                            Re-run Selected ({selectedRunsSet.size})
                           </Button>
                         )}
                       </Group>
@@ -765,19 +765,19 @@ export function ModelDetailPage() {
                             <Checkbox
                               checked={
                                 loadingProgress.runs.length > 0 &&
-                                selectedRuns.length === loadingProgress.runs.length
+                                selectedRunsSet.size === loadingProgress.runs.length
                               }
                               indeterminate={
-                                selectedRuns.length > 0 &&
-                                selectedRuns.length < loadingProgress.runs.length
+                                selectedRunsSet.size > 0 &&
+                                selectedRunsSet.size < loadingProgress.runs.length
                               }
                               onChange={(e) => {
                                 if (e.currentTarget.checked) {
-                                  setSelectedRuns(
-                                    loadingProgress.runs.map((r: any) => r.id.toString())
+                                  setSelectedRunsSet(
+                                    new Set(loadingProgress.runs.map((r: any) => r.id.toString()))
                                   );
                                 } else {
-                                  setSelectedRuns([]);
+                                  setSelectedRunsSet(new Set());
                                 }
                               }}
                             />
@@ -794,15 +794,15 @@ export function ModelDetailPage() {
                           <Table.Tr key={run.id}>
                             <Table.Td>
                               <Checkbox
-                                checked={selectedRuns.includes(run.id.toString())}
+                                checked={selectedRunsSet.has(run.id.toString())}
                                 onChange={(e) => {
+                                  const newSet = new Set(selectedRunsSet);
                                   if (e.currentTarget.checked) {
-                                    setSelectedRuns([...selectedRuns, run.id.toString()]);
+                                    newSet.add(run.id.toString());
                                   } else {
-                                    setSelectedRuns(
-                                      selectedRuns.filter((id) => id !== run.id.toString())
-                                    );
+                                    newSet.delete(run.id.toString());
                                   }
+                                  setSelectedRunsSet(newSet);
                                 }}
                               />
                             </Table.Td>
