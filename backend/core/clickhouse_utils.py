@@ -10,6 +10,20 @@ from core.models import StorageBackend, Model, TopicRevision
 logger = logging.getLogger(__name__)
 
 
+def get_transformation(mapping: Dict[str, Any]) -> str:
+    """
+    Get the transformation value from a field mapping.
+    Supports both 'transformation' and 'transform' keys for backward compatibility.
+    
+    Args:
+        mapping: Field mapping dictionary
+        
+    Returns:
+        Transformation string or empty string if not found
+    """
+    return mapping.get("transformation", mapping.get("transform", ""))
+
+
 def get_clickhouse_client(backend: StorageBackend) -> Client:
     """
     Create a ClickHouse client from a StorageBackend configuration.
@@ -231,7 +245,7 @@ def create_data_vault_hub_table(
     # Look for a field with hash transformation - that's our hash key
     hash_key_field = None
     for mapping in field_mappings:
-        transform = mapping.get("transformation", mapping.get("transform", ""))
+        transform = get_transformation(mapping)
         if transform and transform.startswith("hash"):
             hash_key_field = mapping.get("model_field")
             break

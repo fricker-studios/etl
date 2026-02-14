@@ -468,6 +468,7 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
         get_clickhouse_client,
         get_s3_table_function,
         detect_file_format,
+        get_transformation,
     )
     import hashlib
     
@@ -605,7 +606,7 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
         hash_key_field = None
         business_key_source = None
         for mapping in field_mappings:
-            transform = mapping.get("transformation", mapping.get("transform", ""))
+            transform = get_transformation(mapping)
             if transform and transform.startswith("hash"):
                 hash_key_field = mapping.get("model_field")
                 business_key_source = mapping.get("topic_field")
@@ -633,7 +634,7 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
         for mapping in field_mappings:
             topic_field = mapping.get("topic_field")
             model_field = mapping.get("model_field")
-            transform = mapping.get("transformation", mapping.get("transform", ""))
+            transform = get_transformation(mapping)
             
             if not topic_field or not model_field:
                 continue

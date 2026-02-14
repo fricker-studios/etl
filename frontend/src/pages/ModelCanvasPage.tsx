@@ -75,6 +75,10 @@ export function ModelCanvasPage() {
   const [modelFieldTypes, setModelFieldTypes] = useState<
     Record<string, string>
   >({}); // Data types for model fields
+  
+  // System/readonly fields that cannot be edited or deleted
+  const SYSTEM_FIELDS = ["load_datetime", "record_source"];
+  
   const [draggedColumn, setDraggedColumn] = useState<{
     topicId: string;
     columnName: string;
@@ -449,7 +453,7 @@ export function ModelCanvasPage() {
 
   const handleRemoveModelField = (fieldName: string) => {
     // Prevent deletion of system fields
-    if (fieldName === "load_datetime" || fieldName === "record_source") {
+    if (SYSTEM_FIELDS.includes(fieldName)) {
       notifications.show({
         message: "Cannot delete system fields",
         color: "red",
@@ -1829,7 +1833,7 @@ export function ModelCanvasPage() {
                     const isEditing = editingField === fieldName;
                     
                     // Check if this is a system/readonly field
-                    const isSystemField = fieldName === "load_datetime" || fieldName === "record_source";
+                    const isSystemField = SYSTEM_FIELDS.includes(fieldName);
 
                     return (
                       <Paper
