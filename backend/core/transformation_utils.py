@@ -10,7 +10,7 @@ Transformations are defined in field mappings and converted to ClickHouse SQL.
 
 import logging
 import re
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ def get_transformation(mapping: Dict[str, Any]) -> str:
     return mapping.get("transformation", mapping.get("transform", ""))
 
 
-def parse_transformation_params(transform_str: str) -> tuple[str, List[str]]:
+def parse_transformation_params(transform_str: str) -> Tuple[str, List[str]]:
     """
     Parse a transformation string into function name and parameters.
 
@@ -681,7 +681,7 @@ def get_supported_transformations() -> Dict[str, List[str]]:
         "Conditional": [
             "IF(condition, true_value, false_value)",
             "COALESCE(value1, value2, ...)",
-            "NULLIF(value1, value2)",
+            "NULLIF(value)",
             "IS_NULL",
             "IS_NOT_NULL",
         ],

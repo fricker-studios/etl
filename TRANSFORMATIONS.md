@@ -413,7 +413,7 @@ from core.pandas_transformations import validate_and_clean_data
 
 validation_rules = {
     "age": {"type": "int", "min": 0, "max": 120, "default": 0},
-    "email": {"type": "string", "regex": r"^[\w\.-]+@[\w\.-]+\.\w+$"},
+    "email": {"type": "string", "regex": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"},
     "price": {"type": "float", "min": 0}
 }
 

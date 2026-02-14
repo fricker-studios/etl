@@ -171,7 +171,7 @@ def validate_and_clean_data(
         df: pandas DataFrame
         validation_rules: Optional validation rules per column
             Example: {
-                "email": {"type": "string", "regex": r"^[\\w\\.-]+@[\\w\\.-]+\\.\\w+$"},
+                "email": {"type": "string", "regex": r"^[\w\.-]+@[\w\.-]+\.\w+$"},
                 "age": {"type": "int", "min": 0, "max": 120}
             }
 
