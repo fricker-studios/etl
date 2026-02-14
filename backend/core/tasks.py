@@ -687,12 +687,29 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
         
         # Build INSERT INTO SELECT statement
         select_sql = ",\n        ".join(select_columns)
-        insert_sql = f"""
-        INSERT INTO {database}.{table_name}
-        SELECT
-            {select_sql}
-        FROM {s3_table_func}
-        """
+        
+        # For Data Vault Hubs, we need to prevent duplicates based on the hash key
+        # We'll use a subquery that filters out hash keys that already exist in the target table
+        if model.type == "data_vault" and model.hubs and hash_key_field:
+            # Create a WHERE clause that excludes existing hash keys
+            # We use a subquery approach for efficiency
+            insert_sql = f"""
+            INSERT INTO {database}.{table_name}
+            SELECT
+                {select_sql}
+            FROM {s3_table_func}
+            WHERE MD5(toString({business_key_source})) NOT IN (
+                SELECT {hash_key_field} FROM {database}.{table_name}
+            )
+            """
+        else:
+            # For non-Hub tables or when hash key isn't available, use simple insert
+            insert_sql = f"""
+            INSERT INTO {database}.{table_name}
+            SELECT
+                {select_sql}
+            FROM {s3_table_func}
+            """
         
         logger.info(f"Executing INSERT statement:\n{insert_sql}")
         
