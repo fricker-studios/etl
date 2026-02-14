@@ -777,3 +777,66 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
             run.save()
         
         raise
+
+
+@shared_task(bind=True, name="core.optimize_model_table_task")
+def optimize_model_table_task(self, model_id):
+    """
+    Run OPTIMIZE TABLE FINAL on a model's table to trigger deduplication.
+    
+    This task should be called after all data package loading tasks for a model
+    have completed. It forces ReplacingMergeTree to merge all parts and remove
+    duplicates based on the ORDER BY key.
+    
+    Args:
+        model_id: ID of the Model whose table should be optimized
+        
+    Returns:
+        dict: Optimization results
+    """
+    from core.models import Model
+    from core.clickhouse_utils import optimize_table_for_deduplication
+    
+    try:
+        logger.info(f"Starting table optimization for model {model_id}")
+        
+        # Get the model
+        model = Model.objects.select_related("clickhouse_backend").get(id=model_id)
+        
+        if not model.table_created:
+            logger.warning(f"Model {model.name} table not created, skipping optimization")
+            return {
+                "status": "skipped",
+                "message": "Table not created",
+            }
+        
+        backend = model.clickhouse_backend
+        if not backend:
+            logger.warning(f"Model {model.name} has no backend configured, skipping optimization")
+            return {
+                "status": "skipped",
+                "message": "No backend configured",
+            }
+        
+        # Run the optimization
+        logger.info(f"Optimizing table for model {model.name}")
+        optimize_table_for_deduplication(model, backend)
+        
+        logger.info(f"Successfully optimized table for model {model.name}")
+        
+        return {
+            "status": "completed",
+            "model_id": model_id,
+            "model_name": model.name,
+            "table_name": model.table_name,
+        }
+        
+    except Model.DoesNotExist:
+        logger.error(f"Model {model_id} not found")
+        raise
+        
+    except Exception as e:
+        logger.error(f"Error optimizing table for model {model_id}: {str(e)}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        raise

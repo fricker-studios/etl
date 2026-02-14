@@ -403,12 +403,13 @@ def create_data_vault_hub_table(
             logger.warning(f"Could not cleanup replicas before table creation: {e}")
             # Continue with table creation even if cleanup fails
         
-        # For cluster mode, use ReplicatedMergeTree for replication
+        # For cluster mode, use ReplicatedReplacingMergeTree for replication + deduplication
+        # The load_datetime column is used as the version column - keeps the latest version
         local_ddl = f"""
         CREATE TABLE IF NOT EXISTS {database}.{local_table_name} ON CLUSTER '{cluster_name}' (
             {columns_sql}
         )
-        ENGINE = ReplicatedMergeTree('/clickhouse/tables/{{shard}}/{database}/{local_table_name}', '{{replica}}')
+        ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{{shard}}/{database}/{local_table_name}', '{{replica}}', load_datetime)
         ORDER BY ({hash_key_field})
         """
         
@@ -425,12 +426,13 @@ def create_data_vault_hub_table(
         logger.info(f"Creating distributed hub table with DDL: {distributed_ddl}")
         client.command(distributed_ddl)
     else:
-        # Single node mode - create standard MergeTree table
+        # Single node mode - create ReplacingMergeTree table for automatic deduplication
+        # The load_datetime column is used as the version column - keeps the latest version
         ddl = f"""
         CREATE TABLE IF NOT EXISTS {database}.{table_name} (
             {columns_sql}
         )
-        ENGINE = MergeTree()
+        ENGINE = ReplacingMergeTree(load_datetime)
         ORDER BY ({hash_key_field})
         """
         
@@ -528,6 +530,52 @@ def drop_table_from_model(model: Model, backend: StorageBackend) -> None:
         logger.error(f"Error dropping table for model {model.name}: {str(e)}")
         # Don't raise - we don't want to block model deletion if table drop fails
 
+
+def optimize_table_for_deduplication(model: 'Model', backend: 'StorageBackend'):
+    """
+    Run OPTIMIZE TABLE FINAL to trigger deduplication in ReplacingMergeTree tables.
+    
+    This should be called after all data loading is complete to remove duplicates.
+    ReplacingMergeTree only removes duplicates during merge operations, so we force
+    a final merge to ensure all duplicates are removed.
+    
+    Args:
+        model: Model instance
+        backend: ClickHouse StorageBackend
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    if not backend:
+        logger.warning(f"No backend configured for model {model.name}")
+        return
+    
+    try:
+        client = get_clickhouse_client(backend, detect_cluster=False)
+        database = backend.database or "default"
+        table_name = model.table_name
+        
+        # Determine if we should use cluster mode
+        use_cluster = backend.is_cluster or (backend.mode == "cluster" and backend.cluster_name)
+        cluster_name = backend.detected_cluster_name or backend.cluster_name
+        
+        if use_cluster and cluster_name:
+            # For cluster mode, optimize the local table on each node
+            local_table_name = f"{table_name}_local"
+            optimize_sql = f"OPTIMIZE TABLE {database}.{local_table_name} ON CLUSTER '{cluster_name}' FINAL"
+            logger.info(f"Optimizing cluster table for deduplication: {optimize_sql}")
+            client.command(optimize_sql)
+            logger.info(f"Successfully optimized local table {local_table_name} on cluster")
+        else:
+            # Single node mode - optimize single table
+            optimize_sql = f"OPTIMIZE TABLE {database}.{table_name} FINAL"
+            logger.info(f"Optimizing table for deduplication: {optimize_sql}")
+            client.command(optimize_sql)
+            logger.info(f"Successfully optimized table {table_name}")
+        
+    except Exception as e:
+        logger.error(f"Error optimizing table for model {model.name}: {str(e)}")
+        # Don't raise - optimization failure shouldn't break the loading process
 
 
 def get_s3_table_function(

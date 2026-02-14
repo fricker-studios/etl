@@ -1157,11 +1157,14 @@ class ModelViewSet(viewsets.ModelViewSet):
                     }
                 )
             
-            # Import the task
-            from core.tasks import load_data_package_task
+            # Import the tasks
+            from core.tasks import load_data_package_task, optimize_model_table_task
+            from celery import chord
             
             # Create runs and queue tasks for each package
             runs_created = []
+            task_signatures = []
+            
             for package in data_packages:
                 # Create a Run for tracking
                 run = Run.objects.create(
@@ -1172,12 +1175,13 @@ class ModelViewSet(viewsets.ModelViewSet):
                     status="queued",
                 )
                 
-                # Queue the Celery task
-                load_data_package_task.delay(
+                # Create task signature (don't execute yet)
+                task_sig = load_data_package_task.si(
                     model_instance.id,
                     package.id,
                     run.id,
                 )
+                task_signatures.append(task_sig)
                 
                 runs_created.append({
                     "run_id": run.id,
@@ -1185,13 +1189,18 @@ class ModelViewSet(viewsets.ModelViewSet):
                     "package_name": package.name,
                 })
             
+            # Use chord to execute all load tasks in parallel, then optimize table when all complete
+            # The callback (optimize) will only run after all load tasks finish successfully
+            optimize_callback = optimize_model_table_task.si(model_instance.id)
+            chord(task_signatures)(optimize_callback)
+            
             logger.info(
-                f"Queued {len(runs_created)} data loading tasks for model {model_instance.name}"
+                f"Queued {len(runs_created)} data loading tasks for model {model_instance.name} with optimization callback"
             )
             
             return Response(
                 {
-                    "message": f"Queued {len(runs_created)} data packages for loading",
+                    "message": f"Queued {len(runs_created)} data packages for loading (will optimize after completion)",
                     "packages_queued": len(runs_created),
                     "runs": runs_created,
                 }
