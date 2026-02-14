@@ -530,8 +530,48 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
             raise ValueError(error_msg)
         
         # Get S3 source configuration
-        s3_source = data_package.external_s3_source or data_package.destination
-        if not s3_source or s3_source.kind != "s3":
+        # external_s3_source is a DataSource (has 'type' field)
+        # destination is a StorageBackend (has 'kind' field)
+        s3_source = None
+        s3_endpoint = None
+        s3_bucket = None
+        s3_access_key = None
+        s3_secret_key = None
+        
+        if data_package.external_s3_source:
+            # Using external DataSource
+            if data_package.external_s3_source.type != "s3":
+                error_msg = f"DataPackage {data_package.name} external_s3_source is not an S3 data source"
+                run.status = "failed"
+                run.error_message = error_msg
+                run.completed_at = timezone.now()
+                run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+                run.save()
+                raise ValueError(error_msg)
+            
+            s3_source = data_package.external_s3_source
+            s3_endpoint = s3_source.s3_endpoint
+            s3_bucket = s3_source.s3_bucket
+            s3_access_key = s3_source.s3_access_key
+            s3_secret_key = s3_source.get_decrypted_s3_secret_key()
+            
+        elif data_package.destination:
+            # Using StorageBackend
+            if data_package.destination.kind != "s3":
+                error_msg = f"DataPackage {data_package.name} destination is not an S3 storage backend"
+                run.status = "failed"
+                run.error_message = error_msg
+                run.completed_at = timezone.now()
+                run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+                run.save()
+                raise ValueError(error_msg)
+            
+            s3_source = data_package.destination
+            s3_endpoint = s3_source.endpoint
+            s3_bucket = s3_source.bucket
+            s3_access_key = s3_source.access_key_id
+            s3_secret_key = s3_source.get_decrypted_secret_access_key()
+        else:
             error_msg = f"DataPackage {data_package.name} does not have a valid S3 source"
             run.status = "failed"
             run.error_message = error_msg
@@ -544,12 +584,6 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
         client = get_clickhouse_client(model.clickhouse_backend)
         database = model.clickhouse_backend.database or "default"
         table_name = model.table_name
-        
-        # Get S3 credentials
-        s3_endpoint = s3_source.endpoint
-        s3_bucket = s3_source.bucket
-        s3_access_key = s3_source.access_key_id
-        s3_secret_key = s3_source.get_decrypted_secret_access_key()
         
         if not all([s3_endpoint, s3_bucket, s3_access_key, s3_secret_key]):
             error_msg = f"S3 source {s3_source.name} is missing required configuration"

@@ -1211,17 +1211,29 @@ class ModelViewSet(viewsets.ModelViewSet):
         try:
             model_instance = self.get_object()
             
+            # Get pagination parameters
+            page = int(request.query_params.get('page', 1))
+            per_page = int(request.query_params.get('per_page', 10))
+            
             # Get all runs for this model
             runs = Run.objects.filter(model=model_instance).order_by("-created_at")
-            
-            # Serialize the runs
-            run_serializer = RunSerializer(runs, many=True)
             
             # Calculate summary statistics
             total_runs = runs.count()
             completed_runs = runs.filter(status="success").count()
             failed_runs = runs.filter(status="failed").count()
             running_runs = runs.filter(status__in=["queued", "running"]).count()
+            
+            # Apply pagination
+            start_idx = (page - 1) * per_page
+            end_idx = start_idx + per_page
+            paginated_runs = runs[start_idx:end_idx]
+            
+            # Serialize the runs
+            run_serializer = RunSerializer(paginated_runs, many=True)
+            
+            # Calculate total pages
+            total_pages = (total_runs + per_page - 1) // per_page
             
             return Response(
                 {
@@ -1230,11 +1242,77 @@ class ModelViewSet(viewsets.ModelViewSet):
                     "failed_runs": failed_runs,
                     "running_runs": running_runs,
                     "runs": run_serializer.data,
+                    "pagination": {
+                        "page": page,
+                        "per_page": per_page,
+                        "total_pages": total_pages,
+                        "has_next": page < total_pages,
+                        "has_prev": page > 1,
+                    }
                 }
             )
             
         except Exception as e:
             logger.error(f"Error fetching loading progress for model {pk}: {str(e)}")
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=["post"])
+    def rerun_failed(self, request, pk=None):
+        """Re-run all failed jobs for this model"""
+        try:
+            model_instance = self.get_object()
+            
+            # Get all failed runs for this model
+            failed_runs = Run.objects.filter(
+                model=model_instance,
+                status="failed"
+            )
+            
+            if not failed_runs.exists():
+                return Response(
+                    {"message": "No failed runs found for this model"},
+                )
+            
+            # Import the task
+            from core.tasks import load_data_package_task
+            
+            new_runs = []
+            for run in failed_runs:
+                # Create a new Run for tracking
+                new_run = Run.objects.create(
+                    user=request.user,
+                    model=run.model,
+                    data_package=run.data_package,
+                    name=f"Re-run: {run.name}",
+                    status="queued",
+                )
+                
+                # Queue the Celery task
+                if run.model and run.data_package:
+                    load_data_package_task.delay(
+                        run.model.id,
+                        run.data_package.id,
+                        new_run.id,
+                    )
+                    new_runs.append(new_run.id)
+                else:
+                    logger.warning(f"Run {run.id} missing model or data_package, skipping")
+            
+            logger.info(f"Re-queued {len(new_runs)} failed runs for model {model_instance.name}")
+            
+            return Response(
+                {
+                    "message": f"Re-queued {len(new_runs)} failed runs successfully",
+                    "new_run_ids": new_runs,
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"Error re-running failed jobs for model {pk}: {str(e)}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             return Response(
                 {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
@@ -1249,3 +1327,112 @@ class RunViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+    @action(detail=True, methods=["post"])
+    def rerun(self, request, pk=None):
+        """Re-run a specific job"""
+        try:
+            run = self.get_object()
+            
+            # Import the task
+            from core.tasks import load_data_package_task
+            
+            # Create a new Run for tracking
+            new_run = Run.objects.create(
+                user=request.user,
+                model=run.model,
+                data_package=run.data_package,
+                name=f"Re-run: {run.name}",
+                status="queued",
+            )
+            
+            # Queue the Celery task
+            if run.model and run.data_package:
+                load_data_package_task.delay(
+                    run.model.id,
+                    run.data_package.id,
+                    new_run.id,
+                )
+            else:
+                return Response(
+                    {"error": "Run must have both model and data_package to re-run"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            
+            logger.info(f"Re-queued run {run.id} as new run {new_run.id}")
+            
+            return Response(
+                {
+                    "message": "Run re-queued successfully",
+                    "new_run_id": new_run.id,
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"Error re-running job {pk}: {str(e)}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=["post"])
+    def rerun_multiple(self, request):
+        """Re-run multiple jobs"""
+        try:
+            run_ids = request.data.get("run_ids", [])
+            
+            if not run_ids:
+                return Response(
+                    {"error": "No run IDs provided"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            
+            # Import the task
+            from core.tasks import load_data_package_task
+            
+            new_runs = []
+            for run_id in run_ids:
+                try:
+                    run = Run.objects.get(id=run_id, user=request.user)
+                    
+                    # Create a new Run for tracking
+                    new_run = Run.objects.create(
+                        user=request.user,
+                        model=run.model,
+                        data_package=run.data_package,
+                        name=f"Re-run: {run.name}",
+                        status="queued",
+                    )
+                    
+                    # Queue the Celery task
+                    if run.model and run.data_package:
+                        load_data_package_task.delay(
+                            run.model.id,
+                            run.data_package.id,
+                            new_run.id,
+                        )
+                        new_runs.append(new_run.id)
+                    else:
+                        logger.warning(f"Run {run_id} missing model or data_package, skipping")
+                        
+                except Run.DoesNotExist:
+                    logger.warning(f"Run {run_id} not found or not owned by user")
+                    continue
+            
+            logger.info(f"Re-queued {len(new_runs)} runs")
+            
+            return Response(
+                {
+                    "message": f"Re-queued {len(new_runs)} runs successfully",
+                    "new_run_ids": new_runs,
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"Error re-running multiple jobs: {str(e)}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

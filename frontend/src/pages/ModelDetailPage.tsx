@@ -19,6 +19,8 @@ import {
   Button,
   Progress,
   Table,
+  Checkbox,
+  Pagination,
 } from "@mantine/core";
 import {
   IconArrowLeft,
@@ -33,6 +35,7 @@ import {
   IconSettings,
   IconPlayerPlay,
   IconPlus,
+  IconRotateClockwise,
 } from "@tabler/icons-react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useModel, useDeleteModel } from "../hooks/useModels";
@@ -53,6 +56,11 @@ export function ModelDetailPage() {
   const { data: topics = [] } = useTopics();
   const [editModalOpen, { open: openEditModal }] = useDisclosure(false);
   const { colorScheme } = useMantineColorScheme();
+  
+  // State for runs table
+  const [currentPage, setCurrentPage] = useState(1);
+  const [perPage] = useState(10);
+  const [selectedRuns, setSelectedRuns] = useState<string[]>([]);
 
   // Fetch ClickHouse status
   const { data: clickhouseStatus } = useQuery<any>({
@@ -69,8 +77,8 @@ export function ModelDetailPage() {
 
   // Fetch loading progress
   const { data: loadingProgress, refetch: refetchLoadingProgress } = useQuery<any>({
-    queryKey: ["loading-progress", id],
-    queryFn: () => api.models.loadingProgress(id!),
+    queryKey: ["loading-progress", id, currentPage, perPage],
+    queryFn: () => api.models.loadingProgress(id!, currentPage, perPage),
     enabled: !!id && model?.table_created === true,
     refetchInterval: 5000, // Poll every 5 seconds when table is created
   });
@@ -115,6 +123,48 @@ export function ModelDetailPage() {
       notifications.show({
         title: "Error Loading Data",
         message: error.message || "Failed to start data loading",
+        color: "red",
+      });
+    },
+  });
+
+  // Mutation for re-running failed jobs
+  const rerunFailedMutation = useMutation({
+    mutationFn: () => api.models.rerunFailed(id!),
+    onSuccess: (data: any) => {
+      notifications.show({
+        title: "Jobs Re-queued",
+        message: data.message || "Failed jobs have been re-queued",
+        color: "blue",
+      });
+      refetchLoadingProgress();
+      setSelectedRuns([]);
+    },
+    onError: (error: any) => {
+      notifications.show({
+        title: "Error Re-running Jobs",
+        message: error.message || "Failed to re-run jobs",
+        color: "red",
+      });
+    },
+  });
+
+  // Mutation for re-running selected jobs
+  const rerunSelectedMutation = useMutation({
+    mutationFn: (runIds: string[]) => api.runs.rerunMultiple(runIds),
+    onSuccess: (data: any) => {
+      notifications.show({
+        title: "Jobs Re-queued",
+        message: data.message || "Selected jobs have been re-queued",
+        color: "blue",
+      });
+      refetchLoadingProgress();
+      setSelectedRuns([]);
+    },
+    onError: (error: any) => {
+      notifications.show({
+        title: "Error Re-running Jobs",
+        message: error.message || "Failed to re-run jobs",
         color: "red",
       });
     },
@@ -677,12 +727,61 @@ export function ModelDetailPage() {
                 {/* Recent Runs Table */}
                 {loadingProgress.runs && loadingProgress.runs.length > 0 && (
                   <div>
-                    <Text size="sm" fw={600} mb="xs">
-                      Recent Runs
-                    </Text>
+                    <Group justify="space-between" mb="xs">
+                      <Text size="sm" fw={600}>
+                        Recent Runs
+                      </Text>
+                      <Group gap="xs">
+                        {loadingProgress.failed_runs > 0 && (
+                          <Button
+                            size="xs"
+                            variant="light"
+                            color="orange"
+                            leftSection={<IconRotateClockwise size={14} />}
+                            onClick={() => rerunFailedMutation.mutate()}
+                            loading={rerunFailedMutation.isPending}
+                          >
+                            Re-run Failed
+                          </Button>
+                        )}
+                        {selectedRuns.length > 0 && (
+                          <Button
+                            size="xs"
+                            variant="filled"
+                            color="blue"
+                            leftSection={<IconRotateClockwise size={14} />}
+                            onClick={() => rerunSelectedMutation.mutate(selectedRuns)}
+                            loading={rerunSelectedMutation.isPending}
+                          >
+                            Re-run Selected ({selectedRuns.length})
+                          </Button>
+                        )}
+                      </Group>
+                    </Group>
                     <Table striped highlightOnHover>
                       <Table.Thead>
                         <Table.Tr>
+                          <Table.Th>
+                            <Checkbox
+                              checked={
+                                loadingProgress.runs.length > 0 &&
+                                selectedRuns.length === loadingProgress.runs.length
+                              }
+                              indeterminate={
+                                selectedRuns.length > 0 &&
+                                selectedRuns.length < loadingProgress.runs.length
+                              }
+                              onChange={(e) => {
+                                if (e.currentTarget.checked) {
+                                  setSelectedRuns(
+                                    loadingProgress.runs.map((r: any) => r.id.toString())
+                                  );
+                                } else {
+                                  setSelectedRuns([]);
+                                }
+                              }}
+                            />
+                          </Table.Th>
                           <Table.Th>Package</Table.Th>
                           <Table.Th>Status</Table.Th>
                           <Table.Th>Rows</Table.Th>
@@ -691,8 +790,22 @@ export function ModelDetailPage() {
                         </Table.Tr>
                       </Table.Thead>
                       <Table.Tbody>
-                        {loadingProgress.runs.slice(0, 10).map((run: any) => (
+                        {loadingProgress.runs.map((run: any) => (
                           <Table.Tr key={run.id}>
+                            <Table.Td>
+                              <Checkbox
+                                checked={selectedRuns.includes(run.id.toString())}
+                                onChange={(e) => {
+                                  if (e.currentTarget.checked) {
+                                    setSelectedRuns([...selectedRuns, run.id.toString()]);
+                                  } else {
+                                    setSelectedRuns(
+                                      selectedRuns.filter((id) => id !== run.id.toString())
+                                    );
+                                  }
+                                }}
+                              />
+                            </Table.Td>
                             <Table.Td>
                               <Text size="sm" lineClamp={1}>
                                 {run.name}
@@ -737,6 +850,17 @@ export function ModelDetailPage() {
                         ))}
                       </Table.Tbody>
                     </Table>
+                    
+                    {/* Pagination */}
+                    {loadingProgress.pagination && loadingProgress.pagination.total_pages > 1 && (
+                      <Group justify="center" mt="md">
+                        <Pagination
+                          total={loadingProgress.pagination.total_pages}
+                          value={currentPage}
+                          onChange={setCurrentPage}
+                        />
+                      </Group>
+                    )}
                   </div>
                 )}
               </>
