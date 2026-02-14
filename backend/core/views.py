@@ -1044,6 +1044,198 @@ class ModelViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    @action(detail=True, methods=["post"])
+    def create_table(self, request, pk=None):
+        """Create the ClickHouse table for this model"""
+        try:
+            model_instance = self.get_object()
+            
+            # Check if table already created
+            if model_instance.table_created:
+                return Response(
+                    {
+                        "message": "Table already created",
+                        "table_name": model_instance.table_name,
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            
+            # Get or determine ClickHouse backend
+            clickhouse_backend = model_instance.clickhouse_backend
+            if not clickhouse_backend:
+                # Try to find a ClickHouse backend for the user
+                clickhouse_backend = StorageBackend.objects.filter(
+                    user=request.user, kind="clickhouse"
+                ).first()
+                
+                if not clickhouse_backend:
+                    return Response(
+                        {"error": "No ClickHouse backend configured"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            
+            # Import the table creation utility
+            from core.clickhouse_utils import create_table_from_model
+            
+            # Create the table
+            table_name = create_table_from_model(model_instance, clickhouse_backend)
+            
+            # Update the model
+            model_instance.table_created = True
+            model_instance.table_name = table_name
+            model_instance.clickhouse_backend = clickhouse_backend
+            model_instance.save()
+            
+            logger.info(
+                f"Created table {table_name} for model {model_instance.name} (ID: {model_instance.id})"
+            )
+            
+            return Response(
+                {
+                    "message": "Table created successfully",
+                    "table_name": table_name,
+                    "backend_name": clickhouse_backend.name,
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"Error creating table for model {pk}: {str(e)}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=["post"])
+    def load_data(self, request, pk=None):
+        """
+        Start loading data from DataPackages into this model's table.
+        
+        This action:
+        1. Finds all DataPackages associated with the model's topics
+        2. Creates a Run for each package to track loading progress
+        3. Queues Celery tasks to load data from each package
+        """
+        try:
+            model_instance = self.get_object()
+            
+            # Check if table is created
+            if not model_instance.table_created:
+                return Response(
+                    {"error": "Table must be created before loading data"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            
+            # Get all topics associated with this model
+            topics = model_instance.topics.all()
+            
+            if not topics.exists():
+                return Response(
+                    {"error": "Model has no topics associated"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            
+            # Get all topic revisions for these topics
+            topic_revisions = TopicRevision.objects.filter(
+                topic__in=topics
+            ).values_list("id", flat=True)
+            
+            # Find all DataPackages for these topic revisions
+            data_packages = DataPackage.objects.filter(
+                topic_revision_id__in=topic_revisions,
+                status="materialized",  # Only load materialized packages
+            )
+            
+            if not data_packages.exists():
+                return Response(
+                    {
+                        "message": "No materialized data packages found for this model's topics",
+                        "packages_queued": 0,
+                    }
+                )
+            
+            # Import the task
+            from core.tasks import load_data_package_task
+            
+            # Create runs and queue tasks for each package
+            runs_created = []
+            for package in data_packages:
+                # Create a Run for tracking
+                run = Run.objects.create(
+                    user=request.user,
+                    model=model_instance,
+                    data_package=package,
+                    name=f"Load {package.name} into {model_instance.name}",
+                    status="queued",
+                )
+                
+                # Queue the Celery task
+                load_data_package_task.delay(
+                    model_instance.id,
+                    package.id,
+                    run.id,
+                )
+                
+                runs_created.append({
+                    "run_id": run.id,
+                    "package_id": package.id,
+                    "package_name": package.name,
+                })
+            
+            logger.info(
+                f"Queued {len(runs_created)} data loading tasks for model {model_instance.name}"
+            )
+            
+            return Response(
+                {
+                    "message": f"Queued {len(runs_created)} data packages for loading",
+                    "packages_queued": len(runs_created),
+                    "runs": runs_created,
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"Error queueing data load for model {pk}: {str(e)}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=["get"])
+    def loading_progress(self, request, pk=None):
+        """Get the progress of data loading for this model"""
+        try:
+            model_instance = self.get_object()
+            
+            # Get all runs for this model
+            runs = Run.objects.filter(model=model_instance).order_by("-created_at")
+            
+            # Serialize the runs
+            run_serializer = RunSerializer(runs, many=True)
+            
+            # Calculate summary statistics
+            total_runs = runs.count()
+            completed_runs = runs.filter(status="success").count()
+            failed_runs = runs.filter(status="failed").count()
+            running_runs = runs.filter(status__in=["queued", "running"]).count()
+            
+            return Response(
+                {
+                    "total_runs": total_runs,
+                    "completed_runs": completed_runs,
+                    "failed_runs": failed_runs,
+                    "running_runs": running_runs,
+                    "runs": run_serializer.data,
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"Error fetching loading progress for model {pk}: {str(e)}")
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 
 class RunViewSet(viewsets.ModelViewSet):
     serializer_class = RunSerializer

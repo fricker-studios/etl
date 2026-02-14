@@ -458,6 +458,18 @@ class Model(models.Model):
     # Example dimension: [{"name": "Dim_Date", "topic": 1, "key": "date_id", "fields": ["date", "year", "month", "day"], "field_mappings": [...]}]
     dimensions = models.JSONField(default=list, blank=True)
 
+    # Table creation tracking
+    table_created = models.BooleanField(default=False)
+    table_name = models.CharField(max_length=255, blank=True, null=True)
+    clickhouse_backend = models.ForeignKey(
+        StorageBackend,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="models",
+        limit_choices_to={"kind": "clickhouse"},
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -482,6 +494,12 @@ class Run(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="runs")
     stream = models.ForeignKey(
         Stream, on_delete=models.CASCADE, related_name="runs", null=True, blank=True
+    )
+    model = models.ForeignKey(
+        "Model", on_delete=models.CASCADE, related_name="runs", null=True, blank=True
+    )
+    data_package = models.ForeignKey(
+        DataPackage, on_delete=models.CASCADE, related_name="runs", null=True, blank=True
     )
     name = models.CharField(max_length=255)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="queued")

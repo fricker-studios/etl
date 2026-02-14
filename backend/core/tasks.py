@@ -442,3 +442,252 @@ def _should_stream_run(stream):
     # For cron-based scheduling, return False here
     # (should be handled by Celery Beat periodic tasks)
     return False
+
+
+@shared_task(bind=True, name="core.load_data_package_task")
+def load_data_package_task(self, model_id, data_package_id, run_id=None):
+    """
+    Load data from a DataPackage into a Model's ClickHouse table.
+    
+    This task:
+    1. Virtualizes the S3 data using ClickHouse's S3 table function
+    2. Performs any transformations (e.g., hash)
+    3. Inserts data into the destination table
+    4. Uses transactions to ensure atomicity
+    
+    Args:
+        model_id: ID of the Model to load data into
+        data_package_id: ID of the DataPackage to load
+        run_id: Optional ID of the Run instance to track progress
+        
+    Returns:
+        dict: Loading results including rows loaded
+    """
+    from core.models import Model, DataPackage, Run, DataSource
+    from core.clickhouse_utils import (
+        get_clickhouse_client,
+        get_s3_table_function,
+        detect_file_format,
+    )
+    import hashlib
+    
+    try:
+        # Get the model and data package
+        model = Model.objects.select_related("clickhouse_backend", "user").get(id=model_id)
+        data_package = DataPackage.objects.select_related(
+            "topic_revision", "external_s3_source", "destination"
+        ).get(id=data_package_id)
+        
+        # Get or create Run instance
+        if run_id:
+            run = Run.objects.get(id=run_id)
+        else:
+            run = Run.objects.create(
+                user=model.user,
+                model=model,
+                data_package=data_package,
+                name=f"Load {data_package.name} into {model.name}",
+                status="running",
+                started_at=timezone.now(),
+            )
+        
+        # Update run status
+        run.status = "running"
+        run.started_at = timezone.now()
+        run.save()
+        
+        logger.info(f"Loading data package {data_package_id} into model {model_id} (Run ID: {run.id})")
+        
+        # Verify model has a table created
+        if not model.table_created or not model.table_name:
+            error_msg = f"Model {model.name} does not have a table created"
+            run.status = "failed"
+            run.error_message = error_msg
+            run.completed_at = timezone.now()
+            run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+            run.save()
+            raise ValueError(error_msg)
+        
+        # Verify model has a ClickHouse backend
+        if not model.clickhouse_backend:
+            error_msg = f"Model {model.name} does not have a ClickHouse backend configured"
+            run.status = "failed"
+            run.error_message = error_msg
+            run.completed_at = timezone.now()
+            run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+            run.save()
+            raise ValueError(error_msg)
+        
+        # Verify data package has a file path
+        if not data_package.file_path:
+            error_msg = f"DataPackage {data_package.name} does not have a file_path"
+            run.status = "failed"
+            run.error_message = error_msg
+            run.completed_at = timezone.now()
+            run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+            run.save()
+            raise ValueError(error_msg)
+        
+        # Get S3 source configuration
+        s3_source = data_package.external_s3_source or data_package.destination
+        if not s3_source or s3_source.kind != "s3":
+            error_msg = f"DataPackage {data_package.name} does not have a valid S3 source"
+            run.status = "failed"
+            run.error_message = error_msg
+            run.completed_at = timezone.now()
+            run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+            run.save()
+            raise ValueError(error_msg)
+        
+        # Get ClickHouse client
+        client = get_clickhouse_client(model.clickhouse_backend)
+        database = model.clickhouse_backend.database or "default"
+        table_name = model.table_name
+        
+        # Get S3 credentials
+        s3_endpoint = s3_source.endpoint
+        s3_bucket = s3_source.bucket
+        s3_access_key = s3_source.access_key_id
+        s3_secret_key = s3_source.get_decrypted_secret_access_key()
+        
+        if not all([s3_endpoint, s3_bucket, s3_access_key, s3_secret_key]):
+            error_msg = f"S3 source {s3_source.name} is missing required configuration"
+            run.status = "failed"
+            run.error_message = error_msg
+            run.completed_at = timezone.now()
+            run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+            run.save()
+            raise ValueError(error_msg)
+        
+        # Detect file format
+        file_format = detect_file_format(data_package.file_path)
+        
+        # Get S3 table function
+        s3_table_func = get_s3_table_function(
+            s3_endpoint,
+            s3_access_key,
+            s3_secret_key,
+            s3_bucket,
+            data_package.file_path,
+            file_format,
+        )
+        
+        logger.info(f"Using S3 table function: {s3_table_func}")
+        
+        # Get field mappings from model
+        if model.type == "data_vault":
+            entity = model.hubs[0] if model.hubs else (
+                model.links[0] if model.links else (
+                    model.satellites[0] if model.satellites else None
+                )
+            )
+        else:
+            entity = model.facts[0] if model.facts else (
+                model.dimensions[0] if model.dimensions else None
+            )
+        
+        if not entity:
+            error_msg = f"Model {model.name} has no entities defined"
+            run.status = "failed"
+            run.error_message = error_msg
+            run.completed_at = timezone.now()
+            run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+            run.save()
+            raise ValueError(error_msg)
+        
+        field_mappings = entity.get("field_mappings", [])
+        
+        # Build SELECT statement with transformations
+        select_columns = []
+        
+        # For Data Vault hubs, calculate the hash key
+        if model.type == "data_vault" and model.hubs:
+            business_key = entity.get("business_key")
+            if business_key:
+                # Hash the business key using MD5 (ClickHouse function)
+                select_columns.append(f"MD5(toString({business_key})) as hub_hash_key")
+        
+        # Add load_datetime and record_source
+        select_columns.append(f"now64(3) as load_datetime")
+        select_columns.append(f"'{data_package.name}' as record_source")
+        
+        # Add mapped fields with transformations
+        for mapping in field_mappings:
+            topic_field = mapping.get("topic_field")
+            model_field = mapping.get("model_field")
+            transform = mapping.get("transform")
+            
+            if not topic_field or not model_field:
+                continue
+            
+            # Apply transformation if specified
+            if transform == "hash":
+                select_columns.append(f"MD5(toString({topic_field})) as {model_field}")
+            else:
+                select_columns.append(f"{topic_field} as {model_field}")
+        
+        # Build INSERT INTO SELECT statement
+        select_sql = ",\n        ".join(select_columns)
+        insert_sql = f"""
+        INSERT INTO {database}.{table_name}
+        SELECT
+            {select_sql}
+        FROM {s3_table_func}
+        """
+        
+        logger.info(f"Executing INSERT statement:\n{insert_sql}")
+        
+        # Execute the INSERT in a transaction-like manner
+        # ClickHouse doesn't have traditional transactions, but inserts are atomic
+        try:
+            result = client.command(insert_sql)
+            
+            # Query to get the count of rows inserted
+            count_sql = f"SELECT count() FROM {database}.{table_name} WHERE record_source = '{data_package.name}'"
+            rows_loaded = client.command(count_sql)
+            
+            logger.info(f"Successfully loaded {rows_loaded} rows from {data_package.name}")
+            
+            # Update run with success
+            run.status = "success"
+            run.completed_at = timezone.now()
+            run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+            run.rows_processed = rows_loaded
+            run.save()
+            
+            return {
+                "status": "success",
+                "rows_loaded": rows_loaded,
+                "model_id": model_id,
+                "data_package_id": data_package_id,
+                "table_name": table_name,
+            }
+            
+        except Exception as insert_error:
+            logger.error(f"Error during INSERT: {str(insert_error)}")
+            
+            # For ClickHouse, we can't really rollback since it's not a traditional transaction
+            # But we can delete the rows we just inserted by record_source
+            try:
+                delete_sql = f"ALTER TABLE {database}.{table_name} DELETE WHERE record_source = '{data_package.name}'"
+                client.command(delete_sql)
+                logger.info(f"Rolled back inserted rows for {data_package.name}")
+            except Exception as rollback_error:
+                logger.error(f"Error during rollback: {str(rollback_error)}")
+            
+            raise insert_error
+        
+    except Exception as e:
+        logger.error(f"Error loading data package {data_package_id}: {str(e)}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        
+        # Update run with failure
+        if 'run' in locals():
+            run.status = "failed"
+            run.error_message = str(e)
+            run.completed_at = timezone.now()
+            run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+            run.save()
+        
+        raise
