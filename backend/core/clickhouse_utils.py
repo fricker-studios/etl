@@ -204,20 +204,48 @@ def create_data_vault_hub_table(
     columns = []
     column_names = set()  # Track column names to prevent duplicates
     
-    # Add standard Data Vault columns
-    columns.append("hub_hash_key String")  # Business key hash
-    column_names.add("hub_hash_key")
-    columns.append("load_datetime DateTime64(3) DEFAULT now64(3)")
-    column_names.add("load_datetime")
-    columns.append("record_source String")
-    column_names.add("record_source")
-    
     # Get field mappings to determine which fields to include
     field_mappings = hub_definition.get("field_mappings", [])
     
     # Build a map of model fields to topic fields
     topic_schema = {field["name"]: field for field in topic_revision.schema}
     
+    # First pass: collect all model fields from mappings
+    model_fields_from_mappings = set()
+    for mapping in field_mappings:
+        model_field = mapping.get("model_field")
+        if model_field:
+            model_fields_from_mappings.add(model_field)
+    
+    # Add standard Data Vault columns if not already in mappings
+    # These are auto-generated during data load
+    if "load_datetime" not in model_fields_from_mappings:
+        columns.append("load_datetime DateTime64(3) DEFAULT now64(3)")
+        column_names.add("load_datetime")
+    
+    if "record_source" not in model_fields_from_mappings:
+        columns.append("record_source String")
+        column_names.add("record_source")
+    
+    # Determine the hash key column name from mappings
+    # Look for a field with hash transformation - that's our hash key
+    hash_key_field = None
+    for mapping in field_mappings:
+        transform = mapping.get("transformation", mapping.get("transform", ""))
+        if transform and transform.startswith("hash"):
+            hash_key_field = mapping.get("model_field")
+            break
+    
+    # If no hash key field found in mappings, use standard name
+    if not hash_key_field:
+        hash_key_field = "hub_hash_key"
+    
+    # Add hash key column if not already added
+    if hash_key_field not in column_names:
+        columns.insert(0, f"{hash_key_field} String")
+        column_names.add(hash_key_field)
+    
+    # Add mapped fields
     for mapping in field_mappings:
         model_field = mapping.get("model_field")
         topic_field = mapping.get("topic_field")
@@ -248,7 +276,7 @@ def create_data_vault_hub_table(
         {columns_sql}
     )
     ENGINE = MergeTree()
-    ORDER BY (hub_hash_key)
+    ORDER BY ({hash_key_field})
     """
     
     logger.info(f"Creating hub table with DDL: {ddl}")

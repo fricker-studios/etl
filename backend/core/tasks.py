@@ -599,32 +599,56 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
         
         # Build SELECT statement with transformations
         select_columns = []
+        processed_fields = set()  # Track which fields we've already added
         
-        # For Data Vault hubs, calculate the hash key
-        if model.type == "data_vault" and model.hubs:
-            business_key = entity.get("business_key")
-            if business_key:
-                # Hash the business key using MD5 (ClickHouse function)
-                select_columns.append(f"MD5(toString({business_key})) as hub_hash_key")
+        # Determine the hash key field name from mappings
+        hash_key_field = None
+        business_key_source = None
+        for mapping in field_mappings:
+            transform = mapping.get("transformation", mapping.get("transform", ""))
+            if transform and transform.startswith("hash"):
+                hash_key_field = mapping.get("model_field")
+                business_key_source = mapping.get("topic_field")
+                break
         
-        # Add load_datetime and record_source
-        select_columns.append(f"now64(3) as load_datetime")
-        select_columns.append(f"'{data_package.name}' as record_source")
+        # For Data Vault hubs, calculate the hash key if found in mappings
+        if model.type == "data_vault" and model.hubs and hash_key_field and business_key_source:
+            # Hash the business key using MD5 (ClickHouse function)
+            select_columns.append(f"MD5(toString({business_key_source})) as {hash_key_field}")
+            processed_fields.add(hash_key_field)
+        
+        # Add standard columns if they're not in the field mappings
+        has_load_datetime = any(m.get("model_field") == "load_datetime" for m in field_mappings)
+        has_record_source = any(m.get("model_field") == "record_source" for m in field_mappings)
+        
+        if not has_load_datetime:
+            select_columns.append(f"now64(3) as load_datetime")
+            processed_fields.add("load_datetime")
+        
+        if not has_record_source:
+            select_columns.append(f"'{data_package.name}' as record_source")
+            processed_fields.add("record_source")
         
         # Add mapped fields with transformations
         for mapping in field_mappings:
             topic_field = mapping.get("topic_field")
             model_field = mapping.get("model_field")
-            transform = mapping.get("transform")
+            transform = mapping.get("transformation", mapping.get("transform", ""))
             
             if not topic_field or not model_field:
                 continue
             
+            # Skip if we've already processed this field (e.g., hash key)
+            if model_field in processed_fields:
+                continue
+            
             # Apply transformation if specified
-            if transform == "hash":
+            if transform and transform.startswith("hash"):
                 select_columns.append(f"MD5(toString({topic_field})) as {model_field}")
             else:
                 select_columns.append(f"{topic_field} as {model_field}")
+            
+            processed_fields.add(model_field)
         
         # Build INSERT INTO SELECT statement
         select_sql = ",\n        ".join(select_columns)
