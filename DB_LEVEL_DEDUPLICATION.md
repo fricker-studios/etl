@@ -11,7 +11,6 @@ Instead of application-level locking, we use ClickHouse's built-in deduplication
 ```python
 client.command(insert_sql, settings={
     'insert_deduplicate': 1,  # Enable block-level deduplication
-    'insert_deduplicate_token': f"{model.id}_{data_package.id}"  # Unique token per load
 })
 ```
 
@@ -19,18 +18,20 @@ client.command(insert_sql, settings={
 
 **Layer 1: Block-Level Deduplication** (`insert_deduplicate=1`)
 - ClickHouse computes a hash of each data block being inserted
-- Rejects blocks that have already been inserted
+- Rejects blocks that have already been inserted (same content)
 - Works automatically across all concurrent INSERTs
+- For ReplicatedMergeTree: tracks hashes via ZooKeeper across replicas
 
-**Layer 2: Token-Based Deduplication** (`insert_deduplicate_token`)
-- Unique token per model + data package combination
-- Prevents same package from being loaded twice
-- Format: `{model_id}_{data_package_id}` (e.g., `"123_456"`)
-
-**Layer 3: SQL DISTINCT + WHERE NOT IN**
+**Layer 2: SQL DISTINCT**
 - `SELECT DISTINCT` eliminates duplicates within source data
-- `WHERE NOT IN` excludes records that already exist in table
+- Deduplicates within each batch being loaded
+- Handles duplicate rows in source files
+
+**Layer 3: SQL WHERE NOT IN**
+- `WHERE hash_key NOT IN (SELECT hash_key FROM table)`
+- Excludes records that already exist in table
 - Handles overlapping data across different packages
+- Cross-batch deduplication
 
 ## How It Works
 
@@ -47,7 +48,9 @@ INSERT block with hash ABC123
 
 Hash table is maintained per table and automatically cleaned up.
 
-### Token Deduplication Mechanism
+## How It Works
+
+### Block Deduplication Mechanism
 
 When a token is provided, ClickHouse associates it with the block hash:
 
@@ -75,8 +78,7 @@ WHERE MD5(toString(customer_id)) NOT IN (
     SELECT customer_hash_key FROM default.hub_customer
 )
 SETTINGS 
-    insert_deduplicate = 1,
-    insert_deduplicate_token = '123_456'
+    insert_deduplicate = 1
 ```
 
 ## Race Condition Handling
@@ -84,26 +86,28 @@ SETTINGS
 ### Scenario: Two Tasks, Same Data
 
 ```
-Time 1: Task A starts INSERT with token "123_456"
-Time 2: Task B starts INSERT with token "123_456" (parallel)
-Time 3: Task A completes, ClickHouse records hash + token
+Time 1: Task A starts INSERT (computes block hash ABC123)
+Time 2: Task B starts INSERT (same data, parallel)
+Time 3: Task A completes, ClickHouse records hash ABC123
 Time 4: Task B evaluated by ClickHouse
-        → Token "123_456" already exists
-        → Block rejected
+        → Block hash ABC123 already exists
+        → Block rejected (duplicate content)
 Time 5: Task B completes (0 rows inserted)
 
 Result: No duplicates!
 ```
 
+**Note**: This works when the data blocks are identical. If data differs slightly (e.g., different timestamps in load_datetime), the WHERE NOT IN clause provides the deduplication.
+
 ### Scenario: Two Tasks, Different Packages
 
 ```
-Time 1: Task A starts INSERT with token "123_456"
-Time 2: Task B starts INSERT with token "123_789" (different package)
+Time 1: Task A starts INSERT (records X, Y, Z)
+Time 2: Task B starts INSERT (records X, Y, A, B - overlapping data)
 Time 3: Both tasks execute in parallel
 Time 4: ClickHouse evaluates both:
-        → Task A: New records X, Y, Z inserted
-        → Task B: WHERE NOT IN filters X, Y, Z
+        → Task A: Records X, Y, Z inserted (first to arrive)
+        → Task B: WHERE NOT IN filters X, Y, Z (already exist)
         → Task B: Only new records A, B inserted
 
 Result: No duplicates, both succeed!
@@ -196,7 +200,6 @@ These settings are passed directly to the INSERT command:
 ```python
 settings = {
     'insert_deduplicate': 1,  # Enable deduplication (default: 1)
-    'insert_deduplicate_token': 'unique_identifier'  # Optional token
 }
 ```
 
@@ -381,7 +384,6 @@ Larger blocks = More efficient deduplication:
 # Adjust block size for better performance
 settings = {
     'insert_deduplicate': 1,
-    'insert_deduplicate_token': token,
     'max_block_size': 1000000,  # 1M rows per block
     'max_insert_block_size': 1000000
 }
