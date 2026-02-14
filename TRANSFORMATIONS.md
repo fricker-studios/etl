@@ -345,3 +345,145 @@ For questions or issues with transformations:
 - Check the API documentation at `/api/docs`
 - Review server logs for transformation errors
 - Consult the transformation utilities source code: `backend/core/transformation_utils.py`
+
+## Pandas-Based Transformations
+
+For more complex data preprocessing that cannot be easily expressed in SQL, the ETL system also provides pandas-based transformations. These run in Python/pandas before data is loaded into ClickHouse.
+
+### When to Use Pandas Transformations
+
+Use pandas transformations for:
+- **Complex data cleaning**: Removing duplicates, handling missing values with custom logic
+- **Statistical operations**: Normalization, z-scores, percentiles
+- **Data validation**: Custom validation rules with regex patterns
+- **Aggregations**: Complex group-by operations before loading
+- **Pivoting**: Reshaping data from long to wide format
+- **Merging**: Joining multiple data sources in Python
+
+### Available Pandas Transformations
+
+#### String Operations
+- `FILLNA(value)`: Fill missing values
+- `STRIP`: Remove leading/trailing whitespace
+- `SPLIT(sep, index)`: Split string and get element at index
+- `EXTRACT_REGEX(pattern)`: Extract substring matching regex pattern
+- `CONTAINS(pattern)`: Check if string contains pattern
+
+#### Numeric Operations
+- `NORMALIZE`: Normalize values (mean=0, std=1)
+- `ZSCORE`: Calculate z-scores
+- `PERCENTILE(q)`: Get percentile value
+- `CLIP(lower, upper)`: Clip values to range
+- `RANK(method)`: Rank values
+
+#### Date Operations
+- `TO_DATETIME(format)`: Convert to datetime with format
+- `DATE_RANGE(periods, freq)`: Generate date range
+
+#### Advanced Operations
+- `CUMSUM`: Cumulative sum
+- `ROLLING_MEAN(window)`: Rolling average
+- `LAG(periods)`: Lag values
+- `LEAD(periods)`: Lead values
+- `FACTORIZE`: Convert categorical to numeric codes
+- `GET_DUMMIES`: One-hot encoding
+
+### Batch Preprocessing
+
+Use `preprocess_dataframe()` to apply multiple transformations at once:
+
+```python
+from core.pandas_transformations import preprocess_dataframe
+
+transformations = {
+    "price": {"transformation": "CLIP", "lower": 0, "upper": 1000},
+    "date_str": {"transformation": "TO_DATETIME", "format": "%Y-%m-%d"},
+    "name": {"transformation": "STRIP"}
+}
+
+cleaned_df = preprocess_dataframe(df, transformations)
+```
+
+### Data Validation and Cleaning
+
+Use `validate_and_clean_data()` for comprehensive data quality checks:
+
+```python
+from core.pandas_transformations import validate_and_clean_data
+
+validation_rules = {
+    "age": {"type": "int", "min": 0, "max": 120, "default": 0},
+    "email": {"type": "string", "regex": r"^[\w\.-]+@[\w\.-]+\.\w+$"},
+    "price": {"type": "float", "min": 0}
+}
+
+cleaned_df = validate_and_clean_data(df, validation_rules)
+```
+
+### Aggregations
+
+Perform group-by aggregations with `aggregate_data()`:
+
+```python
+from core.pandas_transformations import aggregate_data
+
+result = aggregate_data(
+    df,
+    group_by=["date", "category"],
+    aggregations={"sales": "sum", "quantity": "mean"}
+)
+```
+
+### Pivoting
+
+Reshape data with `pivot_data()`:
+
+```python
+from core.pandas_transformations import pivot_data
+
+result = pivot_data(
+    df,
+    index="date",
+    columns="product",
+    values="sales",
+    aggfunc="sum"
+)
+```
+
+### Merging DataFrames
+
+Join multiple data sources with `merge_dataframes()`:
+
+```python
+from core.pandas_transformations import merge_dataframes
+
+result = merge_dataframes(
+    customers_df,
+    orders_df,
+    on="customer_id",
+    how="left"
+)
+```
+
+## Choosing Between ClickHouse and Pandas Transformations
+
+| Use Case | Recommended Approach |
+|----------|---------------------|
+| Simple string/numeric operations | ClickHouse SQL transformations |
+| Type casting | ClickHouse SQL transformations |
+| Date arithmetic | ClickHouse SQL transformations |
+| Hash calculations | ClickHouse SQL transformations |
+| Complex data cleaning | Pandas transformations |
+| Statistical operations | Pandas transformations |
+| Multiple data source joins | Pandas transformations |
+| Pivoting/reshaping | Pandas transformations |
+| Custom validation logic | Pandas transformations |
+
+**General Rule**: Use ClickHouse SQL transformations for best performance. Use pandas transformations when you need more complex logic or operations not available in SQL.
+
+## Performance Comparison
+
+- **ClickHouse SQL**: Extremely fast, vectorized, processes data in ClickHouse (millions of rows/second)
+- **Pandas**: Slower but more flexible, processes in Python (thousands to millions of rows/second depending on operation)
+
+For large datasets (>10M rows), strongly prefer ClickHouse SQL transformations when possible.
