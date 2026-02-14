@@ -10,6 +10,17 @@ from clickhouse_connect.driver.client import Client
 from core.models import StorageBackend, Model, TopicRevision
 from django.utils import timezone
 
+# Import transformation utilities - use absolute import to avoid circular dependency issues
+try:
+    from core.transformation_utils import (
+        get_transformation as get_transformation_from_utils,
+        apply_transformation_to_column,
+    )
+except ImportError:
+    # Fallback for backward compatibility if transformation_utils is not available
+    get_transformation_from_utils = None
+    apply_transformation_to_column = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -100,6 +111,9 @@ def get_transformation(mapping: Dict[str, Any]) -> str:
     Returns:
         Transformation string or empty string if not found
     """
+    # Use the imported function if available, otherwise use local implementation
+    if get_transformation_from_utils:
+        return get_transformation_from_utils(mapping)
     return mapping.get("transformation", mapping.get("transform", ""))
 
 
