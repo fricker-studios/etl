@@ -661,7 +661,9 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
             processed_fields.add("load_datetime")
         
         if not has_record_source:
-            select_columns.append(f"'{data_package.name}' as record_source")
+            # Use full S3 path for record_source: s3://bucket/path/file.ext
+            s3_full_path = f"s3://{s3_bucket}/{data_package.file_path}"
+            select_columns.append(f"'{s3_full_path}' as record_source")
             processed_fields.add("record_source")
         
         # Add mapped fields with transformations
@@ -729,7 +731,8 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
             })
             
             # Query to get the count of rows inserted
-            count_sql = f"SELECT count() FROM {database}.{table_name} WHERE record_source = '{data_package.name}'"
+            s3_full_path = f"s3://{s3_bucket}/{data_package.file_path}"
+            count_sql = f"SELECT count() FROM {database}.{table_name} WHERE record_source = '{s3_full_path}'"
             rows_loaded = client.command(count_sql)
             
             logger.info(f"Successfully loaded {rows_loaded} rows from {data_package.name}")
@@ -755,7 +758,8 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
             # For ClickHouse, we can't really rollback since it's not a traditional transaction
             # But we can delete the rows we just inserted by record_source
             try:
-                delete_sql = f"ALTER TABLE {database}.{table_name} DELETE WHERE record_source = '{data_package.name}'"
+                s3_full_path = f"s3://{s3_bucket}/{data_package.file_path}"
+                delete_sql = f"ALTER TABLE {database}.{table_name} DELETE WHERE record_source = '{s3_full_path}'"
                 client.command(delete_sql)
                 logger.info(f"Rolled back inserted rows for {data_package.name}")
             except Exception as rollback_error:
