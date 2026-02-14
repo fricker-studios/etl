@@ -919,27 +919,30 @@ class ModelViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
 
-            # Determine entity type from model structure
-            entity_type = "entity"
-            model_data = model_instance.definition
-            if isinstance(model_data, dict):
-                if model_data.get("type") == "data_vault":
-                    if model_data.get("hubs"):
-                        entity_type = "hub"
-                    elif model_data.get("links"):
-                        entity_type = "link"
-                    elif model_data.get("satellites"):
-                        entity_type = "satellite"
-                else:
-                    if model_data.get("facts"):
-                        entity_type = "fact"
-                    elif model_data.get("dimensions"):
-                        entity_type = "dimension"
-
-            # Generate table name
-            model_name = model_instance.name.lower().replace(" ", "")
+            # Use the stored table_name if available, otherwise generate it
             database = clickhouse_backend.database or "default"
-            table_name = f"{entity_type}_{model_name}"
+            
+            if model_instance.table_created and model_instance.table_name:
+                # Use the stored table name from when it was created
+                table_name = model_instance.table_name
+            else:
+                # Generate table name based on model structure
+                entity_type = "entity"
+                if model_instance.type == "data_vault":
+                    if model_instance.hubs:
+                        entity_type = "hub"
+                    elif model_instance.links:
+                        entity_type = "link"
+                    elif model_instance.satellites:
+                        entity_type = "satellite"
+                else:  # dimensional
+                    if model_instance.facts:
+                        entity_type = "fact"
+                    elif model_instance.dimensions:
+                        entity_type = "dimension"
+                
+                model_name = model_instance.name.lower().replace(" ", "")
+                table_name = f"{entity_type}_{model_name}"
 
             # Connect to ClickHouse using clickhouse-connect
             hosts = clickhouse_backend.hosts
