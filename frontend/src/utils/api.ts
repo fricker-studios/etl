@@ -173,6 +173,27 @@ export const api = {
       }),
     clickhouseStatus: () => request("/models/clickhouse_status/"),
     tableStats: (id: string) => request(`/models/${id}/table_stats/`),
+    createTable: (id: string) =>
+      request(`/models/${id}/create_table/`, {
+        method: "POST",
+      }),
+    loadData: (id: string) =>
+      request(`/models/${id}/load_data/`, {
+        method: "POST",
+      }),
+    loadingProgress: (id: string, page?: number, perPage?: number) => {
+      const params = new URLSearchParams();
+      if (page) params.append("page", page.toString());
+      if (perPage) params.append("per_page", perPage.toString());
+      const queryString = params.toString();
+      return request(
+        `/models/${id}/loading_progress/${queryString ? "?" + queryString : ""}`,
+      );
+    },
+    rerunFailed: (id: string) =>
+      request(`/models/${id}/rerun_failed/`, {
+        method: "POST",
+      }),
   },
 
   // Topics
@@ -232,6 +253,15 @@ export const api = {
     delete: (id: string) =>
       request(`/runs/${id}/`, {
         method: "DELETE",
+      }),
+    rerun: (id: string) =>
+      request(`/runs/${id}/rerun/`, {
+        method: "POST",
+      }),
+    rerunMultiple: (runIds: string[]) =>
+      request("/runs/rerun_multiple/", {
+        method: "POST",
+        body: JSON.stringify({ run_ids: runIds }),
       }),
   },
 };

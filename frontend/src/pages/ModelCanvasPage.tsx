@@ -75,6 +75,10 @@ export function ModelCanvasPage() {
   const [modelFieldTypes, setModelFieldTypes] = useState<
     Record<string, string>
   >({}); // Data types for model fields
+
+  // System/readonly fields that cannot be edited or deleted
+  const SYSTEM_FIELDS = ["load_datetime", "record_source"];
+
   const [draggedColumn, setDraggedColumn] = useState<{
     topicId: string;
     columnName: string;
@@ -179,11 +183,18 @@ export function ModelCanvasPage() {
     // Auto-create required fields based on entity type
     const requiredFields: string[] = [];
     const fieldTypes: Record<string, string> = {};
+    const readonlyFields: string[] = []; // Track which fields are system/readonly
 
     if (entityType === "hub") {
       requiredFields.push("hash_key", "business_key");
       fieldTypes["hash_key"] = "string";
       fieldTypes["business_key"] = "string";
+
+      // Add standard Data Vault columns as readonly
+      requiredFields.push("load_datetime", "record_source");
+      fieldTypes["load_datetime"] = "timestamp";
+      fieldTypes["record_source"] = "string";
+      readonlyFields.push("load_datetime", "record_source");
 
       // Auto-create hash component for hub
       const hashCompId = `hash-${Date.now()}`;
@@ -210,10 +221,22 @@ export function ModelCanvasPage() {
     } else if (entityType === "link") {
       requiredFields.push("link_key");
       fieldTypes["link_key"] = "string";
+
+      // Add standard Data Vault columns as readonly
+      requiredFields.push("load_datetime", "record_source");
+      fieldTypes["load_datetime"] = "timestamp";
+      fieldTypes["record_source"] = "string";
+      readonlyFields.push("load_datetime", "record_source");
     } else if (entityType === "satellite") {
       requiredFields.push("parent_key", "load_date");
       fieldTypes["parent_key"] = "string";
       fieldTypes["load_date"] = "timestamp";
+
+      // Add standard Data Vault columns as readonly
+      requiredFields.push("load_datetime", "record_source");
+      fieldTypes["load_datetime"] = "timestamp";
+      fieldTypes["record_source"] = "string";
+      readonlyFields.push("load_datetime", "record_source");
     } else if (entityType === "fact") {
       requiredFields.push("grain");
       fieldTypes["grain"] = "string";
@@ -224,6 +247,8 @@ export function ModelCanvasPage() {
 
     setModelFields(requiredFields);
     setModelFieldTypes(fieldTypes);
+    // Store readonly fields in state (you'll need to add this state)
+    // For now, we'll handle it in the render
     closeSetup();
   };
 
@@ -427,6 +452,15 @@ export function ModelCanvasPage() {
   };
 
   const handleRemoveModelField = (fieldName: string) => {
+    // Prevent deletion of system fields
+    if (SYSTEM_FIELDS.includes(fieldName)) {
+      notifications.show({
+        message: "Cannot delete system fields",
+        color: "red",
+      });
+      return;
+    }
+
     setModelFields(modelFields.filter((f) => f !== fieldName));
     // Remove field type
     const updatedTypes = { ...modelFieldTypes };
@@ -752,7 +786,9 @@ export function ModelCanvasPage() {
 
         // Create a mapping for each complete path: topic -> hash -> model
         outputConnections.forEach((outputConn) => {
-          const hashComponent = hashComponents.find((h) => h.id === conn.targetId);
+          const hashComponent = hashComponents.find(
+            (h) => h.id === conn.targetId,
+          );
           if (hashComponent && conn.sourceField) {
             hashBasedMappings.push({
               model_field: outputConn.targetField!,
@@ -1798,6 +1834,9 @@ export function ModelCanvasPage() {
                     );
                     const isEditing = editingField === fieldName;
 
+                    // Check if this is a system/readonly field
+                    const isSystemField = SYSTEM_FIELDS.includes(fieldName);
+
                     return (
                       <Paper
                         key={fieldName}
@@ -1809,11 +1848,15 @@ export function ModelCanvasPage() {
                         onDragOver={(e) => e.preventDefault()}
                         onDrop={() => handleFieldDrop(fieldName)}
                         bg={
-                          mappings.length > 0 || hasHashConnection
+                          isSystemField
                             ? colorScheme === "dark"
-                              ? "blue.9"
-                              : "blue.0"
-                            : undefined
+                              ? "gray.9"
+                              : "gray.1"
+                            : mappings.length > 0 || hasHashConnection
+                              ? colorScheme === "dark"
+                                ? "blue.9"
+                                : "blue.0"
+                              : undefined
                         }
                         style={{
                           border:
@@ -1824,12 +1867,13 @@ export function ModelCanvasPage() {
                                 ? "2px dashed var(--mantine-color-green-5)"
                                 : "2px dashed var(--mantine-color-blue-5)"
                               : undefined,
+                          opacity: isSystemField ? 0.7 : 1,
                         }}
                       >
                         <Group justify="space-between" align="flex-start">
                           <Box style={{ flex: 1 }}>
                             <Group gap="xs" mb={4}>
-                              {isEditing ? (
+                              {isEditing && !isSystemField ? (
                                 <TextInput
                                   size="sm"
                                   value={editingFieldValue}
@@ -1852,21 +1896,33 @@ export function ModelCanvasPage() {
                                   <Text size="sm" fw={600}>
                                     {fieldName}
                                   </Text>
-                                  <ActionIcon
-                                    size="xs"
-                                    variant="subtle"
-                                    onClick={() =>
-                                      handleStartEditField(fieldName)
-                                    }
-                                    title="Edit field name"
-                                  >
-                                    <IconEdit size={12} />
-                                  </ActionIcon>
+                                  {!isSystemField && (
+                                    <ActionIcon
+                                      size="xs"
+                                      variant="subtle"
+                                      onClick={() =>
+                                        handleStartEditField(fieldName)
+                                      }
+                                      title="Edit field name"
+                                    >
+                                      <IconEdit size={12} />
+                                    </ActionIcon>
+                                  )}
+                                  {isSystemField && (
+                                    <Badge
+                                      size="xs"
+                                      color="gray"
+                                      variant="light"
+                                    >
+                                      system
+                                    </Badge>
+                                  )}
                                 </>
                               )}
                               {mappings.length === 0 &&
                                 !hasHashConnection &&
-                                !isEditing && (
+                                !isEditing &&
+                                !isSystemField && (
                                   <Badge
                                     size="xs"
                                     color="gray"
@@ -1937,14 +1993,16 @@ export function ModelCanvasPage() {
                               </Stack>
                             )}
                           </Box>
-                          <ActionIcon
-                            size="sm"
-                            color="red"
-                            variant="subtle"
-                            onClick={() => handleRemoveModelField(fieldName)}
-                          >
-                            <IconX size={16} />
-                          </ActionIcon>
+                          {!isSystemField && (
+                            <ActionIcon
+                              size="sm"
+                              color="red"
+                              variant="subtle"
+                              onClick={() => handleRemoveModelField(fieldName)}
+                            >
+                              <IconX size={16} />
+                            </ActionIcon>
+                          )}
                         </Group>
                       </Paper>
                     );

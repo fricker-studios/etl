@@ -35,6 +35,33 @@ class StorageBackend(models.Model):
 
     # ClickHouse fields
     mode = models.CharField(max_length=20, choices=MODE_CHOICES, blank=True, null=True)
+    cluster_name = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="ClickHouse cluster name (required for cluster mode)",
+    )
+
+    # Auto-detected cluster metadata
+    is_cluster = models.BooleanField(
+        default=False,
+        help_text="Auto-detected: Whether ClickHouse is running in cluster mode",
+    )
+    detected_cluster_name = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Auto-detected cluster name from ClickHouse",
+    )
+    cluster_nodes = models.JSONField(
+        default=list, blank=True, help_text="Auto-detected list of cluster nodes"
+    )
+    cluster_metadata_updated_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="Last time cluster metadata was detected/updated",
+    )
+
     hosts = models.JSONField(
         default=list, blank=True
     )  # [{"host": "localhost", "port": 9000}]
@@ -458,6 +485,18 @@ class Model(models.Model):
     # Example dimension: [{"name": "Dim_Date", "topic": 1, "key": "date_id", "fields": ["date", "year", "month", "day"], "field_mappings": [...]}]
     dimensions = models.JSONField(default=list, blank=True)
 
+    # Table creation tracking
+    table_created = models.BooleanField(default=False)
+    table_name = models.CharField(max_length=255, blank=True, null=True)
+    clickhouse_backend = models.ForeignKey(
+        StorageBackend,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="models",
+        limit_choices_to={"kind": "clickhouse"},
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -466,6 +505,28 @@ class Model(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.type})"
+
+    def delete(self, *args, **kwargs):
+        """
+        Override delete to drop ClickHouse table before deleting the model.
+        """
+        # Drop ClickHouse table if it exists
+        if self.table_created and self.table_name and self.clickhouse_backend:
+            try:
+                from core.clickhouse_utils import drop_table_from_model
+
+                drop_table_from_model(self, self.clickhouse_backend)
+            except Exception as e:
+                # Log error but don't block deletion
+                import logging
+
+                logger = logging.getLogger(__name__)
+                logger.error(
+                    f"Error dropping ClickHouse table for model {self.name}: {str(e)}"
+                )
+
+        # Call parent delete
+        super().delete(*args, **kwargs)
 
 
 class Run(models.Model):
@@ -482,6 +543,16 @@ class Run(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="runs")
     stream = models.ForeignKey(
         Stream, on_delete=models.CASCADE, related_name="runs", null=True, blank=True
+    )
+    model = models.ForeignKey(
+        "Model", on_delete=models.CASCADE, related_name="runs", null=True, blank=True
+    )
+    data_package = models.ForeignKey(
+        DataPackage,
+        on_delete=models.CASCADE,
+        related_name="runs",
+        null=True,
+        blank=True,
     )
     name = models.CharField(max_length=255)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="queued")

@@ -8,33 +8,31 @@ on:
 jobs:
   build-ui-files:
     runs-on: self-hosted
+    container: node:22
     name: Build UI Files
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Set Up Environment
-        run: make env
         
-      - name: Build UI files
-        env:
-          VITE_SENTRY_ENVIRONMENT: dev
-          VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-        run: |
-          npm --prefix=frontend run build
-
       - name: Cache node modules
         uses: actions/cache@v4
         with:
           path: frontend/node_modules
           key: node-modules-${{ hashFiles('frontend/package.json') }}
 
-      - name: Cache Python venv
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: python-venv-${{ hashFiles('pyproject.toml') }}
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+        
+      - name: Build UI files
+        env:
+          VITE_SENTRY_ENVIRONMENT: dev
+          VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+        run: |
+          cd frontend
+          npm run build
 
       - name: Upload UI artifacts
         uses: actions/upload-artifact@v4

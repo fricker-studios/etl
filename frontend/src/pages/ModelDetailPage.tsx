@@ -17,6 +17,10 @@ import {
   SimpleGrid,
   Loader,
   Button,
+  Progress,
+  Table,
+  Checkbox,
+  Pagination,
 } from "@mantine/core";
 import {
   IconArrowLeft,
@@ -29,6 +33,9 @@ import {
   IconCalendar,
   IconRefresh,
   IconSettings,
+  IconPlayerPlay,
+  IconPlus,
+  IconRotateClockwise,
 } from "@tabler/icons-react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useModel, useDeleteModel } from "../hooks/useModels";
@@ -37,8 +44,9 @@ import { modals } from "@mantine/modals";
 import { useDisclosure } from "@mantine/hooks";
 import { useTopics } from "../hooks/useTopics";
 import { useRef, useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../utils/api";
+import { notifications } from "@mantine/notifications";
 
 export function ModelDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -49,6 +57,13 @@ export function ModelDetailPage() {
   const [editModalOpen, { open: openEditModal }] = useDisclosure(false);
   const { colorScheme } = useMantineColorScheme();
 
+  // State for runs table - use Set for O(1) lookup performance
+  const [currentPage, setCurrentPage] = useState(1);
+  const [perPage] = useState(10);
+  const [selectedRunsSet, setSelectedRunsSet] = useState<Set<string>>(
+    new Set(),
+  );
+
   // Fetch ClickHouse status
   const { data: clickhouseStatus } = useQuery<any>({
     queryKey: ["clickhouse-status"],
@@ -56,10 +71,110 @@ export function ModelDetailPage() {
   });
 
   // Fetch table statistics
-  const { data: tableStats, isLoading: tableStatsLoading } = useQuery<any>({
+  const {
+    data: tableStats,
+    isLoading: tableStatsLoading,
+    refetch: refetchTableStats,
+  } = useQuery<any>({
     queryKey: ["table-stats", id],
     queryFn: () => api.models.tableStats(id!),
     enabled: !!id && clickhouseStatus?.configured === true,
+  });
+
+  // Fetch loading progress
+  const { data: loadingProgress, refetch: refetchLoadingProgress } =
+    useQuery<any>({
+      queryKey: ["loading-progress", id, currentPage, perPage],
+      queryFn: () => api.models.loadingProgress(id!, currentPage, perPage),
+      enabled: !!id && model?.table_created === true,
+      refetchInterval: 5000, // Poll every 5 seconds when table is created
+    });
+
+  const queryClient = useQueryClient();
+
+  // Mutation for creating table
+  const createTableMutation = useMutation({
+    mutationFn: () => api.models.createTable(id!),
+    onSuccess: (data: any) => {
+      notifications.show({
+        title: "Table Created",
+        message: `Table ${data.table_name} created successfully`,
+        color: "green",
+      });
+      // Refetch model and table stats
+      queryClient.invalidateQueries({ queryKey: ["models", id] });
+      refetchTableStats();
+    },
+    onError: (error: any) => {
+      notifications.show({
+        title: "Error Creating Table",
+        message: error.message || "Failed to create table",
+        color: "red",
+      });
+    },
+  });
+
+  // Mutation for loading data
+  const loadDataMutation = useMutation({
+    mutationFn: () => api.models.loadData(id!),
+    onSuccess: (data: any) => {
+      notifications.show({
+        title: "Data Loading Started",
+        message: `Queued ${data.packages_queued} data packages for loading`,
+        color: "blue",
+      });
+      // Refetch loading progress
+      refetchLoadingProgress();
+    },
+    onError: (error: any) => {
+      notifications.show({
+        title: "Error Loading Data",
+        message: error.message || "Failed to start data loading",
+        color: "red",
+      });
+    },
+  });
+
+  // Mutation for re-running failed jobs
+  const rerunFailedMutation = useMutation({
+    mutationFn: () => api.models.rerunFailed(id!),
+    onSuccess: (data: any) => {
+      notifications.show({
+        title: "Jobs Re-queued",
+        message: data.message || "Failed jobs have been re-queued",
+        color: "blue",
+      });
+      refetchLoadingProgress();
+      setSelectedRunsSet(new Set());
+    },
+    onError: (error: any) => {
+      notifications.show({
+        title: "Error Re-running Jobs",
+        message: error.message || "Failed to re-run jobs",
+        color: "red",
+      });
+    },
+  });
+
+  // Mutation for re-running selected jobs
+  const rerunSelectedMutation = useMutation({
+    mutationFn: (runIds: string[]) => api.runs.rerunMultiple(runIds),
+    onSuccess: (data: any) => {
+      notifications.show({
+        title: "Jobs Re-queued",
+        message: data.message || "Selected jobs have been re-queued",
+        color: "blue",
+      });
+      refetchLoadingProgress();
+      setSelectedRunsSet(new Set());
+    },
+    onError: (error: any) => {
+      notifications.show({
+        title: "Error Re-running Jobs",
+        message: error.message || "Failed to re-run jobs",
+        color: "red",
+      });
+    },
   });
 
   // Refs for DAG visualization
@@ -197,10 +312,23 @@ export function ModelDetailPage() {
     modals.openConfirmModal({
       title: "Delete Model",
       children: (
-        <Text size="sm">
-          Are you sure you want to delete this model? This action cannot be
-          undone.
-        </Text>
+        <Stack gap="md">
+          <Text size="sm">
+            Are you sure you want to delete this model? This action cannot be
+            undone.
+          </Text>
+          {model && model.table_created && model.table_name && (
+            <Alert color="orange" title="ClickHouse Table Deletion">
+              <Text size="sm">
+                The associated ClickHouse table{" "}
+                <Text component="span" fw={600} ff="monospace">
+                  {model.table_name}
+                </Text>{" "}
+                will also be permanently deleted.
+              </Text>
+            </Alert>
+          )}
+        </Stack>
       ),
       labels: { confirm: "Delete", cancel: "Cancel" },
       confirmProps: { color: "red" },
@@ -391,14 +519,24 @@ export function ModelDetailPage() {
                     status === "error" ? "Table Error" : "Table Not Created"
                   }
                 >
-                  <Text size="sm">
+                  <Text size="sm" mb="sm">
                     {tableStats?.message ||
                       `Table ${tableStats?.table_name || "for this model"} does not exist yet.`}
                   </Text>
                   {tableStats?.table_name && (
-                    <Text size="xs" ff="monospace" c="dimmed" mt="xs">
+                    <Text size="xs" ff="monospace" c="dimmed" mt="xs" mb="sm">
                       {tableStats.table_name}
                     </Text>
+                  )}
+                  {!model.table_created && (
+                    <Button
+                      leftSection={<IconPlus size={16} />}
+                      size="sm"
+                      onClick={() => createTableMutation.mutate()}
+                      loading={createTableMutation.isPending}
+                    >
+                      Create Table
+                    </Button>
                   )}
                 </Alert>
               );
@@ -531,6 +669,243 @@ export function ModelDetailPage() {
         </Stack>
       </Card>
 
+      {/* Data Loading Section */}
+      {model.table_created && (
+        <Card withBorder>
+          <Stack gap="md">
+            <Group justify="space-between">
+              <Text size="lg" fw={600}>
+                Data Loading
+              </Text>
+              <Button
+                leftSection={<IconPlayerPlay size={16} />}
+                onClick={() => loadDataMutation.mutate()}
+                loading={loadDataMutation.isPending}
+              >
+                Load Data
+              </Button>
+            </Group>
+            <Divider />
+
+            {loadingProgress && (
+              <>
+                {/* Progress Summary */}
+                <SimpleGrid cols={4} spacing="md">
+                  <div>
+                    <Text size="xs" c="dimmed" mb={4}>
+                      Total Runs
+                    </Text>
+                    <Text size="xl" fw={700}>
+                      {loadingProgress.total_runs}
+                    </Text>
+                  </div>
+                  <div>
+                    <Text size="xs" c="dimmed" mb={4}>
+                      Completed
+                    </Text>
+                    <Text size="xl" fw={700} c="green">
+                      {loadingProgress.completed_runs}
+                    </Text>
+                  </div>
+                  <div>
+                    <Text size="xs" c="dimmed" mb={4}>
+                      Running
+                    </Text>
+                    <Text size="xl" fw={700} c="blue">
+                      {loadingProgress.running_runs}
+                    </Text>
+                  </div>
+                  <div>
+                    <Text size="xs" c="dimmed" mb={4}>
+                      Failed
+                    </Text>
+                    <Text size="xl" fw={700} c="red">
+                      {loadingProgress.failed_runs}
+                    </Text>
+                  </div>
+                </SimpleGrid>
+
+                {/* Progress Bar */}
+                {loadingProgress.total_runs > 0 && (
+                  <div>
+                    <Text size="sm" c="dimmed" mb="xs">
+                      Overall Progress
+                    </Text>
+                    <Progress
+                      value={
+                        (loadingProgress.completed_runs /
+                          loadingProgress.total_runs) *
+                        100
+                      }
+                      color="green"
+                      size="lg"
+                      animated={loadingProgress.running_runs > 0}
+                    />
+                  </div>
+                )}
+
+                {/* Recent Runs Table */}
+                {loadingProgress.runs && loadingProgress.runs.length > 0 && (
+                  <div>
+                    <Group justify="space-between" mb="xs">
+                      <Text size="sm" fw={600}>
+                        Recent Runs
+                      </Text>
+                      <Group gap="xs">
+                        {loadingProgress.failed_runs > 0 && (
+                          <Button
+                            size="xs"
+                            variant="light"
+                            color="orange"
+                            leftSection={<IconRotateClockwise size={14} />}
+                            onClick={() => rerunFailedMutation.mutate()}
+                            loading={rerunFailedMutation.isPending}
+                          >
+                            Re-run Failed
+                          </Button>
+                        )}
+                        {selectedRunsSet.size > 0 && (
+                          <Button
+                            size="xs"
+                            variant="filled"
+                            color="blue"
+                            leftSection={<IconRotateClockwise size={14} />}
+                            onClick={() =>
+                              rerunSelectedMutation.mutate(
+                                Array.from(selectedRunsSet),
+                              )
+                            }
+                            loading={rerunSelectedMutation.isPending}
+                          >
+                            Re-run Selected ({selectedRunsSet.size})
+                          </Button>
+                        )}
+                      </Group>
+                    </Group>
+                    <Table striped highlightOnHover>
+                      <Table.Thead>
+                        <Table.Tr>
+                          <Table.Th>
+                            <Checkbox
+                              checked={
+                                loadingProgress.runs.length > 0 &&
+                                selectedRunsSet.size ===
+                                  loadingProgress.runs.length
+                              }
+                              indeterminate={
+                                selectedRunsSet.size > 0 &&
+                                selectedRunsSet.size <
+                                  loadingProgress.runs.length
+                              }
+                              onChange={(e) => {
+                                if (e.currentTarget.checked) {
+                                  setSelectedRunsSet(
+                                    new Set(
+                                      loadingProgress.runs.map((r: any) =>
+                                        r.id.toString(),
+                                      ),
+                                    ),
+                                  );
+                                } else {
+                                  setSelectedRunsSet(new Set());
+                                }
+                              }}
+                            />
+                          </Table.Th>
+                          <Table.Th>Package</Table.Th>
+                          <Table.Th>Status</Table.Th>
+                          <Table.Th>Rows</Table.Th>
+                          <Table.Th>Duration</Table.Th>
+                          <Table.Th>Started</Table.Th>
+                        </Table.Tr>
+                      </Table.Thead>
+                      <Table.Tbody>
+                        {loadingProgress.runs.map((run: any) => (
+                          <Table.Tr key={run.id}>
+                            <Table.Td>
+                              <Checkbox
+                                checked={selectedRunsSet.has(run.id.toString())}
+                                onChange={(e) => {
+                                  const newSet = new Set(selectedRunsSet);
+                                  if (e.currentTarget.checked) {
+                                    newSet.add(run.id.toString());
+                                  } else {
+                                    newSet.delete(run.id.toString());
+                                  }
+                                  setSelectedRunsSet(newSet);
+                                }}
+                              />
+                            </Table.Td>
+                            <Table.Td>
+                              <Text size="sm" lineClamp={1}>
+                                {run.name}
+                              </Text>
+                            </Table.Td>
+                            <Table.Td>
+                              <Badge
+                                color={
+                                  run.status === "success"
+                                    ? "green"
+                                    : run.status === "failed"
+                                      ? "red"
+                                      : run.status === "running"
+                                        ? "blue"
+                                        : "gray"
+                                }
+                                size="sm"
+                              >
+                                {run.status}
+                              </Badge>
+                            </Table.Td>
+                            <Table.Td>
+                              <Text size="sm">
+                                {run.rows_processed?.toLocaleString() || "-"}
+                              </Text>
+                            </Table.Td>
+                            <Table.Td>
+                              <Text size="sm">
+                                {run.duration_seconds
+                                  ? `${run.duration_seconds}s`
+                                  : "-"}
+                              </Text>
+                            </Table.Td>
+                            <Table.Td>
+                              <Text size="sm" c="dimmed">
+                                {run.started_at
+                                  ? new Date(run.started_at).toLocaleString()
+                                  : "-"}
+                              </Text>
+                            </Table.Td>
+                          </Table.Tr>
+                        ))}
+                      </Table.Tbody>
+                    </Table>
+
+                    {/* Pagination */}
+                    {loadingProgress.pagination &&
+                      loadingProgress.pagination.total_pages > 1 && (
+                        <Group justify="center" mt="md">
+                          <Pagination
+                            total={loadingProgress.pagination.total_pages}
+                            value={currentPage}
+                            onChange={setCurrentPage}
+                          />
+                        </Group>
+                      )}
+                  </div>
+                )}
+              </>
+            )}
+
+            {!loadingProgress && (
+              <Text size="sm" c="dimmed" ta="center" py="md">
+                No data loading runs yet. Click "Load Data" to start.
+              </Text>
+            )}
+          </Stack>
+        </Card>
+      )}
+
       <Card withBorder>
         <Text size="lg" fw={600} mb="md">
           Field Mappings
@@ -627,7 +1002,7 @@ export function ModelDetailPage() {
 
                     // Get unique fields for this topic (deduplicate)
                     const uniqueFields = Array.from(
-                      new Set(mappings.map((m: any) => m.topic_field))
+                      new Set(mappings.map((m: any) => m.topic_field)),
                     );
 
                     return (
@@ -702,100 +1077,102 @@ export function ModelDetailPage() {
                   hashBySource.get(sourceKey)!.push(mapping);
                 });
 
-                return Array.from(hashBySource.entries()).map(([sourceKey, mappings]) => {
-                  const firstMapping = mappings[0];
-                  const hashKey = sourceKey; // Use source key (topic_id-topic_field) instead of including model_field
-                  const hashMethod = firstMapping.transformation.replace(
-                    "hash_",
-                    "",
-                  );
+                return Array.from(hashBySource.entries()).map(
+                  ([sourceKey, mappings]) => {
+                    const firstMapping = mappings[0];
+                    const hashKey = sourceKey; // Use source key (topic_id-topic_field) instead of including model_field
+                    const hashMethod = firstMapping.transformation.replace(
+                      "hash_",
+                      "",
+                    );
 
-                  return (
-                    <Box
-                      key={hashKey}
-                      style={{
-                        width: "200px",
-                        margin: "0 auto",
-                      }}
-                    >
-                      <Card
-                        withBorder
-                        shadow="md"
-                        p="xs"
+                    return (
+                      <Box
+                        key={hashKey}
                         style={{
-                          position: "relative",
+                          width: "200px",
+                          margin: "0 auto",
                         }}
                       >
-                        {/* Input Connection Node (Left) - Blue */}
-                        <Box
-                          ref={(el) => {
-                            hashInputRefs.current[hashKey] = el;
-                          }}
+                        <Card
+                          withBorder
+                          shadow="md"
+                          p="xs"
                           style={{
-                            position: "absolute",
-                            left: -8,
-                            top: "50%",
-                            transform: "translateY(-50%)",
-                            width: 16,
-                            height: 16,
-                            borderRadius: "50%",
-                            background:
-                              colorScheme === "dark" ? "#4dabf7" : "#1c7ed6",
-                            border: "2px solid white",
-                            zIndex: 10,
+                            position: "relative",
                           }}
-                          title="Input connection point"
-                        />
+                        >
+                          {/* Input Connection Node (Left) - Blue */}
+                          <Box
+                            ref={(el) => {
+                              hashInputRefs.current[hashKey] = el;
+                            }}
+                            style={{
+                              position: "absolute",
+                              left: -8,
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              width: 16,
+                              height: 16,
+                              borderRadius: "50%",
+                              background:
+                                colorScheme === "dark" ? "#4dabf7" : "#1c7ed6",
+                              border: "2px solid white",
+                              zIndex: 10,
+                            }}
+                            title="Input connection point"
+                          />
 
-                        {/* Output Connection Node (Right) - Green */}
-                        <Box
-                          ref={(el) => {
-                            hashOutputRefs.current[hashKey] = el;
-                          }}
-                          style={{
-                            position: "absolute",
-                            right: -8,
-                            top: "50%",
-                            transform: "translateY(-50%)",
-                            width: 16,
-                            height: 16,
-                            borderRadius: "50%",
-                            background:
-                              colorScheme === "dark" ? "#51cf66" : "#2f9e44",
-                            border: "2px solid white",
-                            zIndex: 10,
-                          }}
-                          title="Output connection point"
-                        />
+                          {/* Output Connection Node (Right) - Green */}
+                          <Box
+                            ref={(el) => {
+                              hashOutputRefs.current[hashKey] = el;
+                            }}
+                            style={{
+                              position: "absolute",
+                              right: -8,
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              width: 16,
+                              height: 16,
+                              borderRadius: "50%",
+                              background:
+                                colorScheme === "dark" ? "#51cf66" : "#2f9e44",
+                              border: "2px solid white",
+                              zIndex: 10,
+                            }}
+                            title="Output connection point"
+                          />
 
-                        <Group justify="space-between" mb="xs">
-                          <Group gap="xs">
-                            <IconHash size={16} />
-                            <Text fw={600} size="sm">
-                              Hash
-                            </Text>
+                          <Group justify="space-between" mb="xs">
+                            <Group gap="xs">
+                              <IconHash size={16} />
+                              <Text fw={600} size="sm">
+                                Hash
+                              </Text>
+                            </Group>
                           </Group>
-                        </Group>
 
-                        <Select
-                          size="xs"
-                          value={hashMethod}
-                          disabled
-                          data={[
-                            { value: "MD5", label: "MD5" },
-                            { value: "SHA-1", label: "SHA-1" },
-                            { value: "SHA-256", label: "SHA-256" },
-                          ]}
-                          styles={{
-                            input: {
-                              minHeight: "28px",
-                            },
-                          }}
-                        />
-                      </Card>
-                    </Box>
-                  );
-                });
+                          <Select
+                            size="xs"
+                            value={hashMethod}
+                            disabled
+                            data={[
+                              { value: "MD5", label: "MD5" },
+                              { value: "SHA-1", label: "SHA-1" },
+                              { value: "SHA-256", label: "SHA-256" },
+                            ]}
+                            styles={{
+                              input: {
+                                minHeight: "28px",
+                              },
+                            }}
+                          />
+                        </Card>
+                      </Box>
+                    );
+                  },
+                );
               })()}
             </Stack>
           </Box>

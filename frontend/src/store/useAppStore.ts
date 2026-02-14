@@ -166,6 +166,9 @@ export type Model =
       name: string;
       type: "data_vault";
       topics: string[];
+      table_created?: boolean;
+      table_name?: string;
+      clickhouse_backend?: string;
       hubs: {
         name: string;
         topic: string;
@@ -190,6 +193,9 @@ export type Model =
       name: string;
       type: "dimensional";
       topics: string[];
+      table_created?: boolean;
+      table_name?: string;
+      clickhouse_backend?: string;
       facts: {
         name: string;
         topic: string;
