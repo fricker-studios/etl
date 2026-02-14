@@ -32,7 +32,7 @@ def get_clickhouse_client(backend: StorageBackend) -> Client:
     port = host_config.get("port", 8123)  # Default HTTP port for ClickHouse
     
     # Get decrypted password
-    password = backend.get_decrypted_password() if backend.password else None
+    password = backend.get_decrypted_password() or ""
     
     client = clickhouse_connect.get_client(
         host=host,
@@ -202,11 +202,15 @@ def create_data_vault_hub_table(
     
     # Build column definitions
     columns = []
+    column_names = set()  # Track column names to prevent duplicates
     
     # Add standard Data Vault columns
     columns.append("hub_hash_key String")  # Business key hash
+    column_names.add("hub_hash_key")
     columns.append("load_datetime DateTime64(3) DEFAULT now64(3)")
+    column_names.add("load_datetime")
     columns.append("record_source String")
+    column_names.add("record_source")
     
     # Get field mappings to determine which fields to include
     field_mappings = hub_definition.get("field_mappings", [])
@@ -221,6 +225,11 @@ def create_data_vault_hub_table(
         if not model_field or not topic_field:
             continue
         
+        # Skip if column already exists
+        if model_field in column_names:
+            logger.debug(f"Skipping duplicate column: {model_field}")
+            continue
+        
         # Get the field definition from topic
         field_def = topic_schema.get(topic_field)
         if not field_def:
@@ -230,6 +239,7 @@ def create_data_vault_hub_table(
         # Map to ClickHouse type
         ch_type = map_topic_field_to_clickhouse_type(field_def)
         columns.append(f"{model_field} {ch_type}")
+        column_names.add(model_field)
     
     # Create the table DDL
     columns_sql = ",\n    ".join(columns)
