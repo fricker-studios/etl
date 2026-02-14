@@ -305,10 +305,19 @@ export function ModelDetailPage() {
     modals.openConfirmModal({
       title: "Delete Model",
       children: (
-        <Text size="sm">
-          Are you sure you want to delete this model? This action cannot be
-          undone.
-        </Text>
+        <Stack gap="md">
+          <Text size="sm">
+            Are you sure you want to delete this model? This action cannot be
+            undone.
+          </Text>
+          {model && model.table_created && model.table_name && (
+            <Alert color="orange" title="ClickHouse Table Deletion">
+              <Text size="sm">
+                The associated ClickHouse table <Text component="span" fw={600} ff="monospace">{model.table_name}</Text> will also be permanently deleted.
+              </Text>
+            </Alert>
+          )}
+        </Stack>
       ),
       labels: { confirm: "Delete", cancel: "Cancel" },
       confirmProps: { color: "red" },
