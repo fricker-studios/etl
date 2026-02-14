@@ -11,6 +11,11 @@ A full-stack ETL/ELT pipeline management tool with Django backend and React fron
 - **Streams**: Define data streams with pagination and schema inference
 - **Data Packages**: Create and materialize data packages from streams
 - **Data Models**: Support for both Dimensional and Data Vault modeling
+- **ClickHouse Integration**: Create tables and load data from S3 into ClickHouse
+  - Automatic table creation from model definitions
+  - S3 data virtualization for efficient loading
+  - Hash transformations for Data Vault business keys
+  - Real-time loading progress tracking
 - **Backend Storage**: Configure S3 and ClickHouse storage backends
 - **Task Queue**: Celery-based asynchronous task execution for stream processing
 - **Scheduled Execution**: Celery Beat integration for scheduled stream runs
@@ -160,6 +165,9 @@ VITE_API_URL=http://localhost:8000/api
 - `GET/POST /api/streams/` - Manage streams
 - `GET/POST /api/packages/` - Manage data packages
 - `GET/POST /api/models/` - Manage data models
+- `POST /api/models/{id}/create_table/` - Create ClickHouse table for a model
+- `POST /api/models/{id}/load_data/` - Load data from packages into model table
+- `GET /api/models/{id}/loading_progress/` - Get data loading progress
 
 ## Project Structure
 
