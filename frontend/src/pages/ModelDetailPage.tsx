@@ -56,11 +56,13 @@ export function ModelDetailPage() {
   const { data: topics = [] } = useTopics();
   const [editModalOpen, { open: openEditModal }] = useDisclosure(false);
   const { colorScheme } = useMantineColorScheme();
-  
+
   // State for runs table - use Set for O(1) lookup performance
   const [currentPage, setCurrentPage] = useState(1);
   const [perPage] = useState(10);
-  const [selectedRunsSet, setSelectedRunsSet] = useState<Set<string>>(new Set());
+  const [selectedRunsSet, setSelectedRunsSet] = useState<Set<string>>(
+    new Set(),
+  );
 
   // Fetch ClickHouse status
   const { data: clickhouseStatus } = useQuery<any>({
@@ -69,19 +71,24 @@ export function ModelDetailPage() {
   });
 
   // Fetch table statistics
-  const { data: tableStats, isLoading: tableStatsLoading, refetch: refetchTableStats } = useQuery<any>({
+  const {
+    data: tableStats,
+    isLoading: tableStatsLoading,
+    refetch: refetchTableStats,
+  } = useQuery<any>({
     queryKey: ["table-stats", id],
     queryFn: () => api.models.tableStats(id!),
     enabled: !!id && clickhouseStatus?.configured === true,
   });
 
   // Fetch loading progress
-  const { data: loadingProgress, refetch: refetchLoadingProgress } = useQuery<any>({
-    queryKey: ["loading-progress", id, currentPage, perPage],
-    queryFn: () => api.models.loadingProgress(id!, currentPage, perPage),
-    enabled: !!id && model?.table_created === true,
-    refetchInterval: 5000, // Poll every 5 seconds when table is created
-  });
+  const { data: loadingProgress, refetch: refetchLoadingProgress } =
+    useQuery<any>({
+      queryKey: ["loading-progress", id, currentPage, perPage],
+      queryFn: () => api.models.loadingProgress(id!, currentPage, perPage),
+      enabled: !!id && model?.table_created === true,
+      refetchInterval: 5000, // Poll every 5 seconds when table is created
+    });
 
   const queryClient = useQueryClient();
 
@@ -313,7 +320,11 @@ export function ModelDetailPage() {
           {model && model.table_created && model.table_name && (
             <Alert color="orange" title="ClickHouse Table Deletion">
               <Text size="sm">
-                The associated ClickHouse table <Text component="span" fw={600} ff="monospace">{model.table_name}</Text> will also be permanently deleted.
+                The associated ClickHouse table{" "}
+                <Text component="span" fw={600} ff="monospace">
+                  {model.table_name}
+                </Text>{" "}
+                will also be permanently deleted.
               </Text>
             </Alert>
           )}
@@ -759,7 +770,11 @@ export function ModelDetailPage() {
                             variant="filled"
                             color="blue"
                             leftSection={<IconRotateClockwise size={14} />}
-                            onClick={() => rerunSelectedMutation.mutate(Array.from(selectedRunsSet))}
+                            onClick={() =>
+                              rerunSelectedMutation.mutate(
+                                Array.from(selectedRunsSet),
+                              )
+                            }
                             loading={rerunSelectedMutation.isPending}
                           >
                             Re-run Selected ({selectedRunsSet.size})
@@ -774,16 +789,22 @@ export function ModelDetailPage() {
                             <Checkbox
                               checked={
                                 loadingProgress.runs.length > 0 &&
-                                selectedRunsSet.size === loadingProgress.runs.length
+                                selectedRunsSet.size ===
+                                  loadingProgress.runs.length
                               }
                               indeterminate={
                                 selectedRunsSet.size > 0 &&
-                                selectedRunsSet.size < loadingProgress.runs.length
+                                selectedRunsSet.size <
+                                  loadingProgress.runs.length
                               }
                               onChange={(e) => {
                                 if (e.currentTarget.checked) {
                                   setSelectedRunsSet(
-                                    new Set(loadingProgress.runs.map((r: any) => r.id.toString()))
+                                    new Set(
+                                      loadingProgress.runs.map((r: any) =>
+                                        r.id.toString(),
+                                      ),
+                                    ),
                                   );
                                 } else {
                                   setSelectedRunsSet(new Set());
@@ -859,17 +880,18 @@ export function ModelDetailPage() {
                         ))}
                       </Table.Tbody>
                     </Table>
-                    
+
                     {/* Pagination */}
-                    {loadingProgress.pagination && loadingProgress.pagination.total_pages > 1 && (
-                      <Group justify="center" mt="md">
-                        <Pagination
-                          total={loadingProgress.pagination.total_pages}
-                          value={currentPage}
-                          onChange={setCurrentPage}
-                        />
-                      </Group>
-                    )}
+                    {loadingProgress.pagination &&
+                      loadingProgress.pagination.total_pages > 1 && (
+                        <Group justify="center" mt="md">
+                          <Pagination
+                            total={loadingProgress.pagination.total_pages}
+                            value={currentPage}
+                            onChange={setCurrentPage}
+                          />
+                        </Group>
+                      )}
                   </div>
                 )}
               </>
@@ -980,7 +1002,7 @@ export function ModelDetailPage() {
 
                     // Get unique fields for this topic (deduplicate)
                     const uniqueFields = Array.from(
-                      new Set(mappings.map((m: any) => m.topic_field))
+                      new Set(mappings.map((m: any) => m.topic_field)),
                     );
 
                     return (
@@ -1055,100 +1077,102 @@ export function ModelDetailPage() {
                   hashBySource.get(sourceKey)!.push(mapping);
                 });
 
-                return Array.from(hashBySource.entries()).map(([sourceKey, mappings]) => {
-                  const firstMapping = mappings[0];
-                  const hashKey = sourceKey; // Use source key (topic_id-topic_field) instead of including model_field
-                  const hashMethod = firstMapping.transformation.replace(
-                    "hash_",
-                    "",
-                  );
+                return Array.from(hashBySource.entries()).map(
+                  ([sourceKey, mappings]) => {
+                    const firstMapping = mappings[0];
+                    const hashKey = sourceKey; // Use source key (topic_id-topic_field) instead of including model_field
+                    const hashMethod = firstMapping.transformation.replace(
+                      "hash_",
+                      "",
+                    );
 
-                  return (
-                    <Box
-                      key={hashKey}
-                      style={{
-                        width: "200px",
-                        margin: "0 auto",
-                      }}
-                    >
-                      <Card
-                        withBorder
-                        shadow="md"
-                        p="xs"
+                    return (
+                      <Box
+                        key={hashKey}
                         style={{
-                          position: "relative",
+                          width: "200px",
+                          margin: "0 auto",
                         }}
                       >
-                        {/* Input Connection Node (Left) - Blue */}
-                        <Box
-                          ref={(el) => {
-                            hashInputRefs.current[hashKey] = el;
-                          }}
+                        <Card
+                          withBorder
+                          shadow="md"
+                          p="xs"
                           style={{
-                            position: "absolute",
-                            left: -8,
-                            top: "50%",
-                            transform: "translateY(-50%)",
-                            width: 16,
-                            height: 16,
-                            borderRadius: "50%",
-                            background:
-                              colorScheme === "dark" ? "#4dabf7" : "#1c7ed6",
-                            border: "2px solid white",
-                            zIndex: 10,
+                            position: "relative",
                           }}
-                          title="Input connection point"
-                        />
+                        >
+                          {/* Input Connection Node (Left) - Blue */}
+                          <Box
+                            ref={(el) => {
+                              hashInputRefs.current[hashKey] = el;
+                            }}
+                            style={{
+                              position: "absolute",
+                              left: -8,
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              width: 16,
+                              height: 16,
+                              borderRadius: "50%",
+                              background:
+                                colorScheme === "dark" ? "#4dabf7" : "#1c7ed6",
+                              border: "2px solid white",
+                              zIndex: 10,
+                            }}
+                            title="Input connection point"
+                          />
 
-                        {/* Output Connection Node (Right) - Green */}
-                        <Box
-                          ref={(el) => {
-                            hashOutputRefs.current[hashKey] = el;
-                          }}
-                          style={{
-                            position: "absolute",
-                            right: -8,
-                            top: "50%",
-                            transform: "translateY(-50%)",
-                            width: 16,
-                            height: 16,
-                            borderRadius: "50%",
-                            background:
-                              colorScheme === "dark" ? "#51cf66" : "#2f9e44",
-                            border: "2px solid white",
-                            zIndex: 10,
-                          }}
-                          title="Output connection point"
-                        />
+                          {/* Output Connection Node (Right) - Green */}
+                          <Box
+                            ref={(el) => {
+                              hashOutputRefs.current[hashKey] = el;
+                            }}
+                            style={{
+                              position: "absolute",
+                              right: -8,
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              width: 16,
+                              height: 16,
+                              borderRadius: "50%",
+                              background:
+                                colorScheme === "dark" ? "#51cf66" : "#2f9e44",
+                              border: "2px solid white",
+                              zIndex: 10,
+                            }}
+                            title="Output connection point"
+                          />
 
-                        <Group justify="space-between" mb="xs">
-                          <Group gap="xs">
-                            <IconHash size={16} />
-                            <Text fw={600} size="sm">
-                              Hash
-                            </Text>
+                          <Group justify="space-between" mb="xs">
+                            <Group gap="xs">
+                              <IconHash size={16} />
+                              <Text fw={600} size="sm">
+                                Hash
+                              </Text>
+                            </Group>
                           </Group>
-                        </Group>
 
-                        <Select
-                          size="xs"
-                          value={hashMethod}
-                          disabled
-                          data={[
-                            { value: "MD5", label: "MD5" },
-                            { value: "SHA-1", label: "SHA-1" },
-                            { value: "SHA-256", label: "SHA-256" },
-                          ]}
-                          styles={{
-                            input: {
-                              minHeight: "28px",
-                            },
-                          }}
-                        />
-                      </Card>
-                    </Box>
-                  );
-                });
+                          <Select
+                            size="xs"
+                            value={hashMethod}
+                            disabled
+                            data={[
+                              { value: "MD5", label: "MD5" },
+                              { value: "SHA-1", label: "SHA-1" },
+                              { value: "SHA-256", label: "SHA-256" },
+                            ]}
+                            styles={{
+                              input: {
+                                minHeight: "28px",
+                              },
+                            }}
+                          />
+                        </Card>
+                      </Box>
+                    );
+                  },
+                );
               })()}
             </Stack>
           </Box>

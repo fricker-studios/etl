@@ -183,10 +183,12 @@ export const api = {
       }),
     loadingProgress: (id: string, page?: number, perPage?: number) => {
       const params = new URLSearchParams();
-      if (page) params.append('page', page.toString());
-      if (perPage) params.append('per_page', perPage.toString());
+      if (page) params.append("page", page.toString());
+      if (perPage) params.append("per_page", perPage.toString());
       const queryString = params.toString();
-      return request(`/models/${id}/loading_progress/${queryString ? '?' + queryString : ''}`);
+      return request(
+        `/models/${id}/loading_progress/${queryString ? "?" + queryString : ""}`,
+      );
     },
     rerunFailed: (id: string) =>
       request(`/models/${id}/rerun_failed/`, {

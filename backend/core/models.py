@@ -36,34 +36,32 @@ class StorageBackend(models.Model):
     # ClickHouse fields
     mode = models.CharField(max_length=20, choices=MODE_CHOICES, blank=True, null=True)
     cluster_name = models.CharField(
-        max_length=255, 
-        blank=True, 
+        max_length=255,
+        blank=True,
         null=True,
-        help_text="ClickHouse cluster name (required for cluster mode)"
+        help_text="ClickHouse cluster name (required for cluster mode)",
     )
-    
+
     # Auto-detected cluster metadata
     is_cluster = models.BooleanField(
         default=False,
-        help_text="Auto-detected: Whether ClickHouse is running in cluster mode"
+        help_text="Auto-detected: Whether ClickHouse is running in cluster mode",
     )
     detected_cluster_name = models.CharField(
         max_length=255,
         blank=True,
         null=True,
-        help_text="Auto-detected cluster name from ClickHouse"
+        help_text="Auto-detected cluster name from ClickHouse",
     )
     cluster_nodes = models.JSONField(
-        default=list,
-        blank=True,
-        help_text="Auto-detected list of cluster nodes"
+        default=list, blank=True, help_text="Auto-detected list of cluster nodes"
     )
     cluster_metadata_updated_at = models.DateTimeField(
         blank=True,
         null=True,
-        help_text="Last time cluster metadata was detected/updated"
+        help_text="Last time cluster metadata was detected/updated",
     )
-    
+
     hosts = models.JSONField(
         default=list, blank=True
     )  # [{"host": "localhost", "port": 9000}]
@@ -516,13 +514,17 @@ class Model(models.Model):
         if self.table_created and self.table_name and self.clickhouse_backend:
             try:
                 from core.clickhouse_utils import drop_table_from_model
+
                 drop_table_from_model(self, self.clickhouse_backend)
             except Exception as e:
                 # Log error but don't block deletion
                 import logging
+
                 logger = logging.getLogger(__name__)
-                logger.error(f"Error dropping ClickHouse table for model {self.name}: {str(e)}")
-        
+                logger.error(
+                    f"Error dropping ClickHouse table for model {self.name}: {str(e)}"
+                )
+
         # Call parent delete
         super().delete(*args, **kwargs)
 
@@ -546,7 +548,11 @@ class Run(models.Model):
         "Model", on_delete=models.CASCADE, related_name="runs", null=True, blank=True
     )
     data_package = models.ForeignKey(
-        DataPackage, on_delete=models.CASCADE, related_name="runs", null=True, blank=True
+        DataPackage,
+        on_delete=models.CASCADE,
+        related_name="runs",
+        null=True,
+        blank=True,
     )
     name = models.CharField(max_length=255)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="queued")

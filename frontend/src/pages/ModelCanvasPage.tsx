@@ -75,10 +75,10 @@ export function ModelCanvasPage() {
   const [modelFieldTypes, setModelFieldTypes] = useState<
     Record<string, string>
   >({}); // Data types for model fields
-  
+
   // System/readonly fields that cannot be edited or deleted
   const SYSTEM_FIELDS = ["load_datetime", "record_source"];
-  
+
   const [draggedColumn, setDraggedColumn] = useState<{
     topicId: string;
     columnName: string;
@@ -183,13 +183,13 @@ export function ModelCanvasPage() {
     // Auto-create required fields based on entity type
     const requiredFields: string[] = [];
     const fieldTypes: Record<string, string> = {};
-    const readonlyFields: string[] = [];  // Track which fields are system/readonly
+    const readonlyFields: string[] = []; // Track which fields are system/readonly
 
     if (entityType === "hub") {
       requiredFields.push("hash_key", "business_key");
       fieldTypes["hash_key"] = "string";
       fieldTypes["business_key"] = "string";
-      
+
       // Add standard Data Vault columns as readonly
       requiredFields.push("load_datetime", "record_source");
       fieldTypes["load_datetime"] = "timestamp";
@@ -221,7 +221,7 @@ export function ModelCanvasPage() {
     } else if (entityType === "link") {
       requiredFields.push("link_key");
       fieldTypes["link_key"] = "string";
-      
+
       // Add standard Data Vault columns as readonly
       requiredFields.push("load_datetime", "record_source");
       fieldTypes["load_datetime"] = "timestamp";
@@ -231,7 +231,7 @@ export function ModelCanvasPage() {
       requiredFields.push("parent_key", "load_date");
       fieldTypes["parent_key"] = "string";
       fieldTypes["load_date"] = "timestamp";
-      
+
       // Add standard Data Vault columns as readonly
       requiredFields.push("load_datetime", "record_source");
       fieldTypes["load_datetime"] = "timestamp";
@@ -460,7 +460,7 @@ export function ModelCanvasPage() {
       });
       return;
     }
-    
+
     setModelFields(modelFields.filter((f) => f !== fieldName));
     // Remove field type
     const updatedTypes = { ...modelFieldTypes };
@@ -786,7 +786,9 @@ export function ModelCanvasPage() {
 
         // Create a mapping for each complete path: topic -> hash -> model
         outputConnections.forEach((outputConn) => {
-          const hashComponent = hashComponents.find((h) => h.id === conn.targetId);
+          const hashComponent = hashComponents.find(
+            (h) => h.id === conn.targetId,
+          );
           if (hashComponent && conn.sourceField) {
             hashBasedMappings.push({
               model_field: outputConn.targetField!,
@@ -1831,7 +1833,7 @@ export function ModelCanvasPage() {
                         c.targetType === "model" && c.targetField === fieldName,
                     );
                     const isEditing = editingField === fieldName;
-                    
+
                     // Check if this is a system/readonly field
                     const isSystemField = SYSTEM_FIELDS.includes(fieldName);
 
@@ -1851,10 +1853,10 @@ export function ModelCanvasPage() {
                               ? "gray.9"
                               : "gray.1"
                             : mappings.length > 0 || hasHashConnection
-                            ? colorScheme === "dark"
-                              ? "blue.9"
-                              : "blue.0"
-                            : undefined
+                              ? colorScheme === "dark"
+                                ? "blue.9"
+                                : "blue.0"
+                              : undefined
                         }
                         style={{
                           border:

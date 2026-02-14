@@ -448,18 +448,18 @@ def _should_stream_run(stream):
 def load_data_package_task(self, model_id, data_package_id, run_id=None):
     """
     Load data from a DataPackage into a Model's ClickHouse table.
-    
+
     This task:
     1. Virtualizes the S3 data using ClickHouse's S3 table function
     2. Performs any transformations (e.g., hash)
     3. Inserts data into the destination table
     4. Relies on ClickHouse's atomic INSERT and deduplication mechanisms
-    
+
     Args:
         model_id: ID of the Model to load data into
         data_package_id: ID of the DataPackage to load
         run_id: Optional ID of the Run instance to track progress
-        
+
     Returns:
         dict: Loading results including rows loaded
     """
@@ -471,14 +471,16 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
         get_transformation,
     )
     import hashlib
-    
+
     try:
         # Get the model and data package
-        model = Model.objects.select_related("clickhouse_backend", "user").get(id=model_id)
+        model = Model.objects.select_related("clickhouse_backend", "user").get(
+            id=model_id
+        )
         data_package = DataPackage.objects.select_related(
             "topic_revision", "external_s3_source", "destination"
         ).get(id=data_package_id)
-        
+
         # Get or create Run instance
         if run_id:
             run = Run.objects.get(id=run_id)
@@ -491,44 +493,54 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
                 status="running",
                 started_at=timezone.now(),
             )
-        
+
         # Update run status
         run.status = "running"
         run.started_at = timezone.now()
         run.save()
-        
-        logger.info(f"Loading data package {data_package_id} into model {model_id} (Run ID: {run.id})")
-        
+
+        logger.info(
+            f"Loading data package {data_package_id} into model {model_id} (Run ID: {run.id})"
+        )
+
         # Verify model has a table created
         if not model.table_created or not model.table_name:
             error_msg = f"Model {model.name} does not have a table created"
             run.status = "failed"
             run.error_message = error_msg
             run.completed_at = timezone.now()
-            run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+            run.duration_seconds = int(
+                (run.completed_at - run.started_at).total_seconds()
+            )
             run.save()
             raise ValueError(error_msg)
-        
+
         # Verify model has a ClickHouse backend
         if not model.clickhouse_backend:
-            error_msg = f"Model {model.name} does not have a ClickHouse backend configured"
+            error_msg = (
+                f"Model {model.name} does not have a ClickHouse backend configured"
+            )
             run.status = "failed"
             run.error_message = error_msg
             run.completed_at = timezone.now()
-            run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+            run.duration_seconds = int(
+                (run.completed_at - run.started_at).total_seconds()
+            )
             run.save()
             raise ValueError(error_msg)
-        
+
         # Verify data package has a file path
         if not data_package.file_path:
             error_msg = f"DataPackage {data_package.name} does not have a file_path"
             run.status = "failed"
             run.error_message = error_msg
             run.completed_at = timezone.now()
-            run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+            run.duration_seconds = int(
+                (run.completed_at - run.started_at).total_seconds()
+            )
             run.save()
             raise ValueError(error_msg)
-        
+
         # Get S3 source configuration
         # external_s3_source is a DataSource (has 'type' field)
         # destination is a StorageBackend (has 'kind' field)
@@ -537,7 +549,7 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
         s3_bucket = None
         s3_access_key = None
         s3_secret_key = None
-        
+
         if data_package.external_s3_source:
             # Using external DataSource
             if data_package.external_s3_source.type != "s3":
@@ -545,16 +557,18 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
                 run.status = "failed"
                 run.error_message = error_msg
                 run.completed_at = timezone.now()
-                run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+                run.duration_seconds = int(
+                    (run.completed_at - run.started_at).total_seconds()
+                )
                 run.save()
                 raise ValueError(error_msg)
-            
+
             s3_source = data_package.external_s3_source
             s3_endpoint = s3_source.s3_endpoint
             s3_bucket = s3_source.s3_bucket
             s3_access_key = s3_source.s3_access_key
             s3_secret_key = s3_source.get_decrypted_s3_secret_key()
-            
+
         elif data_package.destination:
             # Using StorageBackend
             if data_package.destination.kind != "s3":
@@ -562,41 +576,49 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
                 run.status = "failed"
                 run.error_message = error_msg
                 run.completed_at = timezone.now()
-                run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+                run.duration_seconds = int(
+                    (run.completed_at - run.started_at).total_seconds()
+                )
                 run.save()
                 raise ValueError(error_msg)
-            
+
             s3_source = data_package.destination
             s3_endpoint = s3_source.endpoint
             s3_bucket = s3_source.bucket
             s3_access_key = s3_source.access_key_id
             s3_secret_key = s3_source.get_decrypted_secret_access_key()
         else:
-            error_msg = f"DataPackage {data_package.name} does not have a valid S3 source"
+            error_msg = (
+                f"DataPackage {data_package.name} does not have a valid S3 source"
+            )
             run.status = "failed"
             run.error_message = error_msg
             run.completed_at = timezone.now()
-            run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+            run.duration_seconds = int(
+                (run.completed_at - run.started_at).total_seconds()
+            )
             run.save()
             raise ValueError(error_msg)
-        
+
         # Get ClickHouse client
         client = get_clickhouse_client(model.clickhouse_backend)
         database = model.clickhouse_backend.database or "default"
         table_name = model.table_name
-        
+
         if not all([s3_endpoint, s3_bucket, s3_access_key, s3_secret_key]):
             error_msg = f"S3 source {s3_source.name} is missing required configuration"
             run.status = "failed"
             run.error_message = error_msg
             run.completed_at = timezone.now()
-            run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+            run.duration_seconds = int(
+                (run.completed_at - run.started_at).total_seconds()
+            )
             run.save()
             raise ValueError(error_msg)
-        
+
         # Detect file format
         file_format = detect_file_format(data_package.file_path)
-        
+
         # Get S3 table function
         s3_table_func = get_s3_table_function(
             s3_endpoint,
@@ -606,36 +628,44 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
             data_package.file_path,
             file_format,
         )
-        
+
         logger.info(f"Using S3 table function: {s3_table_func}")
-        
+
         # Get field mappings from model
         if model.type == "data_vault":
-            entity = model.hubs[0] if model.hubs else (
-                model.links[0] if model.links else (
-                    model.satellites[0] if model.satellites else None
+            entity = (
+                model.hubs[0]
+                if model.hubs
+                else (
+                    model.links[0]
+                    if model.links
+                    else (model.satellites[0] if model.satellites else None)
                 )
             )
         else:
-            entity = model.facts[0] if model.facts else (
-                model.dimensions[0] if model.dimensions else None
+            entity = (
+                model.facts[0]
+                if model.facts
+                else (model.dimensions[0] if model.dimensions else None)
             )
-        
+
         if not entity:
             error_msg = f"Model {model.name} has no entities defined"
             run.status = "failed"
             run.error_message = error_msg
             run.completed_at = timezone.now()
-            run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+            run.duration_seconds = int(
+                (run.completed_at - run.started_at).total_seconds()
+            )
             run.save()
             raise ValueError(error_msg)
-        
+
         field_mappings = entity.get("field_mappings", [])
-        
+
         # Build SELECT statement with transformations
         select_columns = []
         processed_fields = set()  # Track which fields we've already added
-        
+
         # Determine the hash key field name from mappings
         hash_key_field = None
         business_key_source = None
@@ -645,54 +675,65 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
                 hash_key_field = mapping.get("model_field")
                 business_key_source = mapping.get("topic_field")
                 break
-        
+
         # For Data Vault hubs, calculate the hash key if found in mappings
-        if model.type == "data_vault" and model.hubs and hash_key_field and business_key_source:
+        if (
+            model.type == "data_vault"
+            and model.hubs
+            and hash_key_field
+            and business_key_source
+        ):
             # Hash the business key using MD5 (ClickHouse function)
-            select_columns.append(f"MD5(toString({business_key_source})) as {hash_key_field}")
+            select_columns.append(
+                f"MD5(toString({business_key_source})) as {hash_key_field}"
+            )
             processed_fields.add(hash_key_field)
-        
+
         # Add standard columns if they're not in the field mappings
-        has_load_datetime = any(m.get("model_field") == "load_datetime" for m in field_mappings)
-        has_record_source = any(m.get("model_field") == "record_source" for m in field_mappings)
-        
+        has_load_datetime = any(
+            m.get("model_field") == "load_datetime" for m in field_mappings
+        )
+        has_record_source = any(
+            m.get("model_field") == "record_source" for m in field_mappings
+        )
+
         if not has_load_datetime:
             select_columns.append(f"now64(3) as load_datetime")
             processed_fields.add("load_datetime")
-        
+
         if not has_record_source:
             # Use full S3 path for record_source: s3://bucket/path/file.ext
             s3_full_path = f"s3://{s3_bucket}/{data_package.file_path}"
             select_columns.append(f"'{s3_full_path}' as record_source")
             processed_fields.add("record_source")
-        
+
         # Add mapped fields with transformations
         for mapping in field_mappings:
             topic_field = mapping.get("topic_field")
             model_field = mapping.get("model_field")
             transform = get_transformation(mapping)
-            
+
             if not topic_field or not model_field:
                 continue
-            
+
             # Skip if we've already processed this field (e.g., hash key)
             if model_field in processed_fields:
                 continue
-            
+
             # Apply transformation if specified
             if transform and transform.startswith("hash"):
                 select_columns.append(f"MD5(toString({topic_field})) as {model_field}")
             else:
                 select_columns.append(f"{topic_field} as {model_field}")
-            
+
             processed_fields.add(model_field)
-        
+
         # Build INSERT INTO SELECT statement
         select_sql = ",\n        ".join(select_columns)
-        
+
         # For Data Vault Hubs, we need to prevent duplicates based on the hash key
         # We'll use a subquery that filters out hash keys that already exist in the target table
-        # 
+        #
         # To handle parallel loading, we also ensure the source data is distinct
         # This prevents duplicates when multiple files with overlapping data are loaded simultaneously
         if model.type == "data_vault" and model.hubs and hash_key_field:
@@ -716,9 +757,9 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
                 {select_sql}
             FROM {s3_table_func}
             """
-        
+
         logger.info(f"Executing INSERT statement:\n{insert_sql}")
-        
+
         # Execute the INSERT
         # ClickHouse handles this atomically and provides built-in deduplication
         # via the insert_deduplicate setting and replicated table deduplication
@@ -726,24 +767,31 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
             # Use ClickHouse's insert_deduplicate setting to prevent exact duplicate blocks
             # This is a safety mechanism that works at the block level
             # Note: insert_deduplicate works on content hash, so identical data blocks are rejected
-            result = client.command(insert_sql, settings={
-                'insert_deduplicate': 1,  # Enable block-level deduplication
-            })
-            
+            result = client.command(
+                insert_sql,
+                settings={
+                    "insert_deduplicate": 1,  # Enable block-level deduplication
+                },
+            )
+
             # Query to get the count of rows inserted
             s3_full_path = f"s3://{s3_bucket}/{data_package.file_path}"
             count_sql = f"SELECT count() FROM {database}.{table_name} WHERE record_source = '{s3_full_path}'"
             rows_loaded = client.command(count_sql)
-            
-            logger.info(f"Successfully loaded {rows_loaded} rows from {data_package.name}")
-            
+
+            logger.info(
+                f"Successfully loaded {rows_loaded} rows from {data_package.name}"
+            )
+
             # Update run with success
             run.status = "success"
             run.completed_at = timezone.now()
-            run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+            run.duration_seconds = int(
+                (run.completed_at - run.started_at).total_seconds()
+            )
             run.rows_processed = rows_loaded
             run.save()
-            
+
             return {
                 "status": "success",
                 "rows_loaded": rows_loaded,
@@ -751,10 +799,10 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
                 "data_package_id": data_package_id,
                 "table_name": table_name,
             }
-            
+
         except Exception as insert_error:
             logger.error(f"Error during INSERT: {str(insert_error)}")
-            
+
             # For ClickHouse, we can't really rollback since it's not a traditional transaction
             # But we can delete the rows we just inserted by record_source
             try:
@@ -764,22 +812,25 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
                 logger.info(f"Rolled back inserted rows for {data_package.name}")
             except Exception as rollback_error:
                 logger.error(f"Error during rollback: {str(rollback_error)}")
-            
+
             raise insert_error
-        
+
     except Exception as e:
         logger.error(f"Error loading data package {data_package_id}: {str(e)}")
         import traceback
+
         logger.error(f"Full traceback: {traceback.format_exc()}")
-        
+
         # Update run with failure
-        if 'run' in locals():
+        if "run" in locals():
             run.status = "failed"
             run.error_message = str(e)
             run.completed_at = timezone.now()
-            run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
+            run.duration_seconds = int(
+                (run.completed_at - run.started_at).total_seconds()
+            )
             run.save()
-        
+
         raise
 
 
@@ -787,60 +838,65 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
 def optimize_model_table_task(self, model_id):
     """
     Run OPTIMIZE TABLE FINAL on a model's table to trigger deduplication.
-    
+
     This task should be called after all data package loading tasks for a model
     have completed. It forces ReplacingMergeTree to merge all parts and remove
     duplicates based on the ORDER BY key.
-    
+
     Args:
         model_id: ID of the Model whose table should be optimized
-        
+
     Returns:
         dict: Optimization results
     """
     from core.models import Model
     from core.clickhouse_utils import optimize_table_for_deduplication
-    
+
     try:
         logger.info(f"Starting table optimization for model {model_id}")
-        
+
         # Get the model
         model = Model.objects.select_related("clickhouse_backend").get(id=model_id)
-        
+
         if not model.table_created:
-            logger.warning(f"Model {model.name} table not created, skipping optimization")
+            logger.warning(
+                f"Model {model.name} table not created, skipping optimization"
+            )
             return {
                 "status": "skipped",
                 "message": "Table not created",
             }
-        
+
         backend = model.clickhouse_backend
         if not backend:
-            logger.warning(f"Model {model.name} has no backend configured, skipping optimization")
+            logger.warning(
+                f"Model {model.name} has no backend configured, skipping optimization"
+            )
             return {
                 "status": "skipped",
                 "message": "No backend configured",
             }
-        
+
         # Run the optimization
         logger.info(f"Optimizing table for model {model.name}")
         optimize_table_for_deduplication(model, backend)
-        
+
         logger.info(f"Successfully optimized table for model {model.name}")
-        
+
         return {
             "status": "completed",
             "model_id": model_id,
             "model_name": model.name,
             "table_name": model.table_name,
         }
-        
+
     except Model.DoesNotExist:
         logger.error(f"Model {model_id} not found")
         raise
-        
+
     except Exception as e:
         logger.error(f"Error optimizing table for model {model_id}: {str(e)}")
         import traceback
+
         logger.error(f"Full traceback: {traceback.format_exc()}")
         raise

@@ -226,7 +226,7 @@ export function ModelWizard({
 
     try {
       const createdModel = await createModel.mutateAsync(modelData);
-      
+
       // If "Create table on save" is checked, create the table
       if (createTable && createdModel?.id) {
         try {
@@ -242,7 +242,7 @@ export function ModelWizard({
           });
         }
       }
-      
+
       resetForm();
       onClose();
     } catch (error) {
