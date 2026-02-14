@@ -453,8 +453,7 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
     1. Virtualizes the S3 data using ClickHouse's S3 table function
     2. Performs any transformations (e.g., hash)
     3. Inserts data into the destination table
-    4. Uses transactions to ensure atomicity
-    5. Coordinates with other parallel tasks to prevent race conditions
+    4. Relies on ClickHouse's atomic INSERT and deduplication mechanisms
     
     Args:
         model_id: ID of the Model to load data into
@@ -463,67 +462,6 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
         
     Returns:
         dict: Loading results including rows loaded
-    """
-    from core.models import Model, DataPackage, Run, DataSource
-    from core.clickhouse_utils import (
-        get_clickhouse_client,
-        get_s3_table_function,
-        detect_file_format,
-        get_transformation,
-    )
-    from django.core.cache import cache
-    import hashlib
-    import time
-    
-    # Use a cache-based lock to prevent parallel loading into the same model
-    # This prevents race conditions when multiple DataPackages are loaded simultaneously
-    lock_key = f"load_data_lock_model_{model_id}"
-    lock_timeout = 3600  # 1 hour max lock time
-    
-    # Try to acquire lock with exponential backoff
-    max_wait_time = 300  # Wait up to 5 minutes for lock
-    wait_time = 1
-    total_waited = 0
-    
-    while total_waited < max_wait_time:
-        # Try to acquire lock (atomic operation)
-        if cache.add(lock_key, self.request.id, timeout=lock_timeout):
-            # Lock acquired successfully
-            try:
-                return _perform_data_load(model_id, data_package_id, run_id)
-            finally:
-                # Always release the lock
-                cache.delete(lock_key)
-        
-        # Lock is held by another task, wait and retry
-        logger.info(f"Model {model_id} is locked by another loading task, waiting {wait_time}s...")
-        time.sleep(wait_time)
-        total_waited += wait_time
-        wait_time = min(wait_time * 2, 30)  # Exponential backoff up to 30s
-    
-    # Could not acquire lock within timeout
-    error_msg = f"Could not acquire lock for model {model_id} after {max_wait_time}s"
-    logger.error(error_msg)
-    
-    if run_id:
-        try:
-            run = Run.objects.get(id=run_id)
-            run.status = "failed"
-            run.error_message = error_msg
-            run.completed_at = timezone.now()
-            if run.started_at:
-                run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
-            run.save()
-        except Exception as e:
-            logger.error(f"Error updating run status: {str(e)}")
-    
-    raise TimeoutError(error_msg)
-
-
-def _perform_data_load(model_id, data_package_id, run_id=None):
-    """
-    Internal function that performs the actual data loading.
-    Should only be called after acquiring a lock on the model.
     """
     from core.models import Model, DataPackage, Run, DataSource
     from core.clickhouse_utils import (
@@ -779,10 +717,16 @@ def _perform_data_load(model_id, data_package_id, run_id=None):
         
         logger.info(f"Executing INSERT statement:\n{insert_sql}")
         
-        # Execute the INSERT in a transaction-like manner
-        # ClickHouse doesn't have traditional transactions, but inserts are atomic
+        # Execute the INSERT
+        # ClickHouse handles this atomically and provides built-in deduplication
+        # via the insert_deduplicate setting and replicated table deduplication
         try:
-            result = client.command(insert_sql)
+            # Use ClickHouse's insert_deduplicate setting to prevent exact duplicate blocks
+            # This is a safety mechanism that works at the block level
+            result = client.command(insert_sql, settings={
+                'insert_deduplicate': 1,  # Enable block-level deduplication
+                'insert_deduplicate_token': f"{model.id}_{data_package.id}"  # Unique token per load
+            })
             
             # Query to get the count of rows inserted
             count_sql = f"SELECT count() FROM {database}.{table_name} WHERE record_source = '{data_package.name}'"
