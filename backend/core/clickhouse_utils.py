@@ -382,6 +382,27 @@ def create_data_vault_hub_table(
         # Create local table on each node (with _local suffix)
         local_table_name = f"{table_name}_local"
         
+        # Clean up any leftover ZooKeeper metadata from previous tables with the same name
+        # This handles cases where a table was dropped but ZooKeeper metadata wasn't fully cleaned up
+        try:
+            replicas_query = f"SELECT DISTINCT replica_num, host_name FROM system.clusters WHERE cluster = '{cluster_name}'"
+            replicas = client.query(replicas_query).result_rows
+            
+            # ZooKeeper path for the local table (with macro placeholders)
+            zk_path = f'/clickhouse/tables/{{{{shard}}}}/{database}/{local_table_name}'
+            
+            for replica_num, host_name in replicas:
+                try:
+                    cleanup_cmd = f"SYSTEM DROP REPLICA '{host_name}' FROM ZKPATH '{zk_path}'"
+                    client.command(cleanup_cmd)
+                    logger.info(f"Cleaned up replica {host_name} from ZooKeeper path {zk_path}")
+                except Exception as cleanup_err:
+                    # Replica may not exist in ZooKeeper, which is fine
+                    logger.debug(f"Could not cleanup replica {host_name}: {cleanup_err}")
+        except Exception as e:
+            logger.warning(f"Could not cleanup replicas before table creation: {e}")
+            # Continue with table creation even if cleanup fails
+        
         # For cluster mode, use ReplicatedMergeTree for replication
         local_ddl = f"""
         CREATE TABLE IF NOT EXISTS {database}.{local_table_name} ON CLUSTER '{cluster_name}' (
@@ -485,14 +506,14 @@ def drop_table_from_model(model: Model, backend: StorageBackend) -> None:
         cluster_name = backend.detected_cluster_name or backend.cluster_name
         
         if use_cluster and cluster_name:
-            # Drop distributed table
-            drop_distributed = f"DROP TABLE IF EXISTS {database}.{table_name} ON CLUSTER '{cluster_name}'"
+            # Drop distributed table with SYNC to ensure ZooKeeper cleanup
+            drop_distributed = f"DROP TABLE IF EXISTS {database}.{table_name} ON CLUSTER '{cluster_name}' SYNC"
             logger.info(f"Dropping distributed table: {drop_distributed}")
             client.command(drop_distributed)
             
-            # Drop local table
+            # Drop local table with SYNC to ensure ZooKeeper cleanup
             local_table_name = f"{table_name}_local"
-            drop_local = f"DROP TABLE IF EXISTS {database}.{local_table_name} ON CLUSTER '{cluster_name}'"
+            drop_local = f"DROP TABLE IF EXISTS {database}.{local_table_name} ON CLUSTER '{cluster_name}' SYNC"
             logger.info(f"Dropping local table: {drop_local}")
             client.command(drop_local)
         else:
