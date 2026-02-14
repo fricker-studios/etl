@@ -381,7 +381,6 @@ def create_data_vault_hub_table(
     if use_cluster and cluster_name:
         # Create local table on each node (with _local suffix)
         local_table_name = f"{table_name}_local"
-        cluster_name = backend.cluster_name
         
         # For cluster mode, use ReplicatedMergeTree for replication
         local_ddl = f"""
