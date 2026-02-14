@@ -8,7 +8,7 @@ on:
 jobs:
   build-ui-files:
     runs-on: self-hosted
-    container: node:22-alpine
+    container: node:22
     name: Build UI Files
 
     steps:
