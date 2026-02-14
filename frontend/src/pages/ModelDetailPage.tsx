@@ -625,6 +625,11 @@ export function ModelDetailPage() {
                     );
                     const topicName = topicData?.name || "Unknown Topic";
 
+                    // Get unique fields for this topic (deduplicate)
+                    const uniqueFields = Array.from(
+                      new Set(mappings.map((m: any) => m.topic_field))
+                    );
+
                     return (
                       <Card key={topicId} withBorder shadow="sm" p="md">
                         <Stack gap="sm">
@@ -633,8 +638,8 @@ export function ModelDetailPage() {
                           </Badge>
                           <Divider />
                           <Stack gap="xs">
-                            {mappings.map((mapping: any) => {
-                              const fieldKey = `${mapping.topic_id}-${mapping.topic_field}`;
+                            {uniqueFields.map((field: string) => {
+                              const fieldKey = `${topicId}-${field}`;
                               return (
                                 <Box
                                   key={fieldKey}
@@ -652,7 +657,7 @@ export function ModelDetailPage() {
                                   }}
                                 >
                                   <Text size="sm" fw={500}>
-                                    {mapping.topic_field}
+                                    {field}
                                   </Text>
                                 </Box>
                               );
