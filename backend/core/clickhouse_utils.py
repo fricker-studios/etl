@@ -3,11 +3,83 @@ ClickHouse utilities for table creation and data loading.
 """
 import logging
 from typing import List, Dict, Any, Optional
+from datetime import timezone as dt_timezone
 import clickhouse_connect
 from clickhouse_connect.driver.client import Client
 from core.models import StorageBackend, Model, TopicRevision
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+
+def detect_cluster_configuration(backend: StorageBackend, client: Client) -> None:
+    """
+    Auto-detect ClickHouse cluster configuration and store in backend.
+    
+    Queries ClickHouse system tables to determine:
+    - If running in cluster mode
+    - Cluster name(s)
+    - Cluster nodes
+    - Database cluster status
+    
+    Args:
+        backend: StorageBackend instance to update with detected configuration
+        client: ClickHouse client connection
+    """
+    try:
+        # Query for clusters
+        clusters_query = "SELECT cluster, shard_num, replica_num, host_name, port FROM system.clusters"
+        clusters_result = client.query(clusters_query)
+        
+        if clusters_result.row_count > 0:
+            # We have clusters
+            backend.is_cluster = True
+            
+            # Get unique cluster names
+            cluster_names = set()
+            cluster_nodes = []
+            
+            for row in clusters_result.named_results():
+                cluster_names.add(row['cluster'])
+                cluster_nodes.append({
+                    'cluster': row['cluster'],
+                    'shard': row['shard_num'],
+                    'replica': row['replica_num'],
+                    'host': row['host_name'],
+                    'port': row.get('port', 9000)
+                })
+            
+            backend.cluster_nodes = cluster_nodes
+            
+            # If only one cluster, auto-detect it
+            if len(cluster_names) == 1:
+                backend.detected_cluster_name = list(cluster_names)[0]
+                # If user hasn't manually set cluster_name, use detected one
+                if not backend.cluster_name:
+                    backend.cluster_name = backend.detected_cluster_name
+                    backend.mode = "cluster"
+            elif len(cluster_names) > 1:
+                # Multiple clusters - store first one as detected
+                backend.detected_cluster_name = sorted(cluster_names)[0]
+                logger.info(f"Multiple clusters detected: {cluster_names}. Using {backend.detected_cluster_name}")
+            
+            logger.info(f"Detected cluster configuration: {len(cluster_nodes)} nodes in {len(cluster_names)} cluster(s)")
+        else:
+            # No clusters detected - single node mode
+            backend.is_cluster = False
+            backend.detected_cluster_name = None
+            backend.cluster_nodes = []
+            logger.info("No clusters detected - running in single node mode")
+        
+        backend.cluster_metadata_updated_at = timezone.now()
+        backend.save()
+        
+    except Exception as e:
+        logger.error(f"Error detecting cluster configuration: {str(e)}")
+        # Don't fail - just log and continue with whatever configuration was set manually
+        backend.is_cluster = False
+        backend.cluster_metadata_updated_at = timezone.now()
+        backend.save()
 
 
 def get_transformation(mapping: Dict[str, Any]) -> str:
@@ -24,12 +96,14 @@ def get_transformation(mapping: Dict[str, Any]) -> str:
     return mapping.get("transformation", mapping.get("transform", ""))
 
 
-def get_clickhouse_client(backend: StorageBackend) -> Client:
+def get_clickhouse_client(backend: StorageBackend, detect_cluster: bool = True) -> Client:
     """
     Create a ClickHouse client from a StorageBackend configuration.
+    Auto-detects cluster configuration on first connect.
     
     Args:
         backend: StorageBackend instance with ClickHouse configuration
+        detect_cluster: Whether to auto-detect cluster configuration (default True)
         
     Returns:
         ClickHouse client instance
@@ -56,6 +130,16 @@ def get_clickhouse_client(backend: StorageBackend) -> Client:
         database=backend.database or "default",
         secure=backend.secure,
     )
+    
+    # Auto-detect cluster configuration if not done recently
+    if detect_cluster:
+        should_detect = (
+            backend.cluster_metadata_updated_at is None or
+            (timezone.now() - backend.cluster_metadata_updated_at).total_seconds() > 3600  # Re-detect every hour
+        )
+        
+        if should_detect:
+            detect_cluster_configuration(backend, client)
     
     return client
 
@@ -290,9 +374,11 @@ def create_data_vault_hub_table(
     columns_sql = ",\n    ".join(columns)
     
     # Check if we're in cluster mode
-    is_cluster = backend and backend.mode == "cluster" and backend.cluster_name
+    # Use detected cluster info if available, otherwise fall back to manual settings
+    use_cluster = backend and (backend.is_cluster or (backend.mode == "cluster" and backend.cluster_name))
+    cluster_name = backend.detected_cluster_name if backend and backend.detected_cluster_name else (backend.cluster_name if backend else None)
     
-    if is_cluster:
+    if use_cluster and cluster_name:
         # Create local table on each node (with _local suffix)
         local_table_name = f"{table_name}_local"
         cluster_name = backend.cluster_name
@@ -374,6 +460,54 @@ def create_table_from_model(model: Model, backend: StorageBackend) -> str:
         raise NotImplementedError("Dimensional table creation not yet implemented")
     
     return table_name
+
+
+def drop_table_from_model(model: Model, backend: StorageBackend) -> None:
+    """
+    Drop a ClickHouse table for a Model.
+    Handles both single node and cluster modes.
+    
+    Args:
+        model: Model instance with table information
+        backend: ClickHouse StorageBackend
+    """
+    if not model.table_name or not model.table_created:
+        logger.info(f"Model {model.name} has no table to drop")
+        return
+    
+    try:
+        client = get_clickhouse_client(backend, detect_cluster=False)
+        database = backend.database or "default"
+        table_name = model.table_name
+        
+        # Determine if we should use cluster mode
+        # Use detected cluster info if available, otherwise fall back to manual settings
+        use_cluster = backend.is_cluster or (backend.mode == "cluster" and backend.cluster_name)
+        cluster_name = backend.detected_cluster_name or backend.cluster_name
+        
+        if use_cluster and cluster_name:
+            # Drop distributed table
+            drop_distributed = f"DROP TABLE IF EXISTS {database}.{table_name} ON CLUSTER '{cluster_name}'"
+            logger.info(f"Dropping distributed table: {drop_distributed}")
+            client.command(drop_distributed)
+            
+            # Drop local table
+            local_table_name = f"{table_name}_local"
+            drop_local = f"DROP TABLE IF EXISTS {database}.{local_table_name} ON CLUSTER '{cluster_name}'"
+            logger.info(f"Dropping local table: {drop_local}")
+            client.command(drop_local)
+        else:
+            # Single node mode - drop single table
+            drop_sql = f"DROP TABLE IF EXISTS {database}.{table_name}"
+            logger.info(f"Dropping table: {drop_sql}")
+            client.command(drop_sql)
+        
+        logger.info(f"Successfully dropped table(s) for model {model.name}")
+        
+    except Exception as e:
+        logger.error(f"Error dropping table for model {model.name}: {str(e)}")
+        # Don't raise - we don't want to block model deletion if table drop fails
+
 
 
 def get_s3_table_function(
