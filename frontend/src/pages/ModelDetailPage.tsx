@@ -120,7 +120,7 @@ export function ModelDetailPage() {
         if (hasTransformation) {
           // Hash transformation: topic -> hash -> model
           const topicFieldKey = `${mapping.topic_id}-${mapping.topic_field}`;
-          const hashKey = `${mapping.topic_id}-${mapping.topic_field}-${mapping.model_field}`;
+          const hashKey = `${mapping.topic_id}-${mapping.topic_field}`; // Use source key only
           const modelFieldKey = mapping.model_field;
 
           const topicFieldEl = topicFieldRefs.current[topicFieldKey];
@@ -691,9 +691,21 @@ export function ModelDetailPage() {
                   );
                 }
 
-                return hashTransformations.map((mapping: any) => {
-                  const hashKey = `${mapping.topic_id}-${mapping.topic_field}-${mapping.model_field}`;
-                  const hashMethod = mapping.transformation.replace(
+                // Group hash transformations by source (topic_id + topic_field)
+                // so that multiple destinations from same source share one hash component
+                const hashBySource = new Map<string, any[]>();
+                hashTransformations.forEach((mapping: any) => {
+                  const sourceKey = `${mapping.topic_id}-${mapping.topic_field}`;
+                  if (!hashBySource.has(sourceKey)) {
+                    hashBySource.set(sourceKey, []);
+                  }
+                  hashBySource.get(sourceKey)!.push(mapping);
+                });
+
+                return Array.from(hashBySource.entries()).map(([sourceKey, mappings]) => {
+                  const firstMapping = mappings[0];
+                  const hashKey = sourceKey; // Use source key (topic_id-topic_field) instead of including model_field
+                  const hashMethod = firstMapping.transformation.replace(
                     "hash_",
                     "",
                   );
