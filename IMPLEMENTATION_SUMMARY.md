@@ -4,6 +4,8 @@
 
 This implementation adds the ability to create ClickHouse tables from Data Vault model definitions and load data from S3-based DataPackages into those tables. The system uses ClickHouse's S3 table function to virtualize data and perform transformations during the load process.
 
+**Latest Update**: Added duplicate prevention for Data Vault Hub tables to ensure uniqueness based on hash keys.
+
 ## Key Features Implemented
 
 ### 1. Table Creation from Models
@@ -18,6 +20,10 @@ This implementation adds the ability to create ClickHouse tables from Data Vault
 - **Transformations**: Supports hash transformation for business keys using MD5
 - **Async Processing**: Uses Celery tasks for background data loading
 - **Progress Tracking**: Real-time progress updates through Run model
+- **Duplicate Prevention**: Ensures Hub tables maintain unique business keys (hash keys)
+  - Uses WHERE NOT IN subquery to filter existing records
+  - Enables idempotent data loading (safe to re-run)
+  - Maintains Data Vault compliance
 
 ### 3. Frontend UI
 - **Create Table Button**: On Model detail page
@@ -130,11 +136,11 @@ ENGINE = MergeTree()
 ORDER BY (hub_hash_key)
 ```
 
-### Data Loading with S3 Virtualization
+### Data Loading with S3 Virtualization and Deduplication
 ```sql
 INSERT INTO default.hub_customer
 SELECT
-    MD5(toString(id)) as hub_hash_key,
+    MD5(toString(id)) as customer_hash_key,
     now64(3) as load_datetime,
     'customers_2024_01.parquet' as record_source,
     id as customer_id,
@@ -146,7 +152,12 @@ FROM s3(
     'SECRET_KEY',
     'Parquet'
 )
+WHERE MD5(toString(id)) NOT IN (
+    SELECT customer_hash_key FROM default.hub_customer
+)
 ```
+
+**Key Feature**: The WHERE NOT IN clause prevents duplicate records based on the hash key, ensuring Hub tables maintain Data Vault uniqueness requirements.
 
 ## Configuration Requirements
 
@@ -285,6 +296,11 @@ The migration `0012_add_table_tracking_and_model_runs.py` adds:
 ### README.md
 - Added ClickHouse integration to features list
 - Added new API endpoints to documentation
+
+### HUB_DEDUPLICATION.md
+- Comprehensive documentation on Hub duplicate prevention
+- Explains implementation, benefits, and edge cases
+- Includes testing strategies and troubleshooting
 
 ### Code Documentation
 - All new functions have docstrings
