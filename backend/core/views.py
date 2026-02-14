@@ -1537,3 +1537,110 @@ class RunViewSet(viewsets.ModelViewSet):
             return Response(
                 {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+from rest_framework.views import APIView
+
+
+class TransformationsAPIView(APIView):
+    """
+    API view to provide information about supported data transformations.
+    
+    GET /api/transformations/ - Get all supported transformations grouped by category
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """
+        Return all supported transformations with examples and descriptions.
+        """
+        from core.transformation_utils import get_supported_transformations
+        
+        try:
+            transformations = get_supported_transformations()
+            
+            # Add descriptions and examples for better documentation
+            enhanced_transformations = {
+                "String": {
+                    "description": "String manipulation and formatting functions",
+                    "functions": [
+                        {"name": "UPPER", "params": [], "example": "UPPER", "description": "Convert to uppercase"},
+                        {"name": "LOWER", "params": [], "example": "LOWER", "description": "Convert to lowercase"},
+                        {"name": "TRIM", "params": [], "example": "TRIM", "description": "Remove leading/trailing whitespace"},
+                        {"name": "LTRIM", "params": [], "example": "LTRIM", "description": "Remove leading whitespace"},
+                        {"name": "RTRIM", "params": [], "example": "RTRIM", "description": "Remove trailing whitespace"},
+                        {"name": "SUBSTRING", "params": ["start", "length"], "example": "SUBSTRING(0, 10)", "description": "Extract substring"},
+                        {"name": "CONCAT", "params": ["str1", "str2", "..."], "example": "CONCAT(' ', last_name)", "description": "Concatenate strings"},
+                        {"name": "REPLACE", "params": ["old", "new"], "example": "REPLACE('@', '[at]')", "description": "Replace substring"},
+                        {"name": "LENGTH", "params": [], "example": "LENGTH", "description": "Get string length"},
+                    ]
+                },
+                "Numeric": {
+                    "description": "Numeric calculations and arithmetic operations",
+                    "functions": [
+                        {"name": "ROUND", "params": ["decimals"], "example": "ROUND(2)", "description": "Round to decimal places"},
+                        {"name": "FLOOR", "params": [], "example": "FLOOR", "description": "Round down to integer"},
+                        {"name": "CEIL", "params": [], "example": "CEIL", "description": "Round up to integer"},
+                        {"name": "ABS", "params": [], "example": "ABS", "description": "Absolute value"},
+                        {"name": "ADD", "params": ["value"], "example": "ADD(10)", "description": "Add constant value"},
+                        {"name": "SUBTRACT", "params": ["value"], "example": "SUBTRACT(5)", "description": "Subtract constant value"},
+                        {"name": "MULTIPLY", "params": ["value"], "example": "MULTIPLY(1.1)", "description": "Multiply by constant value"},
+                        {"name": "DIVIDE", "params": ["value"], "example": "DIVIDE(2)", "description": "Divide by constant value"},
+                        {"name": "MOD", "params": ["divisor"], "example": "MOD(10)", "description": "Modulo operation"},
+                    ]
+                },
+                "DateTime": {
+                    "description": "Date and time manipulation functions",
+                    "functions": [
+                        {"name": "TO_DATE", "params": [], "example": "TO_DATE", "description": "Convert to date"},
+                        {"name": "TO_DATETIME", "params": [], "example": "TO_DATETIME", "description": "Convert to datetime"},
+                        {"name": "DATE_ADD", "params": ["value", "unit"], "example": "DATE_ADD(7, DAY)", "description": "Add time interval (YEAR/MONTH/DAY/HOUR/MINUTE/SECOND)"},
+                        {"name": "DATE_SUB", "params": ["value", "unit"], "example": "DATE_SUB(1, MONTH)", "description": "Subtract time interval"},
+                        {"name": "DATE_DIFF", "params": ["unit", "date2"], "example": "DATE_DIFF(DAY, end_date)", "description": "Get difference between dates"},
+                        {"name": "FORMAT_DATE", "params": ["format"], "example": "FORMAT_DATE('%Y-%m-%d')", "description": "Format date as string"},
+                        {"name": "YEAR", "params": [], "example": "YEAR", "description": "Extract year"},
+                        {"name": "MONTH", "params": [], "example": "MONTH", "description": "Extract month"},
+                        {"name": "DAY", "params": [], "example": "DAY", "description": "Extract day"},
+                        {"name": "HOUR", "params": [], "example": "HOUR", "description": "Extract hour"},
+                        {"name": "MINUTE", "params": [], "example": "MINUTE", "description": "Extract minute"},
+                        {"name": "SECOND", "params": [], "example": "SECOND", "description": "Extract second"},
+                    ]
+                },
+                "Type Casting": {
+                    "description": "Data type conversion functions",
+                    "functions": [
+                        {"name": "CAST", "params": ["type"], "example": "CAST(INTEGER)", "description": "Generic type casting"},
+                        {"name": "TO_INT", "params": [], "example": "TO_INT", "description": "Cast to integer"},
+                        {"name": "TO_FLOAT", "params": [], "example": "TO_FLOAT", "description": "Cast to float"},
+                        {"name": "TO_STRING", "params": [], "example": "TO_STRING", "description": "Cast to string"},
+                        {"name": "TO_BOOL", "params": [], "example": "TO_BOOL", "description": "Cast to boolean"},
+                    ]
+                },
+                "Conditional": {
+                    "description": "Conditional logic and null handling",
+                    "functions": [
+                        {"name": "IF", "params": ["condition", "true_value", "false_value"], "example": "IF(column > 0, 'positive', 'negative')", "description": "Simple if-then-else"},
+                        {"name": "COALESCE", "params": ["value1", "value2", "..."], "example": "COALESCE(0, default_value)", "description": "Return first non-null value"},
+                        {"name": "NULLIF", "params": ["value"], "example": "NULLIF(0)", "description": "Return null if values are equal"},
+                        {"name": "IS_NULL", "params": [], "example": "IS_NULL", "description": "Check if value is null"},
+                        {"name": "IS_NOT_NULL", "params": [], "example": "IS_NOT_NULL", "description": "Check if value is not null"},
+                    ]
+                },
+                "Hash": {
+                    "description": "Hash functions for Data Vault hash keys",
+                    "functions": [
+                        {"name": "HASH", "params": ["algorithm"], "example": "HASH(MD5)", "description": "Hash with specified algorithm (MD5/SHA256/SHA512)"},
+                        {"name": "hash_MD5", "params": [], "example": "hash_MD5", "description": "MD5 hash (legacy format)"},
+                        {"name": "hash_SHA256", "params": [], "example": "hash_SHA256", "description": "SHA-256 hash (legacy format)"},
+                    ]
+                }
+            }
+            
+            return Response(enhanced_transformations)
+            
+        except Exception as e:
+            logger.error(f"Error getting transformations: {str(e)}")
+            return Response(
+                {"error": str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
