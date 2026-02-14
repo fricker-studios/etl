@@ -723,9 +723,9 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
         try:
             # Use ClickHouse's insert_deduplicate setting to prevent exact duplicate blocks
             # This is a safety mechanism that works at the block level
+            # Note: insert_deduplicate works on content hash, so identical data blocks are rejected
             result = client.command(insert_sql, settings={
                 'insert_deduplicate': 1,  # Enable block-level deduplication
-                'insert_deduplicate_token': f"{model.id}_{data_package.id}"  # Unique token per load
             })
             
             # Query to get the count of rows inserted
