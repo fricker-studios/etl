@@ -80,7 +80,7 @@ export function ModelDetailPage() {
   // Mutation for creating table
   const createTableMutation = useMutation({
     mutationFn: () => api.models.createTable(id!),
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       notifications.show({
         title: "Table Created",
         message: `Table ${data.table_name} created successfully`,
@@ -102,7 +102,7 @@ export function ModelDetailPage() {
   // Mutation for loading data
   const loadDataMutation = useMutation({
     mutationFn: () => api.models.loadData(id!),
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       notifications.show({
         title: "Data Loading Started",
         message: `Queued ${data.packages_queued} data packages for loading`,
