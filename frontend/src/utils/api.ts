@@ -264,4 +264,9 @@ export const api = {
         body: JSON.stringify({ run_ids: runIds }),
       }),
   },
+
+  // Transformations
+  transformations: {
+    list: () => request("/transformations/"),
+  },
 };

@@ -17,6 +17,7 @@ import {
   Divider,
   useMantineColorScheme,
   Tooltip,
+  NumberInput,
 } from "@mantine/core";
 import {
   IconPlus,
@@ -29,12 +30,18 @@ import {
   IconEdit,
   IconInfoCircle,
   IconHash,
+  IconLetterCase,
+  IconMathSymbols,
+  IconCalendar,
+  IconTransform,
+  IconEqual,
 } from "@tabler/icons-react";
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDisclosure } from "@mantine/hooks";
 import { useTopics } from "../hooks/useTopics";
 import { useCreateModel } from "../hooks/useModels";
+import { useTransformations } from "../hooks/useTransformations";
 import { notifications } from "@mantine/notifications";
 
 type EntityType = "hub" | "link" | "satellite" | "fact" | "dimension";
@@ -43,11 +50,22 @@ interface FieldMapping {
   topicId: string;
   topicField: string; // column name
   modelField: string; // target field name in model
+  transformation?: string; // transformation to apply
+}
+
+// Generic transformation component
+interface TransformationComponent {
+  id: string;
+  position: { x: number; y: number };
+  category: string; // String, Numeric, DateTime, Type Casting, Conditional, Hash
+  transformationType: string; // e.g., "UPPER", "ROUND", "HASH"
+  params: Record<string, any>; // transformation parameters
 }
 
 export function ModelCanvasPage() {
   const navigate = useNavigate();
   const { data: topics = [] } = useTopics();
+  const { data: transformations } = useTransformations();
   const createModel = useCreateModel();
   const { colorScheme } = useMantineColorScheme();
 
@@ -112,7 +130,7 @@ export function ModelCanvasPage() {
   const [showTopicSubmenu, setShowTopicSubmenu] = useState(false);
   const [showTransformSubmenu, setShowTransformSubmenu] = useState(false);
 
-  // Hash components state
+  // Hash components state (legacy - being replaced by generic transformation components)
   const [hashComponents, setHashComponents] = useState<
     Array<{
       id: string;
@@ -123,6 +141,14 @@ export function ModelCanvasPage() {
     }>
   >([]);
   const [draggingHash, setDraggingHash] = useState<string | null>(null);
+
+  // Generic transformation components state
+  const [transformationComponents, setTransformationComponents] = useState<
+    TransformationComponent[]
+  >([]);
+  const [draggingTransform, setDraggingTransform] = useState<string | null>(
+    null,
+  );
 
   // Hash connection state
   const [hashConnections, setHashConnections] = useState<
@@ -410,6 +436,22 @@ export function ModelCanvasPage() {
           h.id === draggingHash ? { ...h, position: { x: newX, y: newY } } : h,
         ),
       );
+    } else if (draggingTransform) {
+      // Calculate position relative to canvas, accounting for scroll
+      const newX =
+        e.clientX -
+        canvasRect.left -
+        dragOffset.x +
+        canvasRef.current.scrollLeft;
+      const newY =
+        e.clientY - canvasRect.top - dragOffset.y + canvasRef.current.scrollTop;
+      setTransformationComponents(
+        transformationComponents.map((t) =>
+          t.id === draggingTransform
+            ? { ...t, position: { x: newX, y: newY } }
+            : t,
+        ),
+      );
     } else if (isPanningCanvas) {
       // Pan the canvas by adjusting scroll position
       const deltaX = e.clientX - panStart.x;
@@ -423,6 +465,7 @@ export function ModelCanvasPage() {
     setDraggingTopic(null);
     setDraggingModel(false);
     setDraggingHash(null);
+    setDraggingTransform(null);
     setIsPanningCanvas(false);
   };
 
@@ -881,6 +924,49 @@ export function ModelCanvasPage() {
     } catch (error) {
       // Error handled by hook
     }
+  };
+
+  // Helper function to get icon for transformation category
+  const getTransformationIcon = (category: string) => {
+    switch (category) {
+      case "String":
+        return IconLetterCase;
+      case "Numeric":
+        return IconMathSymbols;
+      case "DateTime":
+        return IconCalendar;
+      case "Type Casting":
+        return IconTransform;
+      case "Conditional":
+        return IconEqual;
+      case "Hash":
+        return IconHash;
+      default:
+        return IconTransform;
+    }
+  };
+
+  // Helper function to create a transformation component
+  const handleAddTransformationComponent = (
+    category: string,
+    transformationType: string,
+  ) => {
+    const newTransform: TransformationComponent = {
+      id: `transform-${Date.now()}`,
+      position: {
+        x: contextMenuPos ? contextMenuPos.x - 100 : 300,
+        y: contextMenuPos ? contextMenuPos.y - 100 : 300,
+      },
+      category,
+      transformationType,
+      params: {},
+    };
+    setTransformationComponents([...transformationComponents, newTransform]);
+    notifications.show({
+      message: `${transformationType} transformation added to canvas`,
+      color: "blue",
+    });
+    closeContextMenu();
   };
 
   const getTopicFields = (topicId: string) => {
@@ -1523,48 +1609,88 @@ export function ModelCanvasPage() {
                         onMouseEnter={() => setShowTransformSubmenu(true)}
                         onMouseLeave={() => setShowTransformSubmenu(false)}
                       >
-                        <Stack gap={0}>
-                          <Box
-                            p="xs"
-                            style={{
-                              cursor: "pointer",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "8px",
-                            }}
-                            onClick={() => {
-                              // Add hash component to canvas
-                              const newHashComponent = {
-                                id: `hash-${Date.now()}`,
-                                position: { x: 300, y: 300 },
-                                hashMethod: "MD5",
-                                inputString: "",
-                                outputString: "",
-                              };
-                              setHashComponents([
-                                ...hashComponents,
-                                newHashComponent,
-                              ]);
-                              notifications.show({
-                                message: "Hash component added to canvas",
-                                color: "blue",
-                              });
-                              closeContextMenu();
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor =
-                                colorScheme === "dark"
-                                  ? "var(--mantine-color-dark-6)"
-                                  : "var(--mantine-color-gray-0)";
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor =
-                                "transparent";
-                            }}
-                          >
-                            <IconHash size={16} />
-                            <Text size="sm">Hash</Text>
-                          </Box>
+                        <Stack gap={0} style={{ maxHeight: "400px", overflowY: "auto" }}>
+                          {transformations &&
+                            Object.entries(transformations).map(
+                              ([category, categoryData]) => {
+                                const Icon = getTransformationIcon(category);
+                                return (
+                                  <Box key={category}>
+                                    <Box
+                                      p="xs"
+                                      style={{
+                                        backgroundColor:
+                                          colorScheme === "dark"
+                                            ? "var(--mantine-color-dark-7)"
+                                            : "var(--mantine-color-gray-1)",
+                                        fontWeight: 600,
+                                      }}
+                                    >
+                                      <Group gap="xs">
+                                        <Icon size={14} />
+                                        <Text size="xs" fw={600}>
+                                          {category}
+                                        </Text>
+                                      </Group>
+                                    </Box>
+                                    {categoryData.functions
+                                      .slice(0, 5)
+                                      .map((func: any) => (
+                                        <Box
+                                          key={func.name}
+                                          p="xs"
+                                          pl="lg"
+                                          style={{
+                                            cursor: "pointer",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "8px",
+                                          }}
+                                          onClick={() =>
+                                            handleAddTransformationComponent(
+                                              category,
+                                              func.name,
+                                            )
+                                          }
+                                          onMouseEnter={(e) => {
+                                            e.currentTarget.style.backgroundColor =
+                                              colorScheme === "dark"
+                                                ? "var(--mantine-color-dark-6)"
+                                                : "var(--mantine-color-gray-0)";
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            e.currentTarget.style.backgroundColor =
+                                              "transparent";
+                                          }}
+                                        >
+                                          <Text size="xs">{func.name}</Text>
+                                        </Box>
+                                      ))}
+                                    {categoryData.functions.length > 5 && (
+                                      <Box
+                                        p="xs"
+                                        pl="lg"
+                                        style={{
+                                          fontStyle: "italic",
+                                        }}
+                                      >
+                                        <Text size="xs" c="dimmed">
+                                          +{categoryData.functions.length - 5}{" "}
+                                          more...
+                                        </Text>
+                                      </Box>
+                                    )}
+                                  </Box>
+                                );
+                              },
+                            )}
+                          {!transformations && (
+                            <Box p="xs">
+                              <Text size="sm" c="dimmed">
+                                Loading transformations...
+                              </Text>
+                            </Box>
+                          )}
                         </Stack>
                       </Paper>
                     )}
@@ -2187,6 +2313,241 @@ export function ModelCanvasPage() {
                         },
                       }}
                     />
+                  </Card>
+                </Box>
+              );
+            })}
+
+            {/* Transformation Components - Absolute positioned */}
+            {transformationComponents.map((transformComp) => {
+              const Icon = getTransformationIcon(transformComp.category);
+              return (
+                <Box
+                  key={transformComp.id}
+                  style={{
+                    position: "absolute",
+                    left: transformComp.position.x,
+                    top: transformComp.position.y,
+                    width: "220px",
+                    zIndex: draggingTransform === transformComp.id ? 100 : 3,
+                  }}
+                >
+                  <Card
+                    withBorder
+                    shadow="md"
+                    p="xs"
+                    style={{
+                      cursor:
+                        draggingTransform === transformComp.id
+                          ? "grabbing"
+                          : "grab",
+                      position: "relative",
+                      backgroundColor:
+                        colorScheme === "dark"
+                          ? "var(--mantine-color-dark-6)"
+                          : "white",
+                    }}
+                    onMouseDown={(e) => {
+                      // Don't start dragging if clicking on input elements
+                      const target = e.target as HTMLElement;
+                      if (
+                        target.tagName === "INPUT" ||
+                        target.tagName === "SELECT" ||
+                        target.closest(".mantine-Select-input") ||
+                        target.closest(".mantine-NumberInput-input")
+                      ) {
+                        return;
+                      }
+                      if (!canvasRef.current) return;
+                      const canvasRect =
+                        canvasRef.current.getBoundingClientRect();
+                      setDraggingTransform(transformComp.id);
+                      setDragOffset({
+                        x:
+                          e.clientX -
+                          canvasRect.left -
+                          transformComp.position.x +
+                          canvasRef.current.scrollLeft,
+                        y:
+                          e.clientY -
+                          canvasRect.top -
+                          transformComp.position.y +
+                          canvasRef.current.scrollTop,
+                      });
+                    }}
+                  >
+                    <Group justify="space-between" mb="xs">
+                      <Group gap="xs">
+                        <Icon size={18} />
+                        <Box>
+                          <Text fw={600} size="sm">
+                            {transformComp.transformationType}
+                          </Text>
+                          <Text size="xs" c="dimmed">
+                            {transformComp.category}
+                          </Text>
+                        </Box>
+                      </Group>
+                      <ActionIcon
+                        size="xs"
+                        color="red"
+                        variant="subtle"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTransformationComponents(
+                            transformationComponents.filter(
+                              (t) => t.id !== transformComp.id,
+                            ),
+                          );
+                        }}
+                      >
+                        <IconX size={12} />
+                      </ActionIcon>
+                    </Group>
+
+                    {/* Parameter inputs based on transformation type */}
+                    {transformComp.transformationType === "ROUND" && (
+                      <NumberInput
+                        label="Decimals"
+                        size="xs"
+                        value={transformComp.params.decimals || 0}
+                        onChange={(value) => {
+                          setTransformationComponents(
+                            transformationComponents.map((t) =>
+                              t.id === transformComp.id
+                                ? {
+                                    ...t,
+                                    params: { ...t.params, decimals: value },
+                                  }
+                                : t,
+                            ),
+                          );
+                        }}
+                        min={0}
+                        max={10}
+                      />
+                    )}
+                    {transformComp.transformationType === "SUBSTRING" && (
+                      <Stack gap="xs">
+                        <NumberInput
+                          label="Start"
+                          size="xs"
+                          value={transformComp.params.start || 0}
+                          onChange={(value) => {
+                            setTransformationComponents(
+                              transformationComponents.map((t) =>
+                                t.id === transformComp.id
+                                  ? {
+                                      ...t,
+                                      params: { ...t.params, start: value },
+                                    }
+                                  : t,
+                              ),
+                            );
+                          }}
+                        />
+                        <NumberInput
+                          label="Length"
+                          size="xs"
+                          value={transformComp.params.length || 10}
+                          onChange={(value) => {
+                            setTransformationComponents(
+                              transformationComponents.map((t) =>
+                                t.id === transformComp.id
+                                  ? {
+                                      ...t,
+                                      params: { ...t.params, length: value },
+                                    }
+                                  : t,
+                              ),
+                            );
+                          }}
+                        />
+                      </Stack>
+                    )}
+                    {(transformComp.transformationType === "ADD" ||
+                      transformComp.transformationType === "SUBTRACT" ||
+                      transformComp.transformationType === "MULTIPLY" ||
+                      transformComp.transformationType === "DIVIDE") && (
+                      <NumberInput
+                        label="Value"
+                        size="xs"
+                        value={transformComp.params.value || 0}
+                        onChange={(value) => {
+                          setTransformationComponents(
+                            transformationComponents.map((t) =>
+                              t.id === transformComp.id
+                                ? {
+                                    ...t,
+                                    params: { ...t.params, value: value },
+                                  }
+                                : t,
+                            ),
+                          );
+                        }}
+                      />
+                    )}
+                    {transformComp.transformationType === "HASH" && (
+                      <Select
+                        label="Algorithm"
+                        size="xs"
+                        value={transformComp.params.algorithm || "MD5"}
+                        onChange={(value) => {
+                          setTransformationComponents(
+                            transformationComponents.map((t) =>
+                              t.id === transformComp.id
+                                ? {
+                                    ...t,
+                                    params: {
+                                      ...t.params,
+                                      algorithm: value || "MD5",
+                                    },
+                                  }
+                                : t,
+                            ),
+                          );
+                        }}
+                        data={[
+                          { value: "MD5", label: "MD5" },
+                          { value: "SHA256", label: "SHA-256" },
+                          { value: "SHA512", label: "SHA-512" },
+                        ]}
+                      />
+                    )}
+                    {transformComp.transformationType === "CAST" && (
+                      <Select
+                        label="Target Type"
+                        size="xs"
+                        value={transformComp.params.targetType || "INTEGER"}
+                        onChange={(value) => {
+                          setTransformationComponents(
+                            transformationComponents.map((t) =>
+                              t.id === transformComp.id
+                                ? {
+                                    ...t,
+                                    params: {
+                                      ...t.params,
+                                      targetType: value || "INTEGER",
+                                    },
+                                  }
+                                : t,
+                            ),
+                          );
+                        }}
+                        data={[
+                          { value: "INTEGER", label: "Integer" },
+                          { value: "FLOAT", label: "Float" },
+                          { value: "STRING", label: "String" },
+                          { value: "BOOLEAN", label: "Boolean" },
+                          { value: "DATE", label: "Date" },
+                          { value: "DATETIME", label: "DateTime" },
+                        ]}
+                      />
+                    )}
+
+                    <Badge size="xs" mt="xs" variant="light">
+                      Drag to field to apply
+                    </Badge>
                   </Card>
                 </Box>
               );
