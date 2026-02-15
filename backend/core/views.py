@@ -3,6 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
+from rest_framework.views import APIView
 from .models import (
     StorageBackend,
     DataSource,
@@ -1166,6 +1167,27 @@ class ModelViewSet(viewsets.ModelViewSet):
                     }
                 )
 
+            # Filter out packages that have already been successfully loaded
+            # Check for existing successful runs for this model + package combination
+            successfully_loaded_package_ids = Run.objects.filter(
+                model=model_instance,
+                data_package__in=data_packages,
+                status="success",
+            ).values_list("data_package_id", flat=True)
+
+            # Exclude already loaded packages
+            packages_to_load = data_packages.exclude(id__in=successfully_loaded_package_ids)
+            already_loaded_count = data_packages.count() - packages_to_load.count()
+
+            if not packages_to_load.exists():
+                return Response(
+                    {
+                        "message": f"All {already_loaded_count} data packages have already been loaded successfully",
+                        "packages_queued": 0,
+                        "packages_already_loaded": already_loaded_count,
+                    }
+                )
+
             # Import the tasks
             from core.tasks import load_data_package_task, optimize_model_table_task
             from celery import chord
@@ -1174,7 +1196,7 @@ class ModelViewSet(viewsets.ModelViewSet):
             runs_created = []
             task_signatures = []
 
-            for package in data_packages:
+            for package in packages_to_load:
                 # Create a Run for tracking
                 run = Run.objects.create(
                     user=request.user,
@@ -1206,13 +1228,23 @@ class ModelViewSet(viewsets.ModelViewSet):
             chord(task_signatures)(optimize_callback)
 
             logger.info(
-                f"Queued {len(runs_created)} data loading tasks for model {model_instance.name} with optimization callback"
+                f"Queued {len(runs_created)} data loading tasks for model {model_instance.name} with optimization callback (skipped {already_loaded_count} already loaded packages)"
             )
+
+            message_parts = []
+            if len(runs_created) > 0:
+                message_parts.append(f"Queued {len(runs_created)} data packages for loading")
+            if already_loaded_count > 0:
+                message_parts.append(f"skipped {already_loaded_count} already loaded")
+            message = " (".join(message_parts)
+            if already_loaded_count > 0 and len(runs_created) > 0:
+                message += ")"
 
             return Response(
                 {
-                    "message": f"Queued {len(runs_created)} data packages for loading (will optimize after completion)",
+                    "message": message,
                     "packages_queued": len(runs_created),
+                    "packages_already_loaded": already_loaded_count,
                     "runs": runs_created,
                 }
             )
@@ -1420,7 +1452,66 @@ class RunViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Run.objects.filter(user=self.request.user)
+        return Run.objects.filter(user=self.request.user).order_by("-created_at")
+
+    def list(self, request, *args, **kwargs):
+        """List runs with pagination support"""
+        try:
+            # Get pagination parameters with validation
+            try:
+                page = int(request.query_params.get("page", 1))
+                per_page = int(request.query_params.get("per_page", 10))
+            except (ValueError, TypeError):
+                return Response(
+                    {
+                        "error": "Invalid pagination parameters. page and per_page must be integers."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Validate pagination parameters
+            if page < 1:
+                return Response(
+                    {"error": "page must be greater than 0"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if per_page < 1 or per_page > 100:
+                return Response(
+                    {"error": "per_page must be between 1 and 100"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Get queryset
+            queryset = self.get_queryset()
+            total_count = queryset.count()
+
+            # Apply pagination
+            start_idx = (page - 1) * per_page
+            end_idx = start_idx + per_page
+            paginated_queryset = queryset[start_idx:end_idx]
+
+            # Serialize data
+            serializer = self.get_serializer(paginated_queryset, many=True)
+
+            # Calculate pagination metadata
+            total_pages = (total_count + per_page - 1) // per_page
+
+            return Response(
+                {
+                    "results": serializer.data,
+                    "pagination": {
+                        "page": page,
+                        "per_page": per_page,
+                        "total_count": total_count,
+                        "total_pages": total_pages,
+                    },
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error listing runs: {str(e)}")
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -1536,4 +1627,110 @@ class RunViewSet(viewsets.ModelViewSet):
             logger.error(f"Full traceback: {traceback.format_exc()}")
             return Response(
                 {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+from rest_framework.views import APIView
+
+
+class TransformationsAPIView(APIView):
+    """
+    API view to provide information about supported data transformations.
+    
+    GET /api/transformations/ - Get all supported transformations grouped by category
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """
+        Return all supported transformations with examples and descriptions.
+        """
+        from core.transformation_utils import get_supported_transformations
+        
+        try:
+            transformations = get_supported_transformations()
+            
+            # Add descriptions and examples for better documentation
+            enhanced_transformations = {
+                "String": {
+                    "description": "String manipulation and formatting functions",
+                    "functions": [
+                        {"name": "UPPER", "params": [], "example": "UPPER", "description": "Convert to uppercase"},
+                        {"name": "LOWER", "params": [], "example": "LOWER", "description": "Convert to lowercase"},
+                        {"name": "TRIM", "params": [], "example": "TRIM", "description": "Remove leading/trailing whitespace"},
+                        {"name": "LTRIM", "params": [], "example": "LTRIM", "description": "Remove leading whitespace"},
+                        {"name": "RTRIM", "params": [], "example": "RTRIM", "description": "Remove trailing whitespace"},
+                        {"name": "SUBSTRING", "params": ["start", "length"], "example": "SUBSTRING(0, 10)", "description": "Extract substring"},
+                        {"name": "CONCAT", "params": ["str1", "str2", "..."], "example": "CONCAT(' ', last_name)", "description": "Concatenate strings"},
+                        {"name": "REPLACE", "params": ["old", "new"], "example": "REPLACE('@', '[at]')", "description": "Replace substring"},
+                        {"name": "LENGTH", "params": [], "example": "LENGTH", "description": "Get string length"},
+                    ]
+                },
+                "Numeric": {
+                    "description": "Numeric calculations and arithmetic operations",
+                    "functions": [
+                        {"name": "ROUND", "params": ["decimals"], "example": "ROUND(2)", "description": "Round to decimal places"},
+                        {"name": "FLOOR", "params": [], "example": "FLOOR", "description": "Round down to integer"},
+                        {"name": "CEIL", "params": [], "example": "CEIL", "description": "Round up to integer"},
+                        {"name": "ABS", "params": [], "example": "ABS", "description": "Absolute value"},
+                        {"name": "ADD", "params": ["value"], "example": "ADD(10)", "description": "Add constant value"},
+                        {"name": "SUBTRACT", "params": ["value"], "example": "SUBTRACT(5)", "description": "Subtract constant value"},
+                        {"name": "MULTIPLY", "params": ["value"], "example": "MULTIPLY(1.1)", "description": "Multiply by constant value"},
+                        {"name": "DIVIDE", "params": ["value"], "example": "DIVIDE(2)", "description": "Divide by constant value"},
+                        {"name": "MOD", "params": ["divisor"], "example": "MOD(10)", "description": "Modulo operation"},
+                    ]
+                },
+                "DateTime": {
+                    "description": "Date and time manipulation functions",
+                    "functions": [
+                        {"name": "TO_DATE", "params": [], "example": "TO_DATE", "description": "Convert to date"},
+                        {"name": "TO_DATETIME", "params": [], "example": "TO_DATETIME", "description": "Convert to datetime"},
+                        {"name": "DATE_ADD", "params": ["value", "unit"], "example": "DATE_ADD(7, DAY)", "description": "Add time interval (YEAR/MONTH/DAY/HOUR/MINUTE/SECOND)"},
+                        {"name": "DATE_SUB", "params": ["value", "unit"], "example": "DATE_SUB(1, MONTH)", "description": "Subtract time interval"},
+                        {"name": "DATE_DIFF", "params": ["unit", "date2"], "example": "DATE_DIFF(DAY, end_date)", "description": "Get difference between dates"},
+                        {"name": "FORMAT_DATE", "params": ["format"], "example": "FORMAT_DATE('%Y-%m-%d')", "description": "Format date as string"},
+                        {"name": "YEAR", "params": [], "example": "YEAR", "description": "Extract year"},
+                        {"name": "MONTH", "params": [], "example": "MONTH", "description": "Extract month"},
+                        {"name": "DAY", "params": [], "example": "DAY", "description": "Extract day"},
+                        {"name": "HOUR", "params": [], "example": "HOUR", "description": "Extract hour"},
+                        {"name": "MINUTE", "params": [], "example": "MINUTE", "description": "Extract minute"},
+                        {"name": "SECOND", "params": [], "example": "SECOND", "description": "Extract second"},
+                    ]
+                },
+                "Type Casting": {
+                    "description": "Data type conversion functions",
+                    "functions": [
+                        {"name": "CAST", "params": ["type"], "example": "CAST(INTEGER)", "description": "Generic type casting"},
+                        {"name": "TO_INT", "params": [], "example": "TO_INT", "description": "Cast to integer"},
+                        {"name": "TO_FLOAT", "params": [], "example": "TO_FLOAT", "description": "Cast to float"},
+                        {"name": "TO_STRING", "params": [], "example": "TO_STRING", "description": "Cast to string"},
+                        {"name": "TO_BOOL", "params": [], "example": "TO_BOOL", "description": "Cast to boolean"},
+                    ]
+                },
+                "Conditional": {
+                    "description": "Conditional logic and null handling",
+                    "functions": [
+                        {"name": "IF", "params": ["condition", "true_value", "false_value"], "example": "IF(column > 0, 'positive', 'negative')", "description": "Simple if-then-else"},
+                        {"name": "COALESCE", "params": ["value1", "value2", "..."], "example": "COALESCE(0, default_value)", "description": "Return first non-null value"},
+                        {"name": "NULLIF", "params": ["value"], "example": "NULLIF(0)", "description": "Return null if values are equal"},
+                        {"name": "IS_NULL", "params": [], "example": "IS_NULL", "description": "Check if value is null"},
+                        {"name": "IS_NOT_NULL", "params": [], "example": "IS_NOT_NULL", "description": "Check if value is not null"},
+                    ]
+                },
+                "Hash": {
+                    "description": "Hash functions for Data Vault hash keys",
+                    "functions": [
+                        {"name": "HASH", "params": ["algorithm"], "example": "HASH(MD5)", "description": "Hash with specified algorithm (MD5/SHA256/SHA512)"},
+                        {"name": "hash_MD5", "params": [], "example": "hash_MD5", "description": "MD5 hash (legacy format)"},
+                        {"name": "hash_SHA256", "params": [], "example": "hash_SHA256", "description": "SHA-256 hash (legacy format)"},
+                    ]
+                }
+            }
+            
+            return Response(enhanced_transformations)
+            
+        except Exception as e:
+            logger.error(f"Error getting transformations: {str(e)}")
+            return Response(
+                {"error": str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

@@ -238,7 +238,13 @@ export const api = {
 
   // Runs
   runs: {
-    list: () => request("/runs/"),
+    list: (page?: number, perPage?: number) => {
+      const params = new URLSearchParams();
+      if (page) params.append("page", page.toString());
+      if (perPage) params.append("per_page", perPage.toString());
+      const queryString = params.toString();
+      return request(`/runs/${queryString ? "?" + queryString : ""}`);
+    },
     get: (id: string) => request(`/runs/${id}/`),
     create: (data: any) =>
       request("/runs/", {
@@ -263,5 +269,10 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ run_ids: runIds }),
       }),
+  },
+
+  // Transformations
+  transformations: {
+    list: () => request("/transformations/"),
   },
 };

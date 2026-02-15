@@ -9,6 +9,7 @@ from .views import (
     RunViewSet,
     TopicViewSet,
     TopicRevisionViewSet,
+    TransformationsAPIView,
 )
 
 router = DefaultRouter()
@@ -23,4 +24,5 @@ router.register(r"runs", RunViewSet, basename="run")
 
 urlpatterns = [
     path("", include(router.urls)),
+    path("transformations/", TransformationsAPIView.as_view(), name="transformations"),
 ]

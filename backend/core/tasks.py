@@ -470,6 +470,10 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
         detect_file_format,
         get_transformation,
     )
+    from core.transformation_utils import (
+        apply_transformation_to_column,
+        TransformationError,
+    )
     import hashlib
 
     try:
@@ -683,10 +687,34 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
             and hash_key_field
             and business_key_source
         ):
-            # Hash the business key using MD5 (ClickHouse function)
-            select_columns.append(
-                f"MD5(toString({business_key_source})) as {hash_key_field}"
-            )
+            # Get the hash transformation from the mapping
+            hash_transform = None
+            for mapping in field_mappings:
+                if mapping.get("model_field") == hash_key_field:
+                    hash_transform = get_transformation(mapping)
+                    break
+
+            # Apply hash transformation using the comprehensive transformation system
+            if hash_transform:
+                try:
+                    # Apply hash transformation
+                    transformed_expr = apply_transformation_to_column(
+                        f"toString({business_key_source})", hash_transform
+                    )
+                    select_columns.append(f"{transformed_expr} as {hash_key_field}")
+                except TransformationError as e:
+                    # Fall back to MD5 if transformation fails
+                    logger.warning(
+                        f"Hash transformation error: {e}. Using MD5 as fallback."
+                    )
+                    select_columns.append(
+                        f"MD5(toString({business_key_source})) as {hash_key_field}"
+                    )
+            else:
+                # No transformation specified, use MD5 as default
+                select_columns.append(
+                    f"MD5(toString({business_key_source})) as {hash_key_field}"
+                )
             processed_fields.add(hash_key_field)
 
         # Add standard columns if they're not in the field mappings
@@ -721,8 +749,19 @@ def load_data_package_task(self, model_id, data_package_id, run_id=None):
                 continue
 
             # Apply transformation if specified
-            if transform and transform.startswith("hash"):
-                select_columns.append(f"MD5(toString({topic_field})) as {model_field}")
+            if transform:
+                try:
+                    # Use comprehensive transformation system
+                    transformed_expr = apply_transformation_to_column(
+                        topic_field, transform
+                    )
+                    select_columns.append(f"{transformed_expr} as {model_field}")
+                except TransformationError as e:
+                    # If transformation fails, log error and fall back to direct mapping
+                    logger.warning(
+                        f"Transformation error for field {model_field}: {e}. Using direct mapping."
+                    )
+                    select_columns.append(f"{topic_field} as {model_field}")
             else:
                 select_columns.append(f"{topic_field} as {model_field}")
 

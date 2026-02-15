@@ -118,10 +118,22 @@ export function ModelDetailPage() {
   const loadDataMutation = useMutation({
     mutationFn: () => api.models.loadData(id!),
     onSuccess: (data: any) => {
+      let message = "";
+      if (data.packages_queued > 0) {
+        message = `Queued ${data.packages_queued} data packages for loading`;
+        if (data.packages_already_loaded > 0) {
+          message += ` (${data.packages_already_loaded} already loaded)`;
+        }
+      } else if (data.packages_already_loaded > 0) {
+        message = `All ${data.packages_already_loaded} data packages have already been loaded`;
+      } else {
+        message = "No data packages to load";
+      }
+      
       notifications.show({
-        title: "Data Loading Started",
-        message: `Queued ${data.packages_queued} data packages for loading`,
-        color: "blue",
+        title: data.packages_queued > 0 ? "Data Loading Started" : "Data Loading Status",
+        message: message,
+        color: data.packages_queued > 0 ? "blue" : "green",
       });
       // Refetch loading progress
       refetchLoadingProgress();
