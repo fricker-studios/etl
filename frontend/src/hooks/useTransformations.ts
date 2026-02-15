@@ -25,7 +25,7 @@ export interface TransformationsResponse {
 export function useTransformations() {
   return useQuery<TransformationsResponse>({
     queryKey: ["transformations"],
-    queryFn: () => api.transformations.list(),
+    queryFn: () => api.transformations.list() as Promise<TransformationsResponse>,
     staleTime: 1000 * 60 * 60, // Cache for 1 hour since transformations don't change often
   });
 }

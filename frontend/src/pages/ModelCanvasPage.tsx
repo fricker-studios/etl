@@ -41,7 +41,7 @@ import { useNavigate } from "react-router-dom";
 import { useDisclosure } from "@mantine/hooks";
 import { useTopics } from "../hooks/useTopics";
 import { useCreateModel } from "../hooks/useModels";
-import { useTransformations } from "../hooks/useTransformations";
+import { useTransformations, type TransformationCategory } from "../hooks/useTransformations";
 import { notifications } from "@mantine/notifications";
 
 type EntityType = "hub" | "link" | "satellite" | "fact" | "dimension";
@@ -1612,7 +1612,7 @@ export function ModelCanvasPage() {
                         <Stack gap={0} style={{ maxHeight: "400px", overflowY: "auto" }}>
                           {transformations &&
                             Object.entries(transformations).map(
-                              ([category, categoryData]) => {
+                              ([category, categoryData]: [string, TransformationCategory]) => {
                                 const Icon = getTransformationIcon(category);
                                 return (
                                   <Box key={category}>
