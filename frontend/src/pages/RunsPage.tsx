@@ -1,9 +1,23 @@
-import { Card, Stack, Badge, Table, Text } from "@mantine/core";
+import {
+  Card,
+  Stack,
+  Badge,
+  Table,
+  Text,
+  Pagination,
+  Group,
+} from "@mantine/core";
+import { useState } from "react";
 import { PageHeader } from "../components/common/PageHeader";
 import { useRuns } from "../hooks/useRuns";
 
 export function RunsPage() {
-  const { data: runs = [], isLoading } = useRuns();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [perPage] = useState(10);
+  const { data, isLoading } = useRuns(currentPage, perPage);
+
+  const runs = data?.results || [];
+  const pagination = data?.pagination;
 
   const formatDuration = (seconds?: number) => {
     if (!seconds) return "—";
@@ -82,6 +96,17 @@ export function RunsPage() {
             )}
           </Table.Tbody>
         </Table>
+
+        {/* Pagination */}
+        {pagination && pagination.total_pages > 1 && (
+          <Group justify="center" mt="md">
+            <Pagination
+              total={pagination.total_pages}
+              value={currentPage}
+              onChange={setCurrentPage}
+            />
+          </Group>
+        )}
       </Card>
     </Stack>
   );

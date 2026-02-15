@@ -1452,7 +1452,66 @@ class RunViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Run.objects.filter(user=self.request.user)
+        return Run.objects.filter(user=self.request.user).order_by("-created_at")
+
+    def list(self, request, *args, **kwargs):
+        """List runs with pagination support"""
+        try:
+            # Get pagination parameters with validation
+            try:
+                page = int(request.query_params.get("page", 1))
+                per_page = int(request.query_params.get("per_page", 10))
+            except (ValueError, TypeError):
+                return Response(
+                    {
+                        "error": "Invalid pagination parameters. page and per_page must be integers."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Validate pagination parameters
+            if page < 1:
+                return Response(
+                    {"error": "page must be greater than 0"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if per_page < 1 or per_page > 100:
+                return Response(
+                    {"error": "per_page must be between 1 and 100"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Get queryset
+            queryset = self.get_queryset()
+            total_count = queryset.count()
+
+            # Apply pagination
+            start_idx = (page - 1) * per_page
+            end_idx = start_idx + per_page
+            paginated_queryset = queryset[start_idx:end_idx]
+
+            # Serialize data
+            serializer = self.get_serializer(paginated_queryset, many=True)
+
+            # Calculate pagination metadata
+            total_pages = (total_count + per_page - 1) // per_page
+
+            return Response(
+                {
+                    "results": serializer.data,
+                    "pagination": {
+                        "page": page,
+                        "per_page": per_page,
+                        "total_count": total_count,
+                        "total_pages": total_pages,
+                    },
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error listing runs: {str(e)}")
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
