@@ -28,7 +28,10 @@ jobs:
         
       - name: Build UI files
         env:
-          VITE_SENTRY_ENVIRONMENT: dev
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          VITE_SENTRY_RELEASE: ${{ github.ref_name }}
+          VITE_SENTRY_ENVIRONMENT: prod
           VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           cd frontend
