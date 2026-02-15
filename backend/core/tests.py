@@ -975,3 +975,167 @@ class StreamSchedulingTests(TestCase):
         task = PeriodicTask.objects.filter(name=task_name).first()
         self.assertIsNotNone(task)
         self.assertEqual(task.id, original_task.id)  # Same task object
+
+
+class LoadDataSkipAlreadyLoadedTests(TestCase):
+    """Tests for load_data endpoint skipping already-loaded packages."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="testuser", password="testpass")
+        
+        # Create a storage backend
+        self.storage_backend = StorageBackend.objects.create(
+            user=self.user,
+            name="Test ClickHouse",
+            kind="clickhouse",
+            hosts=[{"host": "localhost", "port": 8123}],
+            database="test_db",
+        )
+        
+        # Create topic and revision
+        self.topic = Topic.objects.create(
+            user=self.user,
+            name="Test Topic",
+            description="Test topic",
+        )
+        self.topic_revision = TopicRevision.objects.create(
+            topic=self.topic,
+            revision_number=1,
+            schema=[{"name": "id", "data_type": "integer"}],
+        )
+        
+        # Create data packages
+        self.package1 = DataPackage.objects.create(
+            user=self.user,
+            name="package1.parquet",
+            topic_revision=self.topic_revision,
+            file_path="data/package1.parquet",
+            file_size_bytes=1024,
+            status="materialized",
+        )
+        self.package2 = DataPackage.objects.create(
+            user=self.user,
+            name="package2.parquet",
+            topic_revision=self.topic_revision,
+            file_path="data/package2.parquet",
+            file_size_bytes=2048,
+            status="materialized",
+        )
+        self.package3 = DataPackage.objects.create(
+            user=self.user,
+            name="package3.parquet",
+            topic_revision=self.topic_revision,
+            file_path="data/package3.parquet",
+            file_size_bytes=3072,
+            status="materialized",
+        )
+        
+    def test_skip_already_loaded_packages(self):
+        """Test that load_data skips packages that have already been successfully loaded."""
+        from .models import Model, Run
+        
+        # Create a model
+        model = Model.objects.create(
+            user=self.user,
+            name="Test Model",
+            type="data_vault",
+            clickhouse_backend=self.storage_backend,
+            table_created=True,
+            table_name="test_table",
+            hubs=[{
+                "name": "TestHub",
+                "business_key": "id",
+                "field_mappings": [],
+            }],
+        )
+        model.topics.add(self.topic)
+        
+        # Create a successful run for package1 (already loaded)
+        Run.objects.create(
+            user=self.user,
+            model=model,
+            data_package=self.package1,
+            name="Load package1",
+            status="success",
+        )
+        
+        # Create a failed run for package2 (should be retried)
+        Run.objects.create(
+            user=self.user,
+            model=model,
+            data_package=self.package2,
+            name="Load package2",
+            status="failed",
+        )
+        
+        # package3 has no runs (should be loaded)
+        
+        # Now test the filtering logic (simulating what load_data does)
+        from django.db.models import Q
+        
+        data_packages = DataPackage.objects.filter(
+            topic_revision=self.topic_revision,
+            status="materialized",
+        )
+        
+        # Filter out packages with successful runs
+        successfully_loaded_package_ids = Run.objects.filter(
+            model=model,
+            data_package__in=data_packages,
+            status="success",
+        ).values_list("data_package_id", flat=True)
+        
+        packages_to_load = data_packages.exclude(id__in=successfully_loaded_package_ids)
+        
+        # Should load package2 and package3, but not package1
+        self.assertEqual(packages_to_load.count(), 2)
+        self.assertIn(self.package2, packages_to_load)
+        self.assertIn(self.package3, packages_to_load)
+        self.assertNotIn(self.package1, packages_to_load)
+        
+    def test_all_packages_already_loaded(self):
+        """Test behavior when all packages are already loaded."""
+        from .models import Model, Run
+        
+        # Create a model
+        model = Model.objects.create(
+            user=self.user,
+            name="Test Model",
+            type="data_vault",
+            clickhouse_backend=self.storage_backend,
+            table_created=True,
+            table_name="test_table",
+            hubs=[{
+                "name": "TestHub",
+                "business_key": "id",
+                "field_mappings": [],
+            }],
+        )
+        model.topics.add(self.topic)
+        
+        # Create successful runs for all packages
+        for package in [self.package1, self.package2, self.package3]:
+            Run.objects.create(
+                user=self.user,
+                model=model,
+                data_package=package,
+                name=f"Load {package.name}",
+                status="success",
+            )
+        
+        # Test the filtering logic
+        data_packages = DataPackage.objects.filter(
+            topic_revision=self.topic_revision,
+            status="materialized",
+        )
+        
+        successfully_loaded_package_ids = Run.objects.filter(
+            model=model,
+            data_package__in=data_packages,
+            status="success",
+        ).values_list("data_package_id", flat=True)
+        
+        packages_to_load = data_packages.exclude(id__in=successfully_loaded_package_ids)
+        
+        # Should not load any packages
+        self.assertEqual(packages_to_load.count(), 0)

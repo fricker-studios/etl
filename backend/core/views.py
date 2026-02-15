@@ -1167,6 +1167,27 @@ class ModelViewSet(viewsets.ModelViewSet):
                     }
                 )
 
+            # Filter out packages that have already been successfully loaded
+            # Check for existing successful runs for this model + package combination
+            successfully_loaded_package_ids = Run.objects.filter(
+                model=model_instance,
+                data_package__in=data_packages,
+                status="success",
+            ).values_list("data_package_id", flat=True)
+
+            # Exclude already loaded packages
+            packages_to_load = data_packages.exclude(id__in=successfully_loaded_package_ids)
+            already_loaded_count = data_packages.count() - packages_to_load.count()
+
+            if not packages_to_load.exists():
+                return Response(
+                    {
+                        "message": f"All {already_loaded_count} data packages have already been loaded successfully",
+                        "packages_queued": 0,
+                        "packages_already_loaded": already_loaded_count,
+                    }
+                )
+
             # Import the tasks
             from core.tasks import load_data_package_task, optimize_model_table_task
             from celery import chord
@@ -1175,7 +1196,7 @@ class ModelViewSet(viewsets.ModelViewSet):
             runs_created = []
             task_signatures = []
 
-            for package in data_packages:
+            for package in packages_to_load:
                 # Create a Run for tracking
                 run = Run.objects.create(
                     user=request.user,
@@ -1207,13 +1228,23 @@ class ModelViewSet(viewsets.ModelViewSet):
             chord(task_signatures)(optimize_callback)
 
             logger.info(
-                f"Queued {len(runs_created)} data loading tasks for model {model_instance.name} with optimization callback"
+                f"Queued {len(runs_created)} data loading tasks for model {model_instance.name} with optimization callback (skipped {already_loaded_count} already loaded packages)"
             )
+
+            message_parts = []
+            if len(runs_created) > 0:
+                message_parts.append(f"Queued {len(runs_created)} data packages for loading")
+            if already_loaded_count > 0:
+                message_parts.append(f"skipped {already_loaded_count} already loaded")
+            message = " (".join(message_parts)
+            if already_loaded_count > 0 and len(runs_created) > 0:
+                message += ")"
 
             return Response(
                 {
-                    "message": f"Queued {len(runs_created)} data packages for loading (will optimize after completion)",
+                    "message": message,
                     "packages_queued": len(runs_created),
+                    "packages_already_loaded": already_loaded_count,
                     "runs": runs_created,
                 }
             )
