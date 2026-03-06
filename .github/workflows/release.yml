@@ -50,8 +50,7 @@ jobs:
     uses: fricker-studios/github-actions/.github/workflows/build-multiarch-image.yml@main
     with:
       dockerfile_path: Dockerfile.nginx
-      image_name: ${{ vars.INTERNAL_REGISTRY_URL }}/internal/etl-ui
-      registry: ${{ vars.INTERNAL_REGISTRY_URL }}
+      image_name: docker.io/alexfricker/etl-ui
       push: true
       tags: |
         ${{ github.ref_name }}
@@ -67,8 +66,7 @@ jobs:
     uses: fricker-studios/github-actions/.github/workflows/build-multiarch-image.yml@main
     with:
       dockerfile_path: Dockerfile
-      image_name: ${{ vars.INTERNAL_REGISTRY_URL }}/internal/etl-api
-      registry: ${{ vars.INTERNAL_REGISTRY_URL }}
+      image_name: docker.io/alexfricker/etl-api
       push: true
       tags: |
         ${{ github.ref_name }}
