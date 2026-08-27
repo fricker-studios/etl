@@ -190,6 +190,10 @@ CORS_ALLOWED_ORIGINS = os.environ.get(
 ).split(",")
 CORS_ALLOW_CREDENTIALS = True
 
+CSRF_ALLOWED_ORIGINS = os.environ.get(
+    "CSRF_ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000"
+).split(",")
+
 # Spectacular settings for API documentation
 SPECTACULAR_SETTINGS = {
     "TITLE": "ETL Pipeline API",
